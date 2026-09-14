@@ -13,8 +13,8 @@ export class AIRouter implements AIProvider {
     this.gemini = new GeminiProvider();
   }
 
-  async generateContent(prompt: string, context?: any, systemInstruction?: string): Promise<string> {
-    return this.gemini.generateContent(prompt, context, systemInstruction);
+  async generateContent(prompt: string): Promise<string> {
+    return this.gemini.generateContent(prompt);
   }
 
   async analyzeNews(newsData: any): Promise<any> {

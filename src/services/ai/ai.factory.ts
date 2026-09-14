@@ -1,18 +1,20 @@
 import { AIProvider } from "./ai.provider.interface";
 import { GeminiProvider } from "./gemini.provider";
 import { MockProvider } from "./mock.provider";
+import { AIRouter, AITaskType } from "./ai.router";
 
 export class AIFactory {
-  static getProvider(providerName?: string): AIProvider {
-    if (!providerName) {
-      providerName = process.env.AI_MODEL || "gemini-3.1-flash-lite";
+  static getProvider(name?: string): AIProvider {
+    const providerName = name || process.env.AI_MODEL || "mock";
+    
+    if (providerName.includes("gemini")) {
+      return new GeminiProvider();
     }
+    
+    return new MockProvider();
+  }
 
-    if (providerName.includes("mock") || providerName.includes("test")) {
-      return new MockProvider();
-    }
-
-    // Her durumda Gemini dondur
-    return new GeminiProvider();
+  static getRouter(task: AITaskType): AIProvider {
+    return new AIRouter(task);
   }
 }

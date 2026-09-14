@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -16,10 +16,10 @@ export default function AiProvidersSettings() {
     try {
       const res = await testProviderAction(provider);
       if (provider === "gemini") {
-        setGeminiResult(res.success ? \? Gemini API baðlantýsý baþarýlý\nModel: gemini-3.1-flash-lite\nResponse time: \ms\ : \? Gemini API baðlantýsý baþarýsýz\nHata: \\);
+        setGeminiResult(res.success ? `SUCCESS Gemini API baglantisi basarili\nResponse time: ${res.time}ms` : `ERROR Gemini API baglantisi basarisiz\nHata: ${res.error}`);
       }
     } catch (e: any) {
-      setGeminiResult(\? Hata: \\);
+      setGeminiResult(`ERROR Hata: ${e.message}`);
     } finally {
       setTestingGemini(false);
     }
@@ -32,7 +32,7 @@ export default function AiProvidersSettings() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Google Gemini API</CardTitle>
-              <CardDescription>Ana içerik üretimi ve haber analizi (gemini-3.1-flash-lite)</CardDescription>
+              <CardDescription>Ana icerik uretimi ve haber analizi (gemini-3.1-flash-lite)</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -47,7 +47,7 @@ export default function AiProvidersSettings() {
           </Button>
 
           {geminiResult && (
-            <div className={\	ext-sm p-3 rounded-md whitespace-pre-wrap \\}>
+            <div className={`text-sm p-3 rounded-md whitespace-pre-wrap ${geminiResult.includes('SUCCESS') ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-red-500/10 text-red-600 dark:text-red-400'}`}>
               {geminiResult}
             </div>
           )}
@@ -56,3 +56,4 @@ export default function AiProvidersSettings() {
     </div>
   );
 }
+
