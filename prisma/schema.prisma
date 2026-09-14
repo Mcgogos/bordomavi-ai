@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Enums
+enum Role {
+  ADMIN
+  EDITOR
+}
+
+enum NewsSourceType {
+  LOCAL
+  NATIONAL
+  CLUB
+  INTERNATIONAL
+}
+
+enum RecommendedAction {
+  IGNORE
+  MONITOR
+  CREATE_CONTENT
+  URGENT
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AIConfidence {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ConfidenceLevel {
+  VERIFIED
+  POSSIBLE
+  CLAIM
+  UNVERIFIED
+}
+
+enum ContentType {
+  NEWS
+  COLUMN
+  POLL
+  NOSTALGIA
+  MATCH_PREVIEW
+  MATCH_REPORT
+  TRANSFER
+  PLAYER_ANALYSIS
+  MANAGEMENT_ANALYSIS
+  REELS_SCRIPT
+  FAN_CONTENT
+  QUESTION
+}
+
+enum ContentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  READY_TO_PUBLISH
+  SCHEDULED
+  PUBLISHED
+  REJECTED
+  FAILED
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
+// Models
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   
+  name      String
+  role      Role     @default(EDITOR)
+  createdAt DateTime @default(now())
+}
+
+model NewsSource {
+  id        String         @id @default(cuid())
+  name      String
+  url       String
+  rssUrl    String?
+  type      NewsSourceType
+  priority  Int            @default(50)
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  news      News[]
+}
+
+model NewsCluster {
+  id          String   @id @default(cuid())
+  topic       String
+  summary     String?
+  news        News[]
+  createdAt   DateTime @default(now())
+}
+
+model News {
+  id               String          @id @default(cuid())
+  title            String
+  url              String          @unique
+  publishedAt      DateTime
+  summary          String?
+  
+  sourceId         String
+  source           NewsSource      @relation(fields: [sourceId], references: [id])
+  category         String?
+  
+  externalId       String?
+  canonicalUrl     String?
+  contentHash      String?
+  
+  importanceScore  Int?
+  credibilityScore Int?
+  relevanceScore   Int?
+  discussionScore  Int?
+  shareScore       Int?
+  viralScore       Int?
+  aiSummary        String?
+  aiKeyPoints      Json?
+  aiRecommendedAction RecommendedAction?
+  aiRecommendedContentType ContentType?
+  aiRiskLevel      RiskLevel?
+  aiConfidence     AIConfidence?
+  aiAnalyzedAt     DateTime?
+  analysisAttempts Int             @default(0)
+  aiAnalysisError  String?
+  confidenceLevel  ConfidenceLevel?
+  isTrabzonsporRelated Boolean?
+  
+  isProcessed      Boolean         @default(false)
+  
+  clusterId        String?
+  cluster          NewsCluster?    @relation(fields: [clusterId], references: [id])
+  
+  content          Content?
+  
+  createdAt        DateTime        @default(now())
+}
+
+model Content {
+  id               String          @id @default(cuid())
+  type             ContentType
+  title            String
+  body             String          
+  
+  targetAudience   String?
+  tone             String?
+  aiReasoning      String?         
+  hashtags         String?         
+  suggestedTime    DateTime?       
+  
+  viralScore       Int?
+  newsValueScore   Int?
+  discussionScore  Int?
+  shareScore       Int?
+  confidenceScore  Int?
+  qualityScore     Int?
+  qualityCheckAttempts Int @default(0)
+  
+  status           ContentStatus   @default(DRAFT)
+  
+  scheduledFor     DateTime?
+  publishedAt      DateTime?
+  facebookPostId   String?
+  
+  mediaId          String?
+  media            Media?          @relation(fields: [mediaId], references: [id])
+  
+  sourceNewsId     String?         @unique
+  sourceNews       News?           @relation(fields: [sourceNewsId], references: [id])
+  
+  versions         ContentVersion[]
+  analytics        Analytics[]     
+  
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+model ContentVersion {
+  id        String   @id @default(cuid())
+  contentId String
+  content   Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model Media {
+  id            String    @id @default(cuid())
+  type          String    
+  url           String
+  concept       String?
+  prompt        String?
+  isAiGenerated Boolean   @default(false)
+  contents      Content[]
+  createdAt     DateTime  @default(now())
+}
+
+model Analytics {
+  id             String   @id @default(cuid())
+  contentId      String
+  content        Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  reach          Int      @default(0)
+  impressions    Int      @default(0)
+  reactions      Int      @default(0)
+  comments       Int      @default(0)
+  shares         Int      @default(0)
+  engagementRate Float    @default(0.0)
+  recordedAt     DateTime @default(now()) 
+}
+
+model Prompt {
+  id          String   @id @default(cuid())
+  category    String   @unique 
+  text        String
+  isActive    Boolean  @default(true)
+}
+
+model SystemLog {
+  id        String   @id @default(cuid())
+  level     LogLevel
+  source    String   
+  message   String
+  details   String?
+  createdAt DateTime @default(now())
+}
