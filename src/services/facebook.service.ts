@@ -1,11 +1,4 @@
-/**
- * FacebookService — BordoMavi AI Editor
- * 
- * SECURITY:
- * - Token is ONLY read from server-side env (FACEBOOK_PAGE_ACCESS_TOKEN)
- * - Token is NEVER logged, returned in responses, or exposed to the client
- * - Token is masked if it appears in error messages
- */
+﻿import { prisma } from '@/lib/db';
 
 const GRAPH_API_VERSION = 'v21.0';
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -18,266 +11,75 @@ function maskToken(text: string, token: string | undefined): string {
   return text.replace(new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[HIDDEN_TOKEN]');
 }
 
-export async function resolvePageToken(): Promise<string> {
-  const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
-  const pageId = process.env.FACEBOOK_PAGE_ID;
-  if (!token) throw new Error("FACEBOOK_PAGE_ACCESS_TOKEN tanımlanmamış.");
-  if (!pageId) throw new Error("FACEBOOK_PAGE_ID tanımlanmamış.");
+export async function resolvePageToken(): Promise<{ token: string, pageId: string }> {
+  // First check database settings
+  const pageIdSetting = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_PAGE_ID' } });
+  const pageTokenSetting = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_PAGE_TOKEN' } });
 
-  try {
-    // Check if token is user or page token by requesting page token
-    console.log(`[resolvePageToken] Fetching page token for page ${pageId}`);
-    const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${pageId}?fields=access_token&access_token=${token}`);
-    const data = await res.json();
-    
-    if (data.access_token) {
-      console.log(`[resolvePageToken] Successfully fetched page token.`);
-      return data.access_token; // Return the actual page token
-    }
-    console.log(`[resolvePageToken] No access_token in response:`, JSON.stringify(data));
-    return token; // Fallback to provided token if conversion fails or it's already a page token
-  } catch (e: any) {
-    console.error(`[resolvePageToken] Error fetching page token:`, e.message);
-    return token; // If error, try using the original token
-  }
-}
+  const token = pageTokenSetting?.value || process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+  const pageId = pageIdSetting?.value || process.env.FACEBOOK_PAGE_ID;
 
-export function getConfig() {
-  const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
-  const pageId = process.env.FACEBOOK_PAGE_ID;
-  const isMock = process.env.FACEBOOK_MOCK_MODE === 'true';
+  if (!token) throw new Error("FACEBOOK_PAGE_ACCESS_TOKEN tanimlanmamis.");
+  if (!pageId) throw new Error("FACEBOOK_PAGE_ID tanimlanmamis.");
 
-  if (!token) {
-    throw new Error('FACEBOOK_PAGE_ACCESS_TOKEN .env dosyasinda bulunamadi. Lutfen ekleyin.');
-  }
-  if (!pageId) {
-    throw new Error('FACEBOOK_PAGE_ID .env dosyasinda bulunamadi.');
-  }
-
-  return { token, pageId, isMock };
+  return { token, pageId };
 }
 
 export class FacebookService {
-  /**
-   * Publish a post to the Facebook Page.
-   * Supports text-only or with image (multipart/form-data for localhost URLs).
-   * 
-   * @param message  Post caption/body
-   * @param mediaUrl Optional URL for the image (localhost URLs are downloaded and uploaded as binary)
-   * @param lockKey  Unique key to prevent duplicate concurrent publishes (e.g. content DB id)
-   */
+  static async verifyRealConnection() {
+    try {
+      const { token, pageId } = await resolvePageToken();
+      const res = await fetch(`${GRAPH_API_BASE}/${pageId}?fields=id,name,followers_count&access_token=${token}`);
+      const data = await res.json();
+      
+      if (data.error) {
+        return { success: false, message: data.error.message };
+      }
+      return { success: true, pageName: data.name, followers: data.followers_count, pageId: data.id };
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  }
+
   static async publishPost(message: string, mediaUrl?: string, lockKey?: string) {
     const startTime = Date.now();
-
-    // --- MOCK MODE ---
     const isMock = process.env.FACEBOOK_MOCK_MODE === 'true';
+    
     if (isMock) {
-      console.log('[FacebookService] [MOCK] Publishing in MOCK MODE (FACEBOOK_MOCK_MODE=true)');
       await new Promise(r => setTimeout(r, 800));
       return { success: true, postId: `mock-post-${Date.now()}`, mockMode: true };
     }
 
-    // --- DUPLICATE GUARD ---
     if (lockKey) {
-      if (publishingLock.has(lockKey)) {
-        throw new Error('Bu icerik zaten yayinlanma surecinde. Lutfen islemin tamamlanmasini bekleyin.');
-      }
+      if (publishingLock.has(lockKey)) throw new Error('Yayinlama zaten devam ediyor');
       publishingLock.add(lockKey);
     }
 
-    let token: string | undefined;
     try {
-      const config = getConfig();
-      token = await resolvePageToken(); // Gerçek Page Token'ı al
-      const { pageId } = config;
-
-      const endpoint = mediaUrl
-        ? `${GRAPH_API_BASE}/${pageId}/photos`
-        : `${GRAPH_API_BASE}/${pageId}/feed`;
-
-      console.log(`[FacebookService] POST ${endpoint.replace(GRAPH_API_BASE, '')} | mediaUrl: ${mediaUrl ? 'YES' : 'NO'}`);
-
-      let response: Response;
+      const { token, pageId } = await resolvePageToken();
+      let url = `${GRAPH_API_BASE}/${pageId}/feed`;
+      let payload: any = { message, access_token: token };
 
       if (mediaUrl) {
-        // Download image first with standard browser headers to bypass 401/403 blocks
-        const imgRes = await fetch(mediaUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-            'Referer': mediaUrl
-          }
-        });
-        
-        if (!imgRes.ok) {
-          throw new Error(`Gorsel indirilemedi: ${imgRes.status} ${imgRes.statusText}`);
-        }
-        const blob = await imgRes.blob();
-
-        const formData = new FormData();
-        formData.append('source', blob, 'bordomavi-post.png');
-        formData.append('caption', message);
-
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData as any,
-        });
-      } else {
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ message }),
-        });
+        url = `${GRAPH_API_BASE}/${pageId}/photos`;
+        payload = { caption: message, url: mediaUrl, access_token: token };
       }
 
-      const responseTime = Date.now() - startTime;
-      const data = await response.json();
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
 
-      // Structured log (NO TOKEN)
-      console.log(JSON.stringify({
-        timestamp: new Date().toISOString(),
-        operation: 'publishPost',
-        pageId: process.env.FACEBOOK_PAGE_ID,
-        success: response.ok,
-        httpStatus: response.status,
-        facebookErrorCode: data.error?.code ?? null,
-        responseTimeMs: responseTime,
-      }));
-
-      if (!response.ok) {
-        const fbCode = data.error?.code;
-        const rawMsg = data.error?.message || response.statusText;
-        const safeMsg = maskToken(rawMsg, token);
-
-        // Map Facebook error codes to human-readable messages
-        const friendlyMessages: Record<number, string> = {
-          190: 'Facebook access token gecersiz veya suresi dolmus. Lutfen yeni bir Page Access Token alin.',
-          200: 'Yetki hatasi: Sayfa adina yayin yapma izni yok. pages_manage_posts ve pages_read_engagement izinlerini kontrol edin.',
-          100: 'Gecersiz parametre. Mesaj icerigi veya gorsel URL kontrol edin.',
-          368: 'Bu icerik Facebook politikalarina aykiri oldugu icin paylasilamadi.',
-          4:   'Facebook rate limit asildi. Lutfen birkas dakika bekleyin.',
-          613: 'Facebook API cagri limiti asildi.',
-        };
-
-        const friendlyMsg = fbCode && friendlyMessages[fbCode]
-          ? friendlyMessages[fbCode]
-          : `Facebook API Hatası (Kod: ${fbCode ?? response.status}): ${safeMsg}`;
-
-        throw new Error(friendlyMsg);
+      if (data.error) {
+        const safeError = maskToken(JSON.stringify(data.error), token);
+        throw new Error(safeError);
       }
 
-      return {
-        success: true,
-        postId: data.id,
-        mockMode: false,
-      };
-
-    } catch (error: any) {
-      const safeMsg = maskToken(error.message || 'Bilinmeyen hata', token);
-      console.error('[FacebookService] Yayın hatası:', safeMsg);
-      throw new Error(safeMsg);
+      return { success: true, postId: data.post_id || data.id, mockMode: false };
     } finally {
       if (lockKey) publishingLock.delete(lockKey);
-    }
-  }
-
-  /**
-   * Quick config check — does NOT make an API call.
-   * Returns token length and mode for admin display.
-   */
-  static async testConnection() {
-    const pageId = process.env.FACEBOOK_PAGE_ID;
-    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
-    const isMock = process.env.FACEBOOK_MOCK_MODE === 'true';
-
-    if (!pageId || !token) {
-      return {
-        success: false,
-        message: 'Yapılandırma eksik: FACEBOOK_PAGE_ID veya FACEBOOK_PAGE_ACCESS_TOKEN bulunamadı.',
-      };
-    }
-
-    return {
-      success: true,
-      message: `Yapılandırma tamam. Page ID: ${pageId} | Mod: ${isMock ? 'MOCK' : 'GERÇEK'} | Token: Yüklü (${token.length} karakter)`,
-    };
-  }
-
-  /**
-   * Live connection test — makes a real API call to verify the token.
-   * GET /{PAGE_ID}?fields=id,name
-   */
-  static async verifyRealConnection() {
-    const pageId = process.env.FACEBOOK_PAGE_ID;
-    let token: string | undefined;
-
-    try {
-      token = await resolvePageToken();
-    } catch (e: any) {
-      return { success: false, message: e.message };
-    }
-
-    if (!pageId || !token) {
-      return {
-        success: false,
-        message: 'FACEBOOK_PAGE_ID veya FACEBOOK_PAGE_ACCESS_TOKEN yapılandırılmamış.',
-      };
-    }
-
-    const startTime = Date.now();
-    try {
-      const url = `${GRAPH_API_BASE}/${pageId}?fields=id,name`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      const data = await response.json();
-      const responseTime = Date.now() - startTime;
-
-      console.log(JSON.stringify({
-        timestamp: new Date().toISOString(),
-        operation: 'verifyRealConnection',
-        pageId,
-        success: response.ok,
-        httpStatus: response.status,
-        facebookErrorCode: data.error?.code ?? null,
-        responseTimeMs: responseTime,
-      }));
-
-      if (!response.ok) {
-        const fbCode = data.error?.code;
-        const rawMsg = data.error?.message || response.statusText;
-        return {
-          success: false,
-          errorCode: fbCode,
-          message: fbCode === 190
-            ? 'Token geçersiz veya süresi dolmuş (Kod: 190). Lütfen yeni bir Page Access Token alın.'
-            : maskToken(rawMsg, token),
-        };
-      }
-
-      // Verify we got the right page
-      const isCorrectPage = data.id === pageId;
-      return {
-        success: true,
-        pageName: data.name,
-        pageId: data.id,
-        verified: isCorrectPage,
-        message: isCorrectPage
-          ? `FACEBOOK CONNECTED ✅ — Sayfa: ${data.name} (ID: ${data.id})`
-          : `Bağlantı kuruldu ancak dönen page ID (${data.id}) beklenen değerle eşleşmiyor.`,
-      };
-
-    } catch (error: any) {
-      return {
-        success: false,
-        message: maskToken(error.message || 'Bilinmeyen bağlantı hatası', token),
-      };
     }
   }
 }

@@ -18,6 +18,9 @@ export async function publishReadyContent(limit: number = 1) {
         status: 'READY_TO_PUBLISH',
         facebookPostId: null
       },
+      include: {
+        sourceNews: true
+      },
       take: limit * 2,
       orderBy: { createdAt: 'desc' }
     });
@@ -42,9 +45,13 @@ export async function publishReadyContent(limit: number = 1) {
         }
 
         // Dinamik görsel (OG Image) URL'sini oluştur.
-        // NOT: Facebook, localhost URL'lerine erişemez. Bu özellik canliya alındığında çalışacaktır.
+        // Orijinal haberdeki fotoğrafı arka plan olarak kullanmak için imageUrl ekle
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai-editor.netlify.app';
-        const mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(content.title)}`;
+        let mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(content.title)}`;
+        
+        if (content.sourceNews?.imageUrl) {
+          mediaUrl += `&imageUrl=${encodeURIComponent(content.sourceNews.imageUrl)}`;
+        }
 
         // Facebook'a hem metni hem de görseli (logo ile watermarklanmis) gonder.
         const publishResponse = await FacebookService.publishPost(messageBody, mediaUrl);

@@ -86,6 +86,7 @@ export async function runNewsCollector() {
               canonicalUrl: normalized.canonicalUrl,
               externalId: normalized.externalId,
               contentHash: normalized.contentHash,
+              imageUrl: normalized.imageUrl,
               summary: normalized.summary,
               publishedAt: normalized.publishedAt,
               sourceId: source.id,

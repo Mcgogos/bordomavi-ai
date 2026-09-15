@@ -8,6 +8,7 @@ export interface NormalizedNews {
   summary: string | null;
   publishedAt: Date;
   contentHash: string;
+  imageUrl?: string | null;
 }
 
 export function normalizeTitle(title: string): string {
@@ -15,7 +16,7 @@ export function normalizeTitle(title: string): string {
   return title
     .toLowerCase()
     .replace(/['"]/g, '')
-    .replace(/[^\w\sğüşıöç]/g, ' ')
+    .replace(/[^\w\sğüşöçığÜŞÖÇİ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -53,6 +54,18 @@ export function normalizeNewsItem(item: any): NormalizedNews | null {
 
   const externalId = item.guid || item.id || canonicalUrl;
 
+  // Extract Image URL
+  let imageUrl = null;
+  if (item.enclosure && item.enclosure.url && item.enclosure.url.match(/\.(jpeg|jpg|gif|png|webp)/i)) {
+    imageUrl = item.enclosure.url;
+  } else if (item['content:encoded'] || item.content) {
+    const contentToSearch = item['content:encoded'] || item.content;
+    const imgMatch = contentToSearch.match(/<img[^>]+src="([^">]+)"/i);
+    if (imgMatch && imgMatch[1]) {
+      imageUrl = imgMatch[1];
+    }
+  }
+
   // Basic HTML strip for summary
   let summary = item.contentSnippet || item.content || item.summary || null;
   if (summary) {
@@ -67,6 +80,7 @@ export function normalizeNewsItem(item: any): NormalizedNews | null {
     canonicalUrl,
     summary,
     publishedAt,
-    contentHash
+    contentHash,
+    imageUrl
   };
 }

@@ -8,8 +8,9 @@ import path from 'path';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const title = searchParams.get('title') || 'Trabzonspor\'da Flaş Gelişme!';
+    const title = searchParams.get('title') || "Trabzonspor'da Flaş Gelişme!";
     const summary = searchParams.get('summary') || '';
+    const externalImageUrl = searchParams.get('imageUrl') || null;
     
     // 1. TemplateSelector (Haber türünü analiz edip template seçer)
     const template = TemplateSelector.selectTemplate(title, summary);
@@ -42,14 +43,6 @@ export async function GET(request: NextRequest) {
     const logoPath = path.join(process.cwd(), 'public/assets/brand/bordomavi-logo.png');
     let logoDataUrl = '';
     try {
-      let appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || "http://localhost:3000";
-      if (appUrl.includes("*")) {
-        appUrl = "https://bordomavi-ai-editor.netlify.app";
-      }
-      
-      // Background imajını public klasöründen al
-      const bgUrl = new URL("/images/bordo-mavi-bg.jpg", appUrl).toString();
-
       const logoBuffer = fs.readFileSync(logoPath);
       logoDataUrl = `data:image/png;base64,${logoBuffer.toString('base64')}`;
     } catch (e) {
@@ -70,24 +63,52 @@ export async function GET(request: NextRequest) {
             fontFamily: 'sans-serif'
           }}
         >
-          {/* DIKKAT CEKICI ARKA PLAN (Dinamik ve Sert Renk Gecisleri) */}
-          <div style={{
-            position: 'absolute',
-            top: '-30%',
-            right: '-10%',
-            width: '900px',
-            height: '900px',
-            background: 'radial-gradient(circle, rgba(123,15,28,0.7) 0%, rgba(10,15,29,0) 70%)',
-          }} />
-          
-          <div style={{
-            position: 'absolute',
-            bottom: '-40%',
-            left: '-10%',
-            width: '1000px',
-            height: '1000px',
-            background: 'radial-gradient(circle, rgba(46,139,201,0.5) 0%, rgba(10,15,29,0) 60%)',
-          }} />
+          {/* EXTERNAL IMAGE BACKGROUND (If Available) */}
+          {externalImageUrl ? (
+            <>
+              <img 
+                src={externalImageUrl} 
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
+                }}
+              />
+              {/* BORDO-MAVI COLOR FILTER OVER EXTERNAL IMAGE */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                background: 'linear-gradient(135deg, rgba(123,15,29,0.85) 0%, rgba(46,139,201,0.85) 100%)',
+              }} />
+            </>
+          ) : (
+            <>
+              {/* DEFAULT DIKKAT CEKICI ARKA PLAN (Dinamik ve Sert Renk Gecisleri) */}
+              <div style={{
+                position: 'absolute',
+                top: '-30%',
+                right: '-10%',
+                width: '900px',
+                height: '900px',
+                background: 'radial-gradient(circle, rgba(123,15,28,0.7) 0%, rgba(10,15,29,0) 70%)',
+              }} />
+              
+              <div style={{
+                position: 'absolute',
+                bottom: '-40%',
+                left: '-10%',
+                width: '1000px',
+                height: '1000px',
+                background: 'radial-gradient(circle, rgba(46,139,201,0.5) 0%, rgba(10,15,29,0) 60%)',
+              }} />
+            </>
+          )}
 
           {/* Aksiyon Katmani (Cizgiler) */}
           <div style={{
@@ -109,14 +130,14 @@ export async function GET(request: NextRequest) {
             transform: 'rotate(15deg)'
           }} />
 
-          {/* OVERLAY ENGINE: Sol taraf icin sert karartma */}
+          {/* OVERLAY ENGINE: Sol taraf icin sert karartma (Metin okunabilirligi) */}
           <div style={{
             position: 'absolute',
             left: 0,
             top: 0,
             bottom: 0,
             width: '75%', 
-            background: 'linear-gradient(to right, rgba(10,15,29, 1) 0%, rgba(10,15,29, 0.8) 50%, transparent 100%)',
+            background: 'linear-gradient(to right, rgba(10,15,29, 0.95) 0%, rgba(10,15,29, 0.6) 60%, transparent 100%)',
             zIndex: 1
           }} />
 
@@ -144,68 +165,85 @@ export async function GET(request: NextRequest) {
               fontSize: '26px',
               letterSpacing: '3px',
               textTransform: 'uppercase',
-              boxShadow: `0 8px 32px ${badgeColor}`, // Tek golge
+              boxShadow: `0 8px 32px ${badgeColor}`,
               marginBottom: '40px',
               width: 'auto',
               alignSelf: 'flex-start',
-              border: `2px solid rgba(255,255,255,0.2)`
+              border: `2px solid ${badgeColor}`,
             }}>
               {badgeText}
             </div>
 
-            {/* Title */}
-            <div
-              style={{
-                fontSize: title.length > 60 ? '58px' : '72px',
-                fontWeight: '900',
-                lineHeight: 1.15,
-                color: colors.beyaz,
-                textShadow: '0 8px 32px rgba(0,0,0,0.9)', // Tek golge
+            {/* Headline (Title) - MAXIMUM CONTRAST */}
+            <h1 style={{
+              fontSize: title.length > 50 ? '54px' : '64px',
+              fontWeight: '900',
+              lineHeight: 1.15,
+              margin: '0 0 30px 0',
+              letterSpacing: '-1px',
+              textShadow: '0 4px 16px rgba(0,0,0,0.8)',
+              color: colors.beyaz
+            }}>
+              {title}
+            </h1>
+
+            {/* Sub-headline (Summary) */}
+            {summary && (
+              <p style={{
+                fontSize: '28px',
+                fontWeight: '500',
+                color: '#E2E8F0',
+                lineHeight: 1.4,
+                margin: 0,
+                opacity: 0.9,
                 display: '-webkit-box',
                 WebkitLineClamp: 3,
                 WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-                letterSpacing: '-1px'
-              }}
-            >
-              {title}
-            </div>
+                overflow: 'hidden'
+              }}>
+                {summary}
+              </p>
+            )}
+          </div>
 
-            {/* Alt cizgi */}
+          {/* BRANDING ENGINE (Bottom Right Logo) */}
+          <div style={{
+            position: 'absolute',
+            bottom: '40px',
+            right: '50px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            zIndex: 10
+          }}>
+            {logoDataUrl && (
+              <img 
+                src={logoDataUrl} 
+                width={logoConfig.width}
+                style={{ marginBottom: '16px' }}
+              />
+            )}
             <div style={{
-              marginTop: '45px',
-              display: 'flex',
-              alignItems: 'center'
+              fontSize: '20px',
+              fontWeight: 'bold',
+              color: 'rgba(255,255,255,0.7)',
+              letterSpacing: '2px'
             }}>
-               <div style={{ width: '60px', height: '6px', backgroundColor: '#E30A17' }} />
-               <div style={{ width: '120px', height: '6px', backgroundColor: '#0284C7' }} />
+              BORDOMAVI.COM
             </div>
           </div>
-          
-          {/* LOGO OVERLAY - SATORI SAFE CSS */}
-          {logoDataUrl && (
-            <div style={{
-              position: 'absolute',
-              right: '40px',
-              bottom: '40px',
-              backgroundColor: 'rgba(255,255,255,0.95)',
-              padding: '12px',
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.6)'
-            }}>
-              <img 
-                src={logoDataUrl}
-                style={{
-                  width: '130px', 
-                  height: '100px', 
-                  objectFit: 'contain'
-                }}
-              />
-            </div>
-          )}
+
+          {/* VIGNETTE ENGINE (Kenar Karartmalari) */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            boxShadow: 'inset 0 0 150px rgba(0,0,0,0.5)',
+            pointerEvents: 'none',
+            zIndex: 20
+          }} />
         </div>
       ),
       {
@@ -213,8 +251,8 @@ export async function GET(request: NextRequest) {
         height: canvasHeight,
       }
     );
-  } catch (e: any) {
-    console.error("OG Generation Error:", e.message);
+  } catch (error) {
+    console.error('OG Image Generation Error:', error);
     return new Response('Failed to generate image', { status: 500 });
   }
 }

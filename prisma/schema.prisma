@@ -91,6 +91,13 @@ model User {
   createdAt          DateTime @default(now())
 }
 
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model NewsSource {
   id        String         @id @default(cuid())
   name      String
@@ -126,6 +133,7 @@ model News {
   externalId       String?
   canonicalUrl     String?
   contentHash      String?
+  imageUrl         String?
   
   importanceScore  Int?
   credibilityScore Int?

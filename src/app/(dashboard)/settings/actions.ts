@@ -82,3 +82,26 @@ export async function testFacebookConnectionAction() {
     return { success: false, message: e.message || "Bilinmeyen hata" };
   }
 }
+
+export async function getFacebookStatusAction() {
+  try {
+    const pageIdSetting = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_PAGE_ID' } });
+    const pageTokenSetting = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_PAGE_TOKEN' } });
+    
+    // Check both DB and ENV for status
+    const pageId = pageIdSetting?.value || process.env.FACEBOOK_PAGE_ID;
+    const pageToken = pageTokenSetting?.value || process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+
+    if (!pageId || !pageToken) {
+      return { isConnected: false };
+    }
+
+    return { 
+      isConnected: true,
+      pageId: pageId,
+      pageName: 'Bordo-Mavi Sayfa' 
+    };
+  } catch (e: any) {
+    return { isConnected: false, error: e.message };
+  }
+}
