@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import db from "./db"; 
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "bordo-mavi-ai-editor-super-secret-key-development",
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {
