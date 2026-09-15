@@ -16,7 +16,7 @@ const CONTENT_TYPES = [
   { name: "Kulüp Açıklamaları", percentage: 10, color: "bg-red-500" },
 ];
 
-const TOPICS = ["#UğurcanÇakır", "#ÅampiyonlukYolunda", "#Transfer", "#BordoMavi", "#Avcı"];
+const TOPICS = ["#UğurcanÇakır", "#ŞampiyonlukYolunda", "#Transfer", "#BordoMavi", "#Avcı"];
 const BEST_TIMES = ["19:00 (Maç Sonu)", "12:30 (Öğle Arası)", "21:00 (Prime Time)"];
 
 export default function StrategyPage() {

@@ -29,8 +29,8 @@ export default async function MediaPage() {
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Medya KÃ¼tÃ¼phanesi</h1>
-        <p className="text-muted-foreground mt-1">Sisteme yÃ¼klenen medyalarÄ± ve AI tarafÄ±ndan anlÄ±k Ã¼retilen haber gÃ¶rsellerini yÃ¶netin.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Medya Kütüphanesi</h1>
+        <p className="text-muted-foreground mt-1">Sisteme yüklenen medyaları ve AI tarafından anlık üretilen haber görsellerini yönetin.</p>
       </div>
 
       <MediaClient dbMedia={dbMedia} generatedImages={recentContents} />

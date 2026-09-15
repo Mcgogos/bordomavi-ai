@@ -9,7 +9,7 @@ export default async function NewsPage() {
     where: {
       content: null
     },
-    // En son Ã§Ä±kan haberler en Ã¼ste
+    // En son çıkan haberler en üste
     orderBy: [
       { publishedAt: 'desc' }
     ],

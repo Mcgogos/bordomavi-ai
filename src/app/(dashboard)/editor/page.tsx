@@ -22,8 +22,8 @@ export default async function EditorPage() {
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Ä°Ã§erik EditÃ¶rÃ¼</h1>
-        <p className="text-muted-foreground mt-1">Yapay zekanÄ±n hazÄ±rladÄ±ÄŸÄ± metinleri inceleyin, dÃ¼zenleyin ve onaya gÃ¶nderin.</p>
+        <h1 className="text-3xl font-bold tracking-tight">İçerik Editörü</h1>
+        <p className="text-muted-foreground mt-1">Yapay zekanın hazırladığı metinleri inceleyin, düzenleyin ve onaya gönderin.</p>
       </div>
 
       <EditorClient initialContents={editableContents} />

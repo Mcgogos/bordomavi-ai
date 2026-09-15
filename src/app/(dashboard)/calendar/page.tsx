@@ -22,8 +22,8 @@ export default async function CalendarPage() {
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Ä°Ã§erik Takvimi</h1>
-        <p className="text-muted-foreground mt-1">Yapay zekanÄ±n planladÄ±ÄŸÄ± ve yayÄ±nladÄ±ÄŸÄ± tÃ¼m iÃ§eriklerin zaman Ã§izelgesi.</p>
+        <h1 className="text-3xl font-bold tracking-tight">İçerik Takvimi</h1>
+        <p className="text-muted-foreground mt-1">Yapay zekanın planladığı ve yayınladığı tüm içeriklerin zaman çizelgesi.</p>
       </div>
 
       <CalendarClient initialEvents={contents} />
