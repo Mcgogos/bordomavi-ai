@@ -16,7 +16,14 @@ export async function publishReadyContent(limit: number = 1) {
     const readyContents = await prisma.content.findMany({
       where: {
         status: 'READY_TO_PUBLISH',
-        facebookPostId: null
+        facebookPostId: null,
+        OR: [
+          // Never failed yet (no retry text in aiReasoning)
+          { aiReasoning: { equals: null } },
+          { NOT: { aiReasoning: { contains: 'Yayinlama Hatasi' } } },
+          // OR failed, but at least 15 minutes ago
+          { updatedAt: { lt: new Date(Date.now() - 15 * 60 * 1000) } }
+        ]
       },
       include: {
         sourceNews: true
@@ -72,15 +79,32 @@ export async function publishReadyContent(limit: number = 1) {
       } catch (err: any) {
         console.error(`[Content Publisher] Error publishing content ${content.id}:`, err);
         result.failed++;
-        // Don't fail the content status permanently yet, or set it to FAILED depending on the error
-        await prisma.content.update({
-          where: { id: content.id },
-          data: {
-            status: 'FAILED',
-            aiReasoning: (content.aiReasoning ? content.aiReasoning + '\n' : '') + 'Yayinlama Hatasi: ' + err.message
-          }
-        });
-        result.results.push({ contentId: content.id, error: err.message });
+        
+        // Retry logic parsing
+        const currentReasoning = content.aiReasoning || '';
+        const retryCount = (currentReasoning.match(/Yayinlama Hatasi/g) || []).length;
+        
+        if (retryCount >= 3) {
+          // Permanently fail after 3 retries
+          await prisma.content.update({
+            where: { id: content.id },
+            data: {
+              status: 'FAILED',
+              aiReasoning: currentReasoning + `\n[FATAL] Yayinlama Hatasi (Maksimum deneme asildi): ${err.message}`
+            }
+          });
+        } else {
+          // Keep as READY_TO_PUBLISH but update aiReasoning to trigger updatedAt timestamp
+          // The query will filter it out for 15 minutes
+          await prisma.content.update({
+            where: { id: content.id },
+            data: {
+              aiReasoning: currentReasoning + `\n[RETRY ${retryCount + 1}/3] Yayinlama Hatasi: ${err.message}`
+            }
+          });
+        }
+        
+        result.results.push({ contentId: content.id, error: err.message, retrying: retryCount < 3 });
       } finally {
         publishingIds.delete(content.id);
       }
