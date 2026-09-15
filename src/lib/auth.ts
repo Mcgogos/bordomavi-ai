@@ -1,4 +1,4 @@
-﻿process.env.AUTH_SECRET = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "bordo-mavi-ai-editor-super-secret-key-development-2026-secure";
+process.env.AUTH_SECRET = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "bordo-mavi-ai-editor-super-secret-key-development-2026-secure";
 
 if (process.env.NEXTAUTH_URL && process.env.NEXTAUTH_URL.includes("*")) {
   process.env.NEXTAUTH_URL = "https://bordomavi-ai-editor.netlify.app";
@@ -44,6 +44,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             
             // otplib importu dinamik veya üstte
             const { authenticator } = require("otplib");
+            authenticator.options = { window: 2 };
             const isValidToken = authenticator.verify({
               token: token,
               secret: user.twoFactorSecret

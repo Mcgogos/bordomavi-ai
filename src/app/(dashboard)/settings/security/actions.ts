@@ -21,8 +21,9 @@ export async function verifyAndEnable2FAAction(secret: string, token: string) {
   const session = await auth();
   if (!session?.user?.email) return { success: false, error: "Unauthorized" };
 
+  authenticator.options = { window: 2 };
   const isValid = authenticator.verify({ token, secret });
-  if (!isValid) return { success: false, error: "Geçersiz kod." };
+  if (!isValid) return { success: false, error: "Geçersiz kod. Lütfen telefon saatinizin otomatik/doğru olduğundan emin olun." };
 
   await prisma.user.update({
     where: { email: session.user.email },
