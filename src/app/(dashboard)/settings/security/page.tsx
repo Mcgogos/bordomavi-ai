@@ -16,8 +16,8 @@ export default async function SecurityPage() {
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Güvenlik</h1>
-        <p className="text-muted-foreground">İki Aşamalı Doğrulama (2FA) ve hesap güvenliği.</p>
+        <h1 className="text-2xl font-bold tracking-tight">GÃ¼venlik</h1>
+        <p className="text-muted-foreground">Ä°ki AÅŸamalÄ± DoÄŸrulama (2FA) ve hesap gÃ¼venliÄŸi.</p>
       </div>
       
       <div className="p-6 border rounded-xl bg-card shadow-sm">

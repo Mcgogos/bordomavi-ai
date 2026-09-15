@@ -16,7 +16,7 @@ export function SecurityClient({ is2FAEnabled }: { is2FAEnabled: boolean }) {
     if (res.success) {
       setSetupData({ secret: res.secret!, qrCodeUrl: res.qrCodeUrl! });
     } else {
-      toast.error("Hata oluştu.");
+      toast.error("Hata oluÅŸtu.");
     }
     setIsLoading(false);
   };
@@ -26,22 +26,22 @@ export function SecurityClient({ is2FAEnabled }: { is2FAEnabled: boolean }) {
     setIsLoading(true);
     const res = await verifyAndEnable2FAAction(setupData.secret, token);
     if (res.success) {
-      toast.success("2FA başarıyla aktif edildi!");
+      toast.success("2FA baÅŸarÄ±yla aktif edildi!");
       setSetupData(null);
     } else {
-      toast.error(res.error || "Doğrulama başarısız.");
+      toast.error(res.error || "DoÄŸrulama baÅŸarÄ±sÄ±z.");
     }
     setIsLoading(false);
   };
 
   const handleDisable = async () => {
-    if (!confirm("2FA'yı devre dışı bırakmak istediğinize emin misiniz?")) return;
+    if (!confirm("2FA'yÄ± devre dÄ±ÅŸÄ± bÄ±rakmak istediÄŸinize emin misiniz?")) return;
     setIsLoading(true);
     const res = await disable2FAAction();
     if (res.success) {
-      toast.success("2FA devre dışı bırakıldı.");
+      toast.success("2FA devre dÄ±ÅŸÄ± bÄ±rakÄ±ldÄ±.");
     } else {
-      toast.error("Hata oluştu.");
+      toast.error("Hata oluÅŸtu.");
     }
     setIsLoading(false);
   };
@@ -55,11 +55,11 @@ export function SecurityClient({ is2FAEnabled }: { is2FAEnabled: boolean }) {
           <ShieldAlert className="w-8 h-8 text-amber-500" />
         )}
         <div>
-          <h3 className="text-lg font-medium">İki Aşamalı Doğrulama (2FA)</h3>
+          <h3 className="text-lg font-medium">Ä°ki AÅŸamalÄ± DoÄŸrulama (2FA)</h3>
           <p className="text-sm text-muted-foreground">
             {is2FAEnabled 
-              ? "Hesabınız ekstra güvende. Giriş yaparken Authenticator kodu istenecektir."
-              : "Hesabınız risk altında. Hemen Google Authenticator ile korumaya alın."}
+              ? "HesabÄ±nÄ±z ekstra gÃ¼vende. GiriÅŸ yaparken Authenticator kodu istenecektir."
+              : "HesabÄ±nÄ±z risk altÄ±nda. Hemen Google Authenticator ile korumaya alÄ±n."}
           </p>
         </div>
       </div>
@@ -71,7 +71,7 @@ export function SecurityClient({ is2FAEnabled }: { is2FAEnabled: boolean }) {
           className="px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90 disabled:opacity-50 flex items-center"
         >
           {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <QrCode className="w-4 h-4 mr-2" />}
-          Kuruluma Başla
+          Kuruluma BaÅŸla
         </button>
       )}
 
@@ -81,14 +81,14 @@ export function SecurityClient({ is2FAEnabled }: { is2FAEnabled: boolean }) {
           disabled={isLoading}
           className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/20 rounded hover:bg-destructive/20 disabled:opacity-50"
         >
-          2FA'yı Devre Dışı Bırak
+          2FA'yÄ± Devre DÄ±ÅŸÄ± BÄ±rak
         </button>
       )}
 
       {setupData && (
         <div className="mt-6 p-6 border rounded-lg bg-muted/20 space-y-4">
-          <h4 className="font-medium">1. Uygulamayı İndirin</h4>
-          <p className="text-sm text-muted-foreground">Google Authenticator veya Authy uygulamasını açın.</p>
+          <h4 className="font-medium">1. UygulamayÄ± Ä°ndirin</h4>
+          <p className="text-sm text-muted-foreground">Google Authenticator veya Authy uygulamasÄ±nÄ± aÃ§Ä±n.</p>
           
           <h4 className="font-medium mt-4">2. QR Kodu Okutun</h4>
           <div className="bg-white p-2 inline-block rounded-md">
@@ -96,7 +96,7 @@ export function SecurityClient({ is2FAEnabled }: { is2FAEnabled: boolean }) {
           </div>
 
           <h4 className="font-medium mt-4">3. Kodu Girin</h4>
-          <p className="text-sm text-muted-foreground">Uygulamada gözüken 6 haneli şifreyi girin:</p>
+          <p className="text-sm text-muted-foreground">Uygulamada gÃ¶zÃ¼ken 6 haneli ÅŸifreyi girin:</p>
           <div className="flex gap-2 max-w-xs">
             <input 
               type="text" 
@@ -109,9 +109,9 @@ export function SecurityClient({ is2FAEnabled }: { is2FAEnabled: boolean }) {
             <button 
               onClick={handleVerify}
               disabled={token.length !== 6 || isLoading}
-              className="px-4 bg-primary text-primary-foreground rounded hover:opacity-90 disabled:opacity-50"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90 disabled:opacity-50"
             >
-              Doğrula
+              DoÄŸrula
             </button>
           </div>
         </div>

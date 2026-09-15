@@ -11,18 +11,18 @@ import { signOut } from "next-auth/react";
 
 const menu = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "Genel" },
-  { name: "Haber Akýþý", href: "/news", icon: Newspaper, group: "Genel" },
-  { name: "Ýçerik Merkezi", href: "/content", icon: FileText, group: "Ýçerik" },
-  { name: "Editör", href: "/editor", icon: Edit, group: "Ýçerik" },
+  { name: "Haber AkÄ±ÅŸÄ±", href: "/news", icon: Newspaper, group: "Genel" },
+  { name: "Ä°Ã§erik Merkezi", href: "/content", icon: FileText, group: "Ä°Ã§erik" },
+  { name: "EditÃ¶r", href: "/editor", icon: Edit, group: "Ä°Ã§erik" },
   { name: "Takvim", href: "/calendar", icon: Calendar, group: "Planlama" },
   { name: "Medya", href: "/media", icon: ImageIcon, group: "Planlama" },
   { name: "Analitik", href: "/analytics", icon: BarChart3, group: "Raporlar" },
   { name: "AI Strateji", href: "/strategy", icon: Brain, group: "Raporlar" },
   { name: "Ayarlar", href: "/settings", icon: Settings, group: "Sistem" },
-  { name: "Güvenlik", href: "/settings/security", icon: Shield, group: "Sistem" },
+  { name: "GÃ¼venlik", href: "/settings/security", icon: Shield, group: "Sistem" },
 ];
 
-const groups = ["Genel", "Ýçerik", "Planlama", "Raporlar", "Sistem"];
+const groups = ["Genel", "Ä°Ã§erik", "Planlama", "Raporlar", "Sistem"];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -39,7 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div className="flex flex-col">
               <span className="font-bold text-sm text-sidebar-foreground">BordoMavi<span className="text-[oklch(0.488_0.243_264.376)]">AI</span></span>
-              <div className="text-[10px] text-sidebar-foreground/50 uppercase tracking-widest">AI Editör</div>
+              <div className="text-[10px] text-sidebar-foreground/50 uppercase tracking-widest">AI EditÃ¶r</div>
             </div>
           </div>
         </div>
@@ -81,7 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="flex items-center gap-2 w-full px-2 py-2 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-md transition-all"
           >
             <LogOut className="w-4 h-4" />
-            <span>Çýkýþ Yap</span>
+            <span>Ã‡Ä±kÄ±ÅŸ Yap</span>
           </button>
         </div>
       </aside>

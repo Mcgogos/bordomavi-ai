@@ -22,7 +22,7 @@ export async function verifyAndEnable2FAAction(secret: string, token: string) {
   if (!session?.user?.email) return { success: false, error: "Unauthorized" };
 
   const isValid = authenticator.verify({ token, secret });
-  if (!isValid) return { success: false, error: "Geçersiz kod." };
+  if (!isValid) return { success: false, error: "GeÃ§ersiz kod." };
 
   await prisma.user.update({
     where: { email: session.user.email },

@@ -17,9 +17,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-md p-8 rounded-xl border border-border bg-card">
         <h1 className="text-2xl font-bold text-center mb-6">
-          <span className="text-[oklch(0.488_0.243_264.376)]">BORDO </span>MAVÝ
+          <span className="text-[oklch(0.488_0.243_264.376)]">BORDO </span>MAVÄ°
         </h1>
-        <p className="text-center text-sm text-muted-foreground mb-6">AI Editör Giriþi</p>
+        <p className="text-center text-sm text-muted-foreground mb-6">AI EditÃ¶r GiriÅŸi</p>
         
         <form action={formAction} className="space-y-4">
           <div className={needs2FA ? "hidden" : "block"}>
@@ -32,7 +32,7 @@ export default function LoginPage() {
             />
           </div>
           <div className={needs2FA ? "hidden" : "block"}>
-            <label className="block text-sm font-medium mb-1">Þifre</label>
+            <label className="block text-sm font-medium mb-1">Åžifre</label>
             <input 
               name="password"
               type="password"
@@ -51,7 +51,7 @@ export default function LoginPage() {
                 className="w-full p-2 rounded-md border border-input bg-background text-center text-2xl tracking-widest" 
               />
               <p className="text-xs text-muted-foreground mt-2 text-center">
-                Google Authenticator uygulamanýzdaki 6 haneli kodu girin.
+                Google Authenticator uygulamanÄ±zdaki 6 haneli kodu girin.
               </p>
             </div>
           )}
@@ -65,7 +65,7 @@ export default function LoginPage() {
             disabled={isPending}
             className="w-full py-2 px-4 bg-primary text-primary-foreground font-semibold rounded-md hover:opacity-90 disabled:opacity-50"
           >
-            {isPending ? "Bekleyin..." : (needs2FA ? "Kodu Doðrula" : "Giriþ Yap")}
+            {isPending ? "Bekleyin..." : (needs2FA ? "Kodu DoÄŸrula" : "GiriÅŸ Yap")}
           </button>
         </form>
       </div>
