@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import * as argon2 from "argon2";
+import bcrypt from "bcryptjs";
 import db from "./db"; 
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -21,7 +21,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           
           if (!user) return null;
           
-          const isPasswordValid = await argon2.verify(user.password, credentials.password as string);
+          const isPasswordValid = await bcrypt.compare(credentials.password as string, user.password);
           if (!isPasswordValid) return null;
           
           // 2FA Kontrolü
