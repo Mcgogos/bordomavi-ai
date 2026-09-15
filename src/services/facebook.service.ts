@@ -100,8 +100,15 @@ export class FacebookService {
       let response: Response;
 
       if (mediaUrl) {
-        // Download image first (works for both localhost and remote URLs)
-        const imgRes = await fetch(mediaUrl);
+        // Download image first with standard browser headers to bypass 401/403 blocks
+        const imgRes = await fetch(mediaUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+            'Referer': mediaUrl
+          }
+        });
+        
         if (!imgRes.ok) {
           throw new Error(`Gorsel indirilemedi: ${imgRes.status} ${imgRes.statusText}`);
         }
