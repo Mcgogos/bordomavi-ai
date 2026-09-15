@@ -1,3 +1,10 @@
+if (process.env.NEXTAUTH_URL && process.env.NEXTAUTH_URL.includes("*")) {
+  process.env.NEXTAUTH_URL = "https://bordomavi-ai-editor.netlify.app";
+}
+if (process.env.AUTH_URL && process.env.AUTH_URL.includes("*")) {
+  process.env.AUTH_URL = "https://bordomavi-ai-editor.netlify.app";
+}
+
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";

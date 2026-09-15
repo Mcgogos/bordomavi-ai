@@ -42,6 +42,14 @@ export async function GET(request: NextRequest) {
     const logoPath = path.join(process.cwd(), 'public/assets/brand/bordomavi-logo.png');
     let logoDataUrl = '';
     try {
+      let appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || "http://localhost:3000";
+      if (appUrl.includes("*")) {
+        appUrl = "https://bordomavi-ai-editor.netlify.app";
+      }
+      
+      // Background imajını public klasöründen al
+      const bgUrl = new URL("/images/bordo-mavi-bg.jpg", appUrl).toString();
+
       const logoBuffer = fs.readFileSync(logoPath);
       logoDataUrl = `data:image/png;base64,${logoBuffer.toString('base64')}`;
     } catch (e) {
