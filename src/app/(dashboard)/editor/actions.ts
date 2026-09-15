@@ -52,7 +52,7 @@ export async function publishContentDirectlyAction(id: string, updates: { title?
 
     // 2. Facebook yayını için hazırlık
     const messageBody = updatedContent.body || '';
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai-editor.netlify.app';
     const mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(updatedContent.title || '')}`;
 
     // 3. Facebook'a gönder — content ID'yi lockKey olarak geçirerek aynı anda iki kez basılmasını engelle

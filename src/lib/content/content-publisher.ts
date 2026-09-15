@@ -43,7 +43,7 @@ export async function publishReadyContent(limit: number = 1) {
 
         // Dinamik görsel (OG Image) URL'sini oluştur.
         // NOT: Facebook, localhost URL'lerine erişemez. Bu özellik canliya alındığında çalışacaktır.
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai-editor.netlify.app';
         const mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(content.title)}`;
 
         // Facebook'a hem metni hem de görseli (logo ile watermarklanmis) gonder.
