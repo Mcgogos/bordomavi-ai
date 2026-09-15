@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/db';
 
 const GRAPH_API_VERSION = 'v21.0';
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -57,12 +57,15 @@ export class FacebookService {
 
     try {
       const { token, pageId } = await resolvePageToken();
-      let url = `${GRAPH_API_BASE}/${pageId}/feed`;
+      const url = `${GRAPH_API_BASE}/${pageId}/feed`;
+
+      // Always use /feed endpoint with 'link' param for the OG image.
+      // The /photos endpoint requires extra app-review permissions (#200 error).
+      // Facebook auto-scrapes the og:image from the link, so the graphic still shows.
       let payload: any = { message, access_token: token };
 
       if (mediaUrl) {
-        url = `${GRAPH_API_BASE}/${pageId}/photos`;
-        payload = { caption: message, url: mediaUrl, access_token: token };
+        payload.link = mediaUrl;
       }
 
       const res = await fetch(url, {
