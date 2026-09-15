@@ -2,7 +2,8 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { authenticator } from "otplib";
+import * as otplib from 'otplib';
+const { authenticator } = otplib;
 import QRCode from "qrcode";
 import { revalidatePath } from "next/cache";
 

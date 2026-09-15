@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { generate2FASecretAction, verifyAndEnable2FAAction, disable2FAAction } from "./actions";
 import { Shield, ShieldAlert, Loader2, QrCode } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 
 export function SecurityClient({ is2FAEnabled }: { is2FAEnabled: boolean }) {
   const [setupData, setSetupData] = useState<{ secret: string, qrCodeUrl: string } | null>(null);
