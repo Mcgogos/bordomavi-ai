@@ -7,10 +7,17 @@ if (process.env.AUTH_URL && process.env.AUTH_URL.includes("*")) {
   process.env.AUTH_URL = "https://bordomavi-ai-editor.netlify.app";
 }
 
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import db from "./db"; 
+import db from "./db";
+
+class CustomAuthError extends CredentialsSignin {
+  constructor(msg: string) {
+    super();
+    this.code = msg;
+  }
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET,
@@ -31,16 +38,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             where: { email: normalizedEmail }
           });
           
-          if (!user) return null;
+          if (!user) throw new CustomAuthError("Geçersiz e-posta veya şifre.");
           
           const isPasswordValid = await bcrypt.compare(credentials.password as string, user.password);
-          if (!isPasswordValid) return null;
+          if (!isPasswordValid) throw new CustomAuthError("Geçersiz e-posta veya şifre.");
           
           // 2FA Kontrolü
           if (user.isTwoFactorEnabled && user.twoFactorSecret) {
             const token = credentials.token as string;
             if (!token) {
-              throw new Error("2FA_REQUIRED");
+              throw new CustomAuthError("2FA_REQUIRED");
             }
             
             // otplib importu dinamik veya üstte
@@ -52,7 +59,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             });
 
             if (!isValidToken) {
-              throw new Error("INVALID_2FA");
+              throw new CustomAuthError("INVALID_2FA");
             }
           }
 
@@ -64,11 +71,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           };
         } catch (e: any) {
           console.error("Database auth failed", e);
-          if (e.message === "2FA_REQUIRED" || e.message === "INVALID_2FA") {
+          if (e instanceof CustomAuthError) {
             throw e;
-          }
-          if (credentials.email === "admin@bordomavi.com" && credentials.password === "admin") {
-            return { id: "1", name: "Admin", email: "admin@bordomavi.com", role: "ADMIN" };
           }
           return null;
         }

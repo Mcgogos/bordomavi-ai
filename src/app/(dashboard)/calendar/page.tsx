@@ -1,5 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
-import { prisma } from "@/lib/db";
+﻿import { prisma } from "@/lib/db";
 import CalendarClient from "./CalendarClient";
 
 export const dynamic = "force-dynamic";

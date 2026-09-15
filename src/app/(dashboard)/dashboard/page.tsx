@@ -1,10 +1,9 @@
-import { prisma } from "@/lib/db";
+﻿import { prisma } from "@/lib/db";
 import { 
   Newspaper, FileText, Send, TrendingUp, 
   Activity, Zap, Clock, CheckCircle2
 } from "lucide-react";
 
-export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   const [totalNews, pendingNews, totalContent, publishedContent, readyContent, recentPublished] = await Promise.all([
@@ -41,18 +40,18 @@ export default async function DashboardPage() {
       border: "border-amber-100"
     },
     {
-      label: "Üretilen İçerik",
+      label: "Ãœretilen Ä°Ã§erik",
       value: totalContent,
-      sub: "AI tarafından yazıldı",
+      sub: "AI tarafÄ±ndan yazÄ±ldÄ±",
       icon: FileText,
       color: "text-violet-600",
       bg: "bg-violet-50",
       border: "border-violet-100"
     },
     {
-      label: "Facebook'ta Yayında",
+      label: "Facebook'ta YayÄ±nda",
       value: publishedContent,
-      sub: "Sayfaya başarıyla gönderildi",
+      sub: "Sayfaya baÅŸarÄ±yla gÃ¶nderildi",
       icon: Send,
       color: "text-green-600",
       bg: "bg-green-50",
@@ -65,9 +64,9 @@ export default async function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">Genel Bakış</h1>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Genel BakÄ±ÅŸ</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Yapay Zeka destekli haber otomasyonunun güncel durumu
+            Yapay Zeka destekli haber otomasyonunun gÃ¼ncel durumu
           </p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 border border-green-200">
@@ -112,9 +111,9 @@ export default async function DashboardPage() {
             {[
               { label: "Haber Toplama (RSS)", status: "Aktif", ok: true },
               { label: "AI Analiz (Gemini)", status: "Aktif", ok: true },
-              { label: "İçerik Üretimi", status: "Aktif", ok: true },
-              { label: "Facebook Yayını", status: "Aktif", ok: true },
-              { label: "Yayınlanmayı Bekleyen", status: `${readyContent} içerik`, ok: readyContent > 0 },
+              { label: "Ä°Ã§erik Ãœretimi", status: "Aktif", ok: true },
+              { label: "Facebook YayÄ±nÄ±", status: "Aktif", ok: true },
+              { label: "YayÄ±nlanmayÄ± Bekleyen", status: `${readyContent} iÃ§erik`, ok: readyContent > 0 },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{item.label}</span>
@@ -133,10 +132,10 @@ export default async function DashboardPage() {
         <div className="bg-card border rounded-xl p-5 space-y-4 lg:col-span-2">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-green-600" />
-            <h3 className="font-semibold text-sm">Son Yayınlanan İçerikler</h3>
+            <h3 className="font-semibold text-sm">Son YayÄ±nlanan Ä°Ã§erikler</h3>
           </div>
           {recentPublished.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Henüz yayınlanmış içerik bulunmuyor.</p>
+            <p className="text-sm text-muted-foreground">HenÃ¼z yayÄ±nlanmÄ±ÅŸ iÃ§erik bulunmuyor.</p>
           ) : (
             <div className="space-y-3">
               {recentPublished.map((c) => (
@@ -149,7 +148,7 @@ export default async function DashboardPage() {
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {c.publishedAt ? new Date(c.publishedAt).toLocaleString('tr-TR', {
                         day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                      }) : '—'}
+                      }) : 'â€”'}
                     </p>
                   </div>
                   <div className="shrink-0">
@@ -171,11 +170,11 @@ export default async function DashboardPage() {
             <TrendingUp className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-foreground">Otomatik Yayın Aktif</h4>
+            <h4 className="text-sm font-semibold text-foreground">Otomatik YayÄ±n Aktif</h4>
             <p className="text-sm text-muted-foreground mt-1">
-              Sistem her 30 dakikada bir haberleri tarar, AI puanı <strong>85 ve üzeri</strong> olan haberleri 
-              otomatik işleyerek saatte 2 haber Facebook sayfanızda paylaşır.
-              Hiçbir manuel müdahale gerektirmez.
+              Sistem her 30 dakikada bir haberleri tarar, AI puanÄ± <strong>85 ve Ã¼zeri</strong> olan haberleri 
+              otomatik iÅŸleyerek saatte 2 haber Facebook sayfanÄ±zda paylaÅŸÄ±r.
+              HiÃ§bir manuel mÃ¼dahale gerektirmez.
             </p>
           </div>
         </div>

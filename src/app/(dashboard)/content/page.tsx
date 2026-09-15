@@ -1,5 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
-import { prisma } from "@/lib/db";
+﻿import { prisma } from "@/lib/db";
 import ContentClient from "./ContentClient";
 
 export default async function ContentPage() {

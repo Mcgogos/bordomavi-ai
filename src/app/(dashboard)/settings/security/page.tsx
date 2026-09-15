@@ -1,5 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
-import { auth } from "@/lib/auth";
+﻿import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { SecurityClient } from "./SecurityClient";
 import { redirect } from "next/navigation";

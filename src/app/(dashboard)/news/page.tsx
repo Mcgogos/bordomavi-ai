@@ -1,7 +1,6 @@
-import { prisma } from '@/lib/db';
+﻿import { prisma } from '@/lib/db';
 import NewsClientPage from './client-page';
 
-export const dynamic = 'force-dynamic';
 
 export default async function NewsPage() {
   const newsRecords = await prisma.news.findMany({
@@ -9,7 +8,7 @@ export default async function NewsPage() {
     where: {
       content: null
     },
-    // En son çıkan haberler en üste
+    // En son Ã§Ä±kan haberler en Ã¼ste
     orderBy: [
       { publishedAt: 'desc' }
     ],
