@@ -1,4 +1,5 @@
-﻿import { prisma } from "@/lib/db";
+﻿export const dynamic = 'force-dynamic';
+import { prisma } from "@/lib/db";
 import MediaClient from "./MediaClient";
 
 export default async function MediaPage() {

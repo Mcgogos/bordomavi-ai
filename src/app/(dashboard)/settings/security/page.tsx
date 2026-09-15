@@ -1,28 +1,16 @@
-﻿import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { SecurityClient } from "./SecurityClient";
-import { redirect } from "next/navigation";
+﻿import SecurityClient from "./SecurityClient";
 
-export default async function SecurityPage() {
-  const session = await auth();
-  if (!session?.user?.email) return redirect("/login");
+export const dynamic = 'force-dynamic';
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email }
-  });
-
-  if (!user) return redirect("/login");
-
+export default function SecurityPage() {
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">GÃ¼venlik</h1>
-        <p className="text-muted-foreground">Ä°ki AÅŸamalÄ± DoÄŸrulama (2FA) ve hesap gÃ¼venliÄŸi.</p>
+        <h2 className="text-2xl font-bold tracking-tight">Güvenlik</h2>
+        <p className="text-muted-foreground">Hesap güvenliğinizi ve şifrenizi yönetin.</p>
       </div>
-      
-      <div className="p-6 border rounded-xl bg-card shadow-sm">
-        <SecurityClient is2FAEnabled={user.isTwoFactorEnabled} />
-      </div>
+
+      <SecurityClient />
     </div>
   );
 }

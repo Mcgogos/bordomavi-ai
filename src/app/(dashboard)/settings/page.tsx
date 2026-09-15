@@ -1,4 +1,5 @@
-﻿import { getNewsSources } from "./actions";
+﻿export const dynamic = 'force-dynamic';
+import { getNewsSources } from "./actions";
 import SettingsClient from "./SettingsClient";
 import AiProvidersSettings from "./AiProvidersSettings";
 

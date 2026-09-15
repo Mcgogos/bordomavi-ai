@@ -1,4 +1,4 @@
-process.env.AUTH_SECRET = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "bordo-mavi-ai-editor-super-secret-key-development-2026-secure";
+﻿process.env.AUTH_SECRET = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "bordo-mavi-ai-editor-super-secret-key-development-2026-secure";
 
 if (process.env.NEXTAUTH_URL && process.env.NEXTAUTH_URL.includes("*")) {
   process.env.NEXTAUTH_URL = "https://bordomavi-ai-editor.netlify.app";
@@ -25,9 +25,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-        token: { label: "2FA Kodu (Varsa)", type: "text" },
+        email: { label: "Kullanıcı Adı", type: "text" },
+        password: { label: "Şifre", type: "password" }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
@@ -38,31 +37,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             where: { email: normalizedEmail }
           });
           
-          if (!user) throw new CustomAuthError("Geçersiz e-posta veya şifre.");
+          if (!user) throw new CustomAuthError("Geçersiz kullanıcı adı veya şifre.");
           
           const isPasswordValid = await bcrypt.compare(credentials.password as string, user.password);
-          if (!isPasswordValid) throw new CustomAuthError("Geçersiz e-posta veya şifre.");
+          if (!isPasswordValid) throw new CustomAuthError("Geçersiz kullanıcı adı veya şifre.");
           
-          // 2FA Kontrolü
-          if (user.isTwoFactorEnabled && user.twoFactorSecret) {
-            const token = credentials.token as string;
-            if (!token) {
-              throw new CustomAuthError("2FA_REQUIRED");
-            }
-            
-            // otplib importu dinamik veya üstte
-            const { authenticator } = require("otplib");
-            authenticator.options = { window: 2 };
-            const isValidToken = authenticator.verify({
-              token: token,
-              secret: user.twoFactorSecret
-            });
-
-            if (!isValidToken) {
-              throw new CustomAuthError("INVALID_2FA");
-            }
-          }
-
           return {
             id: user.id,
             name: user.name,
