@@ -4,43 +4,42 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, Newspaper, FileText, Edit, Calendar, 
-  Image as ImageIcon, BarChart3, Brain, Settings, 
-  Zap, ChevronRight
+  Image as ImageIcon, BarChart3, Brain, Settings, Shield,
+  LogOut
 } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 const menu = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "Genel" },
-  { name: "Haber Merkezi", href: "/news", icon: Newspaper, group: "Ä°Ã§erik" },
-  { name: "Ä°Ã§erik Merkezi", href: "/content", icon: FileText, group: "Ä°Ã§erik" },
-  { name: "EditÃ¶r", href: "/editor", icon: Edit, group: "Ä°Ã§erik" },
+  { name: "Haber Akýþý", href: "/news", icon: Newspaper, group: "Genel" },
+  { name: "Ýçerik Merkezi", href: "/content", icon: FileText, group: "Ýçerik" },
+  { name: "Editör", href: "/editor", icon: Edit, group: "Ýçerik" },
   { name: "Takvim", href: "/calendar", icon: Calendar, group: "Planlama" },
   { name: "Medya", href: "/media", icon: ImageIcon, group: "Planlama" },
   { name: "Analitik", href: "/analytics", icon: BarChart3, group: "Raporlar" },
   { name: "AI Strateji", href: "/strategy", icon: Brain, group: "Raporlar" },
   { name: "Ayarlar", href: "/settings", icon: Settings, group: "Sistem" },
+  { name: "Güvenlik", href: "/settings/security", icon: Shield, group: "Sistem" },
 ];
 
-const groups = ["Genel", "Ä°Ã§erik", "Planlama", "Raporlar", "Sistem"];
+const groups = ["Genel", "Ýçerik", "Planlama", "Raporlar", "Sistem"];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-60 bg-sidebar border-r border-sidebar-border flex flex-col shrink-0">
-        {/* Logo */}
-        <div className="px-5 py-5 border-b border-sidebar-border">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-              <Zap className="w-4 h-4 text-primary-foreground" />
+      <aside className="w-56 shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col">
+        {/* Brand */}
+        <div className="h-14 flex items-center px-4 border-b border-sidebar-border">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center font-bold text-primary-foreground">
+              BM
             </div>
-            <div>
-              <div className="text-sm font-bold text-sidebar-foreground leading-tight tracking-wide">
-                <span className="text-primary">BORDO</span>
-                <span className="text-blue-400">MAVÄ°</span>
-              </div>
-              <div className="text-[10px] text-sidebar-foreground/50 uppercase tracking-widest">AI EditÃ¶r</div>
+            <div className="flex flex-col">
+              <span className="font-bold text-sm text-sidebar-foreground">BordoMavi<span className="text-[oklch(0.488_0.243_264.376)]">AI</span></span>
+              <div className="text-[10px] text-sidebar-foreground/50 uppercase tracking-widest">AI Editör</div>
             </div>
           </div>
         </div>
@@ -62,15 +61,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`flex items-center gap-3 px-2.5 py-2 rounded-md text-sm font-medium transition-all group ${
-                          isActive
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                        }`}
+                        className={\lex items-center gap-3 px-2.5 py-2 rounded-md text-sm font-medium transition-all group \\}
                       >
-                        <Icon className="w-4 h-4 shrink-0" />
-                        <span className="flex-1">{item.name}</span>
-                        {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
+                        <Icon className={\w-4 h-4 \\} />
+                        {item.name}
                       </Link>
                     );
                   })}
@@ -82,10 +76,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Footer status */}
         <div className="px-4 py-3 border-t border-sidebar-border">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-            <span className="text-[11px] text-sidebar-foreground/50">Oto-YayÄ±n Aktif</span>
-          </div>
+          <button 
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="flex items-center gap-2 w-full px-2 py-2 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-md transition-all"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Çýkýþ Yap</span>
+          </button>
         </div>
       </aside>
 

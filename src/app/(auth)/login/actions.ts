@@ -8,11 +8,17 @@ export async function loginAction(prevState: any, formData: FormData) {
     await signIn("credentials", formData, { redirectTo: "/dashboard" });
   } catch (error) {
     if (error instanceof AuthError) {
+      if (error.cause?.err?.message === "2FA_REQUIRED") {
+        return "2FA_REQUIRED";
+      }
+      if (error.cause?.err?.message === "INVALID_2FA") {
+        return "Geçersiz 2FA Kodu.";
+      }
       switch (error.type) {
         case "CredentialsSignin":
           return "Geçersiz e-posta veya şifre.";
         default:
-          return "Bir hata oluştu.";
+          return "Geçersiz giriş bilgileri veya hata oluştu.";
       }
     }
     throw error;
