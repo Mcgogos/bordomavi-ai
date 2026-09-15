@@ -57,16 +57,28 @@ export class FacebookService {
 
     try {
       const { token, pageId } = await resolvePageToken();
-      const url = `${GRAPH_API_BASE}/${pageId}/feed`;
-
-      // Always use /feed endpoint with 'link' param for the OG image.
-      // The /photos endpoint requires extra app-review permissions (#200 error).
-      // Facebook auto-scrapes the og:image from the link, so the graphic still shows.
       let payload: any = { message, access_token: token };
 
+      // İki adımlı görsel paylaşım: önce gizli yükle, sonra feed'e ekle.
+      // Bu yöntemde Facebook paylaşımının altında URL görünmez.
       if (mediaUrl) {
-        payload.link = mediaUrl;
+        try {
+          const photoRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: mediaUrl, published: false, access_token: token }),
+            signal: AbortSignal.timeout(30_000),
+          });
+          const photoData = await photoRes.json();
+          if (!photoData.error && photoData.id) {
+            payload.attached_media = [{ media_fbid: photoData.id }];
+          }
+        } catch (photoErr: any) {
+          console.warn('[Facebook] Görsel upload hatası, sadece metin gönderiliyor:', photoErr.message);
+        }
       }
+
+      const url = `${GRAPH_API_BASE}/${pageId}/feed`;
 
       const res = await fetch(url, {
         method: 'POST',

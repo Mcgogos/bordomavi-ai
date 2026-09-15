@@ -1,7 +1,6 @@
 import type { Config, Context } from "@netlify/functions";
 import { PrismaClient } from "@prisma/client";
 
-// Her Netlify Function kendi Prisma instance'ını oluşturur
 const prisma = new PrismaClient();
 
 // ─── Yardımcı: AI çağrısı ───────────────────────────────────────────────────
@@ -19,29 +18,28 @@ async function callAI(prompt: string, apiKey: string): Promise<string> {
   return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
-// ─── Aşama 1: Haber Topla ───────────────────────────────────────────────────
-async function collectNews() {
-  const appUrl =
-    process.env.URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "https://bordomavi-ai-editor.netlify.app";
-  const cronSecret = process.env.CRON_SECRET;
+// ─── Aşama 1: Haber Topla (POST /api/news/collect) ──────────────────────────
+async function collectNews(appUrl: string) {
   try {
     const res = await fetch(`${appUrl}/api/news/collect`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${cronSecret}` },
+      method: "POST", // collect endpoint POST bekliyor
+      headers: { "Content-Type": "application/json" },
       signal: AbortSignal.timeout(60_000),
     });
+    if (!res.ok) {
+      console.error(`[CRON] Haber toplama HTTP hatası: ${res.status}`);
+      return { success: false };
+    }
     const data = await res.json();
     console.log("[CRON] Haber toplama:", JSON.stringify(data));
     return data;
   } catch (e: any) {
     console.error("[CRON] Haber toplama hatası:", e.message);
-    return { error: e.message };
+    return { success: false, error: e.message };
   }
 }
 
-// ─── Aşama 2: Bekleyen haberleri analiz et ──────────────────────────────────
+// ─── Aşama 2: Bekleyen haberleri AI ile analiz et ───────────────────────────
 async function analyzePending(apiKey: string, limit = 10) {
   const pending = await prisma.news.findMany({
     where: { isProcessed: false },
@@ -54,24 +52,17 @@ async function analyzePending(apiKey: string, limit = 10) {
 
   for (const news of pending) {
     try {
-      const prompt = `Aşağıdaki haberi analiz et ve JSON formatında döndür:
+      const prompt = `Aşağıdaki haberi analiz et ve SADECE JSON döndür (başka hiçbir şey yazma):
 Başlık: ${news.title}
 Özet: ${news.summary ?? ""}
 
-Lütfen sadece şu JSON'u döndür (başka açıklama ekleme):
-{
-  "isTrabzonsporRelated": true/false,
-  "importanceScore": 0-100,
-  "aiRecommendedAction": "IGNORE" | "MONITOR" | "CREATE_CONTENT" | "URGENT",
-  "aiSummary": "kısa özet"
-}`;
+{"isTrabzonsporRelated":true/false,"importanceScore":0-100,"aiRecommendedAction":"IGNORE"|"MONITOR"|"CREATE_CONTENT"|"URGENT","aiSummary":"kısa özet"}`;
 
       const text = await callAI(prompt, apiKey);
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const jsonMatch = text.match(/\{[\s\S]*?\}/);
       if (!jsonMatch) continue;
 
       const analysis = JSON.parse(jsonMatch[0]);
-
       await prisma.news.update({
         where: { id: news.id },
         data: {
@@ -85,6 +76,13 @@ Lütfen sadece şu JSON'u döndür (başka açıklama ekleme):
       });
       processed++;
     } catch (e: any) {
+      // Bu haberi hatalı olarak işaretle, geç
+      try {
+        await prisma.news.update({
+          where: { id: news.id },
+          data: { isProcessed: true, importanceScore: 0 },
+        });
+      } catch {}
       console.error(`[CRON] Analiz hatası (${news.id}):`, e.message);
     }
   }
@@ -144,8 +142,8 @@ Kurallar:
   return { candidates: candidates.length, processed };
 }
 
-// ─── Aşama 4: Facebook'ta yayınla ──────────────────────────────────────────
-async function publishToFacebook(limit = 1) {
+// ─── Aşama 4: Facebook'ta yayınla (URL göstermeden görsel ekle) ─────────────
+async function publishToFacebook(appUrl: string, limit = 1) {
   const pageTokenSetting = await prisma.setting.findUnique({
     where: { key: "FACEBOOK_PAGE_TOKEN" },
   });
@@ -183,39 +181,69 @@ async function publishToFacebook(limit = 1) {
   for (const item of readyItems) {
     try {
       const message = item.body;
-      const appUrl =
-        process.env.URL ||
-        process.env.NEXT_PUBLIC_APP_URL ||
-        "https://bordomavi-ai-editor.netlify.app";
-      let payload: any = { message, access_token: token };
+      let postPayload: any = { message, access_token: token };
 
+      // Görsel varsa: önce gizli upload et, sonra feed'e ekle (URL görünmez)
       if (item.sourceNews?.imageUrl) {
-        payload.link = `${appUrl}/api/og?title=${encodeURIComponent(item.title)}&imageUrl=${encodeURIComponent(item.sourceNews.imageUrl)}`;
+        try {
+          const ogImageUrl = `${appUrl}/api/og?title=${encodeURIComponent(item.title)}&imageUrl=${encodeURIComponent(item.sourceNews.imageUrl)}`;
+
+          // Adım 1: Görseli gizli olarak yükle
+          const photoRes = await fetch(
+            `https://graph.facebook.com/v21.0/${pageId}/photos`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                url: ogImageUrl,
+                published: false, // gizli yükle, henüz yayınlama
+                access_token: token,
+              }),
+              signal: AbortSignal.timeout(30_000),
+            }
+          );
+          const photoData = await photoRes.json();
+
+          if (!photoData.error && photoData.id) {
+            // Adım 2: Feed'e mesaj + eklenmiş görsel olarak gönder (URL görünmez)
+            postPayload = {
+              message,
+              attached_media: [{ media_fbid: photoData.id }],
+              access_token: token,
+            };
+            console.log(`[CRON] Görsel yüklendi: ${photoData.id}`);
+          } else {
+            console.warn("[CRON] Görsel yüklenemedi, sadece metin gönderiliyor:", photoData.error?.message);
+          }
+        } catch (photoErr: any) {
+          console.warn("[CRON] Görsel upload hatası, sadece metin:", photoErr.message);
+        }
       }
 
-      const res = await fetch(
+      // Feed'e gönder
+      const feedRes = await fetch(
         `https://graph.facebook.com/v21.0/${pageId}/feed`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(postPayload),
           signal: AbortSignal.timeout(30_000),
         }
       );
-      const data = await res.json();
+      const feedData = await feedRes.json();
 
-      if (data.error) throw new Error(JSON.stringify(data.error));
+      if (feedData.error) throw new Error(JSON.stringify(feedData.error));
 
       await prisma.content.update({
         where: { id: item.id },
         data: {
           status: "PUBLISHED",
-          facebookPostId: data.post_id ?? data.id,
+          facebookPostId: feedData.post_id ?? feedData.id,
           publishedAt: new Date(),
         },
       });
       published++;
-      console.log(`[CRON] Yayınlandı: ${data.post_id ?? data.id}`);
+      console.log(`[CRON] Yayınlandı: ${feedData.post_id ?? feedData.id}`);
     } catch (e: any) {
       console.error(`[CRON] Yayınlama hatası (${item.id}):`, e.message);
       const retries = (item.aiReasoning?.match(/Yayinlama Hatasi/g) ?? []).length;
@@ -236,6 +264,11 @@ async function publishToFacebook(limit = 1) {
 // ─── Ana Handler ─────────────────────────────────────────────────────────────
 export default async function handler(req: Request, context: Context) {
   const apiKey = process.env.GEMINI_API_KEY;
+  const appUrl =
+    process.env.URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://bordomavi-ai-editor.netlify.app";
+
   if (!apiKey) {
     console.error("[CRON] GEMINI_API_KEY eksik!");
     return;
@@ -244,24 +277,20 @@ export default async function handler(req: Request, context: Context) {
   console.log("[CRON] ===== Otomatik Yayınlama Döngüsü Başladı =====");
 
   try {
-    // 1. Haber Topla
     console.log("[CRON] Aşama 1: Haberler toplanıyor...");
-    await collectNews();
+    await collectNews(appUrl);
 
-    // 2. Analiz Et
     console.log("[CRON] Aşama 2: Haberler analiz ediliyor...");
     const analyzeResult = await analyzePending(apiKey, 10);
-    console.log("[CRON] Analiz tamamlandı:", analyzeResult);
+    console.log("[CRON] Analiz:", analyzeResult);
 
-    // 3. İçerik Üret
     console.log("[CRON] Aşama 3: İçerik üretiliyor (85+ puan)...");
     const generateResult = await generateContent(apiKey, 2);
-    console.log("[CRON] Üretim tamamlandı:", generateResult);
+    console.log("[CRON] Üretim:", generateResult);
 
-    // 4. Yayınla
     console.log("[CRON] Aşama 4: Facebook'ta yayınlanıyor...");
-    const publishResult = await publishToFacebook(1);
-    console.log("[CRON] Yayınlama tamamlandı:", publishResult);
+    const publishResult = await publishToFacebook(appUrl, 1);
+    console.log("[CRON] Yayınlama:", publishResult);
 
     console.log("[CRON] ===== Döngü Başarıyla Tamamlandı =====");
   } catch (e: any) {
@@ -271,7 +300,7 @@ export default async function handler(req: Request, context: Context) {
   }
 }
 
-// Her 30 dakikada bir çalış — Background Function (15 dk limiti)
+// Her 30 dakikada bir çalış
 export const config: Config = {
   schedule: "*/30 * * * *",
 };
