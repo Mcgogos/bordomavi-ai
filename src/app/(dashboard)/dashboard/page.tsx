@@ -1,4 +1,5 @@
-﻿import { prisma } from "@/lib/db";
+﻿export const dynamic = 'force-dynamic';
+import { prisma } from "@/lib/db";
 import { 
   Newspaper, FileText, Send, TrendingUp, 
   Activity, Zap, Clock, CheckCircle2

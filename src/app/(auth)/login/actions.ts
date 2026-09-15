@@ -8,7 +8,7 @@ export async function loginAction(prevState: any, formData: FormData) {
     await signIn("credentials", formData, { redirectTo: "/dashboard" });
   } catch (error) {
     if (error instanceof AuthError) {
-      const code = error.cause?.err?.code || (error as any).code || error.type;
+      const code = (error.cause?.err as any)?.code || (error as any).code || error.type;
       
       if (code === "2FA_REQUIRED") {
         return "2FA_REQUIRED";
