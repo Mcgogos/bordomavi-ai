@@ -1,7 +1,7 @@
 import Parser from 'rss-parser';
 
 const parser = new Parser({
-  timeout: 15000,
+  timeout: 8000,
   headers: {
     'User-Agent': 'BordoMaviAI/1.0 (Newsbot)',
   }

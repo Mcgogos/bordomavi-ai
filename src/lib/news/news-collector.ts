@@ -33,31 +33,32 @@ export async function runNewsCollector() {
       ] as any[];
     }
 
-    if (!sources || sources.length === 0) {
-      console.log("[NEWS] No active sources found.");
-      return result;
-    }
+    const activeSources = sources.filter(s => s.rssUrl);
+    if (!activeSources.length) return result;
 
-    for (const source of sources) {
-      if (!source.rssUrl) {
-        console.log(`[NEWS] Skipping ${source.name} (No RSS URL)`);
-        continue;
-      }
+    result.sourcesProcessed = activeSources.length;
 
-      result.sourcesProcessed++;
-      
-      const items = await fetchRss(source.rssUrl);
-      if (!items) {
+    // Tüm kaynakları paralel çek (sıralı değil) — max 10sn
+    const fetchResults = await Promise.allSettled(
+      activeSources.map(async (source) => {
+        const items = await fetchRss(source.rssUrl);
+        return { source, items };
+      })
+    );
+
+    for (const settled of fetchResults) {
+      if (settled.status === 'rejected' || !settled.value.items) {
         result.errors++;
         continue;
       }
-      
+
+      const { source, items } = settled.value;
       let sourceNew = 0;
       let sourceDup = 0;
 
       for (const rawItem of items) {
         result.itemsFetched++;
-        
+
         const normalized = normalizeNewsItem(rawItem);
         if (!normalized) continue;
 
@@ -68,10 +69,10 @@ export async function runNewsCollector() {
         let dup = false;
         try {
           dup = await isDuplicate(normalized);
-        } catch(e) { 
+        } catch(e) {
           // DB fail -> ignore duplicates for mock
         }
-        
+
         if (dup) {
           sourceDup++;
           result.duplicates++;
@@ -96,16 +97,16 @@ export async function runNewsCollector() {
           sourceNew++;
           result.newItems++;
         } catch (dbErr) {
-          // Fallback if DB fails
           sourceNew++;
           result.newItems++;
         }
       }
-      
-      console.log(`[NEWS] ${source.name}: ${items.length} haber bulundu, ${sourceNew} yeni, ${sourceDup} duplicate`);
+
+      console.log(`[NEWS] ${source.name}: ${items.length} haber, ${sourceNew} yeni, ${sourceDup} mükerrer`);
     }
 
     return result;
+
   } catch (error) {
     console.error("[NEWS] Collector fatal error:", error);
     result.success = false;
