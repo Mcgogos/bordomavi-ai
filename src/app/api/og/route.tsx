@@ -207,31 +207,28 @@ export async function GET(request: NextRequest) {
           </div>
 
           {/* BRANDING ENGINE (Bottom Right Logo) */}
-          <div style={{
-            position: 'absolute',
-            bottom: '40px',
-            right: '50px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            zIndex: 10
-          }}>
-            {logoDataUrl && (
-              <img 
-                src={logoDataUrl} 
-                width={logoConfig.width}
-                style={{ marginBottom: '16px' }}
-              />
-            )}
+          {logoDataUrl && (
             <div style={{
-              fontSize: '20px',
-              fontWeight: 'bold',
-              color: 'rgba(255,255,255,0.7)',
-              letterSpacing: '2px'
+              position: 'absolute',
+              bottom: '32px',
+              right: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(255,255,255,0.92)',
+              borderRadius: '16px',
+              padding: '10px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+              zIndex: 10
             }}>
-              BORDOMAVI.COM
+              <img
+                src={logoDataUrl}
+                width={150}
+                height={150}
+                style={{ display: 'block' }}
+              />
             </div>
-          </div>
+          )}
 
           {/* VIGNETTE ENGINE (Kenar Karartmalari) */}
           <div style={{
