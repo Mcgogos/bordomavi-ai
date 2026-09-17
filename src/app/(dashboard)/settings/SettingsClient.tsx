@@ -83,38 +83,43 @@ export default function SettingsClient({ initialSources }: { initialSources: any
   return (
     <div className="space-y-6">
       {/* ── FACEBOOK BAĞLANTI TESTİ ── */}
-      <Card className="border-border bg-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <span>📘</span> Facebook / Meta Bağlantısı
+      <Card className="border-border/80 shadow-xs bg-card overflow-hidden">
+        <CardHeader className="border-b border-border/60 bg-muted/20 pb-4">
+          <CardTitle className="text-base font-bold flex items-center gap-2.5 text-foreground">
+            <div className="w-8 h-8 rounded-lg bg-[#164E7A]/10 border border-[#164E7A]/20 flex items-center justify-center">
+              <span className="text-sm font-black text-[#164E7A] dark:text-sky-400">f</span>
+            </div>
+            Facebook / Meta Bağlantı Tanı Aracı
           </CardTitle>
-          <CardDescription>
-            Page Access Token geçerliliğini ve BordoMavi sayfasına erişimi doğrulayın.
+          <CardDescription className="text-xs">
+            Mevcut Page Access Token'ın geçerliliğini ve Facebook Graph API yanıtını gerçek zamanlı test edin.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-5">
           <div className="flex items-center gap-3">
             <Button
               onClick={handleFacebookTest}
               disabled={fbTestLoading}
               variant="outline"
-              className="min-w-[200px]"
+              className="h-9 px-4 text-xs font-semibold border-border/80"
             >
-              {fbTestLoading ? '🔄 Test ediliyor...' : '🔌 Facebook Bağlantısını Test Et'}
+              {fbTestLoading ? 'Bağlantı Test Ediliyor...' : 'Facebook Bağlantısını Şimdi Test Et'}
             </Button>
           </div>
           {fbTestResult && (
-            <div className={`flex items-start gap-3 p-4 rounded-lg border ${
+            <div className={`flex items-start gap-3 p-4 rounded-xl border ${
               fbTestResult.success
-                ? 'bg-green-500/10 border-green-500/30 text-green-400'
-                : 'bg-red-500/10 border-red-500/30 text-red-400'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
             }`}>
-              <span className="text-xl">{fbTestResult.success ? '🟢' : '🔴'}</span>
+              <div className="mt-0.5">
+                {fbTestResult.success ? '🟢' : '🔴'}
+              </div>
               <div>
-                <p className="font-semibold text-sm">
-                  {fbTestResult.success ? 'Facebook bağlantısı başarılı' : 'Facebook bağlantısı başarısız'}
+                <p className="font-bold text-xs">
+                  {fbTestResult.success ? 'Facebook Bağlantısı Başarılı' : 'Facebook Bağlantısı Başarısız'}
                 </p>
-                <p className="text-xs mt-1 opacity-80">{fbTestResult.message}</p>
+                <p className="text-xs mt-0.5 opacity-90">{fbTestResult.message}</p>
               </div>
             </div>
           )}
@@ -122,89 +127,107 @@ export default function SettingsClient({ initialSources }: { initialSources: any
       </Card>
 
       {/* ── HABER KAYNAKLARI ── */}
-      <Card className="border-border bg-card">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle>Haber Kaynakları</CardTitle>
-          <CardDescription>Otomatik haber toplanacak kaynakları belirleyin ve önceliklendirin.</CardDescription>
-        </div>
-        <Button onClick={() => setIsAdding(!isAdding)}>
-          {isAdding ? "İptal" : "+ Yeni Kaynak Ekle"}
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isAdding && (
-          <form onSubmit={handleAddSubmit} className="bg-muted/30 p-4 rounded-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end border">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Kaynak Adı</label>
-              <Input required placeholder="Örn: Haber61" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Web Site URL</label>
-              <Input required type="url" placeholder="https://..." value={formData.url} onChange={(e) => setFormData({...formData, url: e.target.value})} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">RSS URL</label>
-              <Input type="url" placeholder="https://.../rss" value={formData.rssUrl} onChange={(e) => setFormData({...formData, rssUrl: e.target.value})} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Türü</label>
-              <Select value={formData.type} onValueChange={(val: any) => setFormData({...formData, type: val})}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LOCAL">Yerel</SelectItem>
-                  <SelectItem value="NATIONAL">Ulusal</SelectItem>
-                  <SelectItem value="CLUB">Kulüp</SelectItem>
-                  <SelectItem value="INTERNATIONAL">Uluslararası</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? "Ekleniyor..." : "Kaydet"}
-            </Button>
-          </form>
-        )}
+      <Card className="border-border/80 shadow-xs bg-card overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-border/60 bg-muted/20 pb-4">
+          <div>
+            <CardTitle className="text-base font-bold text-foreground">Otomatik Haber Kaynakları</CardTitle>
+            <CardDescription className="text-xs">Otonom botun 30 dakikada bir tarayacağı RSS beslemelerini yönetin ve önceliklendirin.</CardDescription>
+          </div>
+          <Button 
+            onClick={() => setIsAdding(!isAdding)}
+            variant={isAdding ? "outline" : "default"}
+            size="sm"
+            className={isAdding ? "h-8 text-xs border-border/80" : "h-8 text-xs bg-primary text-primary-foreground font-semibold"}
+          >
+            {isAdding ? "İptal" : "+ Yeni Kaynak Ekle"}
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-5">
+          {isAdding && (
+            <form onSubmit={handleAddSubmit} className="bg-muted/20 p-5 rounded-xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end border border-border/70 shadow-xs mb-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Kaynak Adı</label>
+                <Input required placeholder="Örn: Haber61" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="h-9 text-xs border-border/80 bg-background" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Web Site URL</label>
+                <Input required type="url" placeholder="https://..." value={formData.url} onChange={(e) => setFormData({...formData, url: e.target.value})} className="h-9 text-xs border-border/80 bg-background" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">RSS URL</label>
+                <Input type="url" placeholder="https://.../rss" value={formData.rssUrl} onChange={(e) => setFormData({...formData, rssUrl: e.target.value})} className="h-9 text-xs border-border/80 bg-background" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Türü</label>
+                <Select value={formData.type} onValueChange={(val: any) => setFormData({...formData, type: val})}>
+                  <SelectTrigger className="h-9 text-xs border-border/80 bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOCAL">Yerel Basın</SelectItem>
+                    <SelectItem value="NATIONAL">Ulusal Basın</SelectItem>
+                    <SelectItem value="CLUB">Resmi Kulüp</SelectItem>
+                    <SelectItem value="INTERNATIONAL">Uluslararası</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" disabled={isLoading} className="w-full h-9 text-xs font-semibold bg-primary text-primary-foreground">
+                {isLoading ? "Ekleniyor..." : "Kaydet ve Başlat"}
+              </Button>
+            </form>
+          )}
 
-        <Table>
-          <TableHeader className="bg-muted/50">
-            <TableRow>
-              <TableHead>Kaynak Adı</TableHead>
-              <TableHead>Tür</TableHead>
-              <TableHead>RSS URL</TableHead>
-              <TableHead>Öncelik</TableHead>
-              <TableHead className="text-right">Durum / İşlemler</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sources.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">Kayıtlı haber kaynağı bulunamadı.</TableCell>
-              </TableRow>
-            )}
-            {sources.map(source => (
-              <TableRow key={source.id}>
-                <TableCell className="font-semibold text-primary">{source.name}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className={source.type === 'CLUB' ? 'bg-primary/20 text-primary' : 'bg-blue-500/20 text-blue-500'}>
-                    {source.type}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground text-sm font-mono truncate max-w-[200px]">{source.rssUrl || "-"}</TableCell>
-                <TableCell>{source.priority}</TableCell>
-                <TableCell className="text-right flex items-center justify-end gap-3">
-                  <Switch checked={source.isActive} onCheckedChange={() => handleToggle(source.id, source.isActive)} />
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(source.id)}>
-                    Sil
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+          <div className="overflow-x-auto rounded-lg border border-border/70">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/70">
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Kaynak Adı</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Tür</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">RSS URL</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Öncelik</TableHead>
+                  <TableHead className="text-right font-bold text-xs uppercase tracking-wider text-muted-foreground pr-4">Durum / İşlemler</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sources.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-xs text-muted-foreground">Kayıtlı haber kaynağı bulunamadı.</TableCell>
+                  </TableRow>
+                )}
+                {sources.map(source => (
+                  <TableRow key={source.id} className="hover:bg-muted/25 border-b border-border/60 transition-colors">
+                    <TableCell className="font-semibold text-xs text-foreground">{source.name}</TableCell>
+                    <TableCell>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                        source.type === 'CLUB' 
+                          ? 'bg-primary/10 text-primary border border-primary/20' 
+                          : 'bg-sky-500/10 text-[#164E7A] dark:text-sky-400 border border-sky-500/20'
+                      }`}>
+                        {source.type}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs font-mono truncate max-w-[220px]">{source.rssUrl || "—"}</TableCell>
+                    <TableCell className="text-xs font-medium text-foreground">{source.priority}</TableCell>
+                    <TableCell className="text-right pr-4">
+                      <div className="flex items-center justify-end gap-3">
+                        <Switch checked={source.isActive} onCheckedChange={() => handleToggle(source.id, source.isActive)} />
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleDelete(source.id)}
+                          className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 px-2"
+                        >
+                          Sil
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

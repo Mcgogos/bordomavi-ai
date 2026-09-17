@@ -138,31 +138,42 @@ export default function EditorClient({ initialContents }: { initialContents: any
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-12rem)] min-h-[600px]">
+    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-12rem)] min-h-[620px]">
       
       {/* SOL: İçerik Listesi (Master) */}
-      <Card className="w-full lg:w-1/3 xl:w-1/4 flex flex-col bg-card border-border overflow-hidden">
-        <div className="p-4 border-b border-border bg-muted/20">
-          <h3 className="font-semibold mb-2">Bekleyen İçerikler ({contents.length})</h3>
+      <Card className="w-full lg:w-1/3 xl:w-1/4 flex flex-col bg-card border-border/80 shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-border/70 bg-muted/20">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-bold text-sm text-foreground">Bekleyen İçerikler</h3>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+              {contents.length}
+            </span>
+          </div>
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input type="text" placeholder="İçerik ara..." className="pl-9 bg-background text-sm" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input type="text" placeholder="İçerik başlığı ara..." className="pl-9 h-9 bg-background border-border/80 text-xs focus-visible:ring-primary" />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto divide-y divide-border/60">
           {contents.map(c => (
             <div 
               key={c.id} 
               onClick={() => setSelectedId(c.id)}
-              className={`p-4 border-b border-border cursor-pointer transition-colors hover:bg-muted/50 ${selectedId === c.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'}`}
+              className={`p-4 cursor-pointer transition-colors ${selectedId === c.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'border-l-4 border-l-transparent hover:bg-muted/30'}`}
             >
-              <div className="flex justify-between items-start mb-1">
-                <Badge variant={c.status === 'READY_TO_PUBLISH' ? 'default' : 'secondary'} className="text-[10px]">
-                  {c.status === 'READY_TO_PUBLISH' ? 'Onaylandı' : c.status}
-                </Badge>
-                <span className="text-[10px] text-muted-foreground">AI: {c.qualityScore || 0}</span>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                  c.status === 'READY_TO_PUBLISH' 
+                    ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20' 
+                    : 'bg-muted text-muted-foreground border border-border/80'
+                }`}>
+                  {c.status === 'READY_TO_PUBLISH' ? 'Yayına Hazır' : 'Taslak'}
+                </span>
+                <span className="text-[10px] font-semibold text-muted-foreground">
+                  AI: <strong className="text-foreground">{c.qualityScore || 0}</strong>
+                </span>
               </div>
-              <h4 className="font-medium text-sm line-clamp-2 leading-tight">{c.title}</h4>
+              <h4 className="font-semibold text-sm text-foreground line-clamp-2 leading-snug">{c.title}</h4>
               <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{c.sourceNews?.title}</p>
             </div>
           ))}
@@ -174,75 +185,119 @@ export default function EditorClient({ initialContents }: { initialContents: any
         <div className="flex-1 flex flex-col xl:flex-row gap-6 overflow-hidden">
           
           {/* Editör Alanı */}
-          <Card className="flex-1 flex flex-col border-border bg-card overflow-hidden">
-            <CardHeader className="pb-4 border-b border-border/50">
+          <Card className="flex-1 flex flex-col border-border/80 bg-card shadow-xs overflow-hidden">
+            <CardHeader className="pb-4 border-b border-border/70 bg-muted/20">
               <div className="flex justify-between items-start">
                 <div>
-                  <CardTitle className="text-lg">Metin Düzenleyici</CardTitle>
-                  <CardDescription className="mt-1 flex items-center gap-1">
-                    Kaynak: 
-                    <a href={selectedContent.sourceNews?.url} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center">
-                      Haber Linki <ExternalLink className="w-3 h-3 ml-1" />
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <CardTitle className="text-base font-bold text-foreground">Metin Düzenleyici</CardTitle>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
+                      Canlı Editör
+                    </span>
+                  </div>
+                  <CardDescription className="text-xs flex items-center gap-1 text-muted-foreground">
+                    Orijinal Kaynak: 
+                    <a href={selectedContent.sourceNews?.url} target="_blank" rel="noreferrer" className="text-primary font-medium hover:underline flex items-center">
+                      Haber Bağlantısı <ExternalLink className="w-3 h-3 ml-1" />
                     </a>
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col gap-4 p-4 overflow-y-auto">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Başlık</label>
-                <Input value={localTitle} onChange={(e) => setLocalTitle(e.target.value)} className="font-semibold" />
+            <CardContent className="flex-1 flex flex-col gap-4 p-5 overflow-y-auto">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Başlık</label>
+                <Input 
+                  value={localTitle} 
+                  onChange={(e) => setLocalTitle(e.target.value)} 
+                  className="font-semibold text-foreground border-border/80 focus-visible:ring-primary h-10" 
+                  placeholder="Haber başlığı..."
+                />
               </div>
               
-              <div className="space-y-2 flex-1 flex flex-col">
+              <div className="space-y-1.5 flex-1 flex flex-col">
                 <div className="flex justify-between items-center">
-                  <label className="text-sm font-medium">Gönderi Metni (Body)</label>
-                  <span className={`text-xs ${localBody.length > 2200 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Gönderi Metni (Facebook Post)</label>
+                  <span className={`text-xs font-medium ${localBody.length > 2000 ? 'text-rose-600 font-bold' : 'text-muted-foreground'}`}>
                     {localBody.length} / 2200 karakter
                   </span>
                 </div>
                 <Textarea 
                   value={localBody} 
                   onChange={(e) => setLocalBody(e.target.value)}
-                  className="flex-1 min-h-[250px] resize-none text-base font-sans"
+                  className="flex-1 min-h-[220px] resize-none text-sm font-sans leading-relaxed border-border/80 focus-visible:ring-primary"
                   placeholder="İçeriğinizi buraya yazın..."
                 />
               </div>
 
               {/* AI Araç Kutusu */}
-              <div className="bg-secondary/30 border border-secondary p-3 rounded-md flex flex-wrap gap-2 items-center">
-                <div className="flex items-center text-sm font-medium text-primary mr-2">
-                  <Sparkles className="w-4 h-4 mr-1" />
-                  AI Araçları:
+              <div className="bg-primary/5 border border-primary/15 p-3 rounded-xl flex flex-wrap gap-2 items-center">
+                <div className="flex items-center text-xs font-bold text-primary mr-2">
+                  <Sparkles className="w-4 h-4 mr-1.5" />
+                  AI Yardımcıları:
                 </div>
-                <Button variant="outline" size="sm" onClick={() => handleAIAction("shorten")} disabled={isProcessing !== null}>
-                  {isProcessing === "shorten" ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <Scissors className="w-3 h-3 mr-2 text-yellow-500" />}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 px-3 text-xs bg-card hover:bg-muted border-border/80" 
+                  onClick={() => handleAIAction("shorten")} 
+                  disabled={isProcessing !== null}
+                >
+                  {isProcessing === "shorten" ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5 mr-1.5 text-amber-500" />}
                   Kısalt
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => handleAIAction("enhance")} disabled={isProcessing !== null}>
-                  {isProcessing === "enhance" ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <Zap className="w-3 h-3 mr-2 text-green-500" />}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 px-3 text-xs bg-card hover:bg-muted border-border/80" 
+                  onClick={() => handleAIAction("enhance")} 
+                  disabled={isProcessing !== null}
+                >
+                  {isProcessing === "enhance" ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />}
                   Güçlendir (Harekete Geçirici Mesaj Ekle)
                 </Button>
               </div>
             </CardContent>
             
-            <CardFooter className="border-t border-border/50 p-4 flex justify-between bg-muted/10">
-              <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-500/10" onClick={handleDelete} disabled={isSaving}>
-                <Trash className="w-4 h-4 mr-2" /> Sil
+            <CardFooter className="border-t border-border/70 p-4 flex flex-wrap justify-between items-center gap-3 bg-muted/10">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 text-xs font-medium" 
+                onClick={handleDelete} 
+                disabled={isSaving}
+              >
+                <Trash className="w-3.5 h-3.5 mr-1.5" /> İçeriği Sil
               </Button>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => handleSave()} disabled={isSaving || isPublishing}>
-                  {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                  Değişiklikleri Kaydet
+              <div className="flex flex-wrap items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="h-9 text-xs font-medium border-border/80"
+                  onClick={() => handleSave()} 
+                  disabled={isSaving || isPublishing}
+                >
+                  {isSaving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+                  Taslağı Kaydet
                 </Button>
                 {selectedContent.status !== 'READY_TO_PUBLISH' && (
-                  <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleSave('READY_TO_PUBLISH')} disabled={isSaving || isPublishing}>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Onayla & Yayın Sırasına Al
+                  <Button 
+                    size="sm"
+                    className="h-9 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs" 
+                    onClick={() => handleSave('READY_TO_PUBLISH')} 
+                    disabled={isSaving || isPublishing}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                    Onayla & Sıraya Al
                   </Button>
                 )}
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleDirectPublish} disabled={isSaving || isPublishing}>
-                  {isPublishing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                <Button 
+                  size="sm"
+                  className="h-9 text-xs font-semibold bg-[#164E7A] hover:bg-[#123E62] text-white shadow-xs" 
+                  onClick={handleDirectPublish} 
+                  disabled={isSaving || isPublishing}
+                >
+                  {isPublishing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
                   Direkt Yayınla
                 </Button>
               </div>
@@ -250,37 +305,47 @@ export default function EditorClient({ initialContents }: { initialContents: any
           </Card>
 
           {/* Facebook Önizleme Alanı */}
-          <Card className="w-full xl:w-[400px] border-border bg-card flex flex-col shrink-0">
-            <CardHeader className="pb-3 border-b border-border/50 p-4">
-              <CardTitle className="text-md flex items-center">
-                <LayoutTemplate className="w-4 h-4 mr-2 text-muted-foreground" />
-                Facebook Önizleme
-              </CardTitle>
+          <Card className="w-full xl:w-[410px] border-border/80 bg-card shadow-xs flex flex-col shrink-0 overflow-hidden">
+            <CardHeader className="pb-3 border-b border-border/70 p-4 bg-muted/20">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-bold flex items-center text-foreground">
+                  <LayoutTemplate className="w-4 h-4 mr-2 text-[#164E7A]" />
+                  Facebook Önizleme
+                </CardTitle>
+                <span className="text-[10px] font-semibold text-muted-foreground">Canlı Görünüm</span>
+              </div>
             </CardHeader>
-            <CardContent className="flex-1 p-4 bg-muted/20 flex justify-center items-start overflow-y-auto">
-              {/* Fake Facebook Post UI */}
-              <div className="bg-card border border-border rounded-lg shadow-sm w-full overflow-hidden text-left">
-                <div className="p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-full bg-[#082a5c] flex items-center justify-center font-bold text-white text-xs">
-                      BM
+            <CardContent className="flex-1 p-4 bg-muted/30 flex justify-center items-start overflow-y-auto">
+              {/* Authentic Facebook Post UI */}
+              <div className="bg-card border border-border/80 rounded-xl shadow-sm w-full overflow-hidden text-left">
+                <div className="p-3.5 flex items-center justify-between border-b border-border/40">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-[#164E7A] p-0.5 flex items-center justify-center shadow-xs">
+                      <div className="w-full h-full rounded-full bg-primary flex items-center justify-center font-bold text-white text-xs">
+                        BM
+                      </div>
                     </div>
                     <div>
-                      <div className="font-bold text-[14px] leading-tight text-foreground">Bordo Mavi</div>
-                      <div className="text-[12px] text-muted-foreground flex items-center gap-1">
-                        Şimdi <Globe className="w-3 h-3 ml-1" />
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-[14px] leading-tight text-foreground">Bordo Mavi AI</span>
+                        <svg className="w-3.5 h-3.5 text-blue-500 fill-current" viewBox="0 0 24 24">
+                          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                        </svg>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                        Şimdi <Globe className="w-3 h-3 ml-0.5 opacity-70" />
                       </div>
                     </div>
                   </div>
-                  <MoreHorizontal className="w-5 h-5 text-muted-foreground" />
+                  <MoreHorizontal className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground" />
                 </div>
                 
-                <div className="px-3 pb-3 text-[14px] whitespace-pre-wrap break-words leading-snug">
-                  {localBody || <span className="text-muted-foreground italic">Gönderi metni...</span>}
+                <div className="px-3.5 py-3 text-[13px] text-foreground whitespace-pre-wrap break-words leading-relaxed">
+                  {localBody || <span className="text-muted-foreground italic text-xs">Gönderi metni buraya gelecektir...</span>}
                 </div>
 
                 {/* Dynamic OG Image Preview */}
-                <div className="w-full aspect-video bg-muted border-y border-border overflow-hidden">
+                <div className="w-full aspect-video bg-muted border-y border-border/60 overflow-hidden relative">
                    <img
                       src={`/api/og?title=${encodeURIComponent(localTitle)}`}
                       alt="Preview"
@@ -288,25 +353,28 @@ export default function EditorClient({ initialContents }: { initialContents: any
                     />
                 </div>
 
-                <div className="p-2 border-b border-border flex justify-between items-center text-muted-foreground text-[12px]">
-                  <div className="flex items-center gap-1">
-                    <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-white"><ThumbsUp className="w-2.5 h-2.5" /></div>
-                    <span>Sen ve 134 diğer kişi</span>
+                <div className="px-3.5 py-2 border-b border-border/60 flex justify-between items-center text-muted-foreground text-[11px]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-xs">
+                      <ThumbsUp className="w-2.5 h-2.5" />
+                    </div>
+                    <span className="font-medium text-foreground/80">Sen ve 134 diğer kişi</span>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2.5">
                     <span>12 Yorum</span>
+                    <span>5 Paylaşım</span>
                   </div>
                 </div>
 
                 <div className="px-2 py-1 flex justify-between items-center text-muted-foreground">
-                  <div className="flex-1 flex justify-center items-center font-semibold text-[13px] h-8 hover:bg-muted rounded cursor-pointer">
-                    <ThumbsUp className="w-4 h-4 mr-2" /> Beğen
+                  <div className="flex-1 flex justify-center items-center font-semibold text-[12px] h-8 hover:bg-muted/80 rounded-md cursor-pointer transition-colors">
+                    <ThumbsUp className="w-3.5 h-3.5 mr-1.5" /> Beğen
                   </div>
-                  <div className="flex-1 flex justify-center items-center font-semibold text-[13px] h-8 hover:bg-muted rounded cursor-pointer">
-                    <MessageCircle className="w-4 h-4 mr-2" /> Yorum Yap
+                  <div className="flex-1 flex justify-center items-center font-semibold text-[12px] h-8 hover:bg-muted/80 rounded-md cursor-pointer transition-colors">
+                    <MessageCircle className="w-3.5 h-3.5 mr-1.5" /> Yorum Yap
                   </div>
-                  <div className="flex-1 flex justify-center items-center font-semibold text-[13px] h-8 hover:bg-muted rounded cursor-pointer">
-                    <Share2 className="w-4 h-4 mr-2" /> Paylaş
+                  <div className="flex-1 flex justify-center items-center font-semibold text-[12px] h-8 hover:bg-muted/80 rounded-md cursor-pointer transition-colors">
+                    <Share2 className="w-3.5 h-3.5 mr-1.5" /> Paylaş
                   </div>
                 </div>
               </div>

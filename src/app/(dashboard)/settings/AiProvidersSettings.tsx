@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -27,27 +27,37 @@ export default function AiProvidersSettings() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
+      <Card className="border-border/80 shadow-xs bg-card overflow-hidden">
+        <CardHeader className="border-b border-border/60 bg-muted/20 pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Google Gemini API</CardTitle>
-              <CardDescription>Ana icerik uretimi ve haber analizi (gemini-3.1-flash-lite)</CardDescription>
+              <CardTitle className="text-base font-bold text-foreground">Google Gemini Yapay Zeka Servisi</CardTitle>
+              <CardDescription className="text-xs">
+                Ana editoryal içerik üretimi, dil modeli ve önem skoru analizi (Gemini Flash)
+              </CardDescription>
             </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+              API Aktif
+            </span>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-5">
           <Button 
             variant="outline" 
             size="sm"
             disabled={testingGemini}
             onClick={() => handleTest("gemini")}
+            className="h-8 text-xs font-semibold border-border/80"
           >
-            {testingGemini ? "Test Ediliyor..." : "API TEST ET"}
+            {testingGemini ? "Bağlantı Test Ediliyor..." : "Gemini API Bağlantısını Test Et"}
           </Button>
 
           {geminiResult && (
-            <div className={`text-sm p-3 rounded-md whitespace-pre-wrap ${geminiResult.includes('SUCCESS') ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-red-500/10 text-red-600 dark:text-red-400'}`}>
+            <div className={`text-xs p-3.5 rounded-xl border whitespace-pre-wrap leading-relaxed font-mono ${
+              geminiResult.includes('SUCCESS') 
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' 
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400'
+            }`}>
               {geminiResult}
             </div>
           )}

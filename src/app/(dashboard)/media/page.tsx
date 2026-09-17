@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { prisma } from "@/lib/db";
 import MediaClient from "./MediaClient";
 
@@ -27,10 +27,17 @@ export default async function MediaPage() {
   });
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Medya Kütüphanesi</h1>
-        <p className="text-muted-foreground mt-1">Sisteme yüklenen medyaları ve AI tarafından anlık üretilen haber görsellerini yönetin.</p>
+        <div className="flex items-center gap-2 mb-1">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Medya Kütüphanesi</h1>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+            Görsel Havuzu
+          </span>
+        </div>
+        <p className="text-muted-foreground text-sm">
+          Sisteme yüklenen medyaları ve AI tarafından BordoMavi logosuyla anlık üretilen haber kartlarını yönetin.
+        </p>
       </div>
 
       <MediaClient dbMedia={dbMedia} generatedImages={recentContents} />

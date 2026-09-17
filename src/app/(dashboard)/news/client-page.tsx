@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Search, Filter, Sparkles, PenTool, CheckCircle, Clock, 
-  AlertCircle, Loader2, RefreshCw, ChevronDown
+  AlertCircle, Loader2, RefreshCw, ChevronDown, Newspaper
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,21 +39,24 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
     switch (status) {
       case "ANALYZED":
         return (
-          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200 font-medium">
-            ✓ Analiz Edildi
-          </Badge>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Analiz Edildi
+          </span>
         );
       case "PENDING":
         return (
-          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 font-medium">
-            ⏳ Bekliyor
-          </Badge>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            Bekliyor
+          </span>
         );
       case "REJECTED":
         return (
-          <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200 font-medium">
-            ✗ Reddedildi
-          </Badge>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            Reddedildi
+          </span>
         );
       default:
         return <Badge variant="outline">{status}</Badge>;
@@ -61,15 +64,27 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
   };
 
   const getConfidenceIcon = (conf: string | null) => {
-    if (conf === "VERIFIED") return <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />;
-    if (conf === "CLAIM") return <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />;
-    return <Clock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />;
+    if (conf === "VERIFIED") return <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />;
+    if (conf === "CLAIM") return <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />;
+    return <Clock className="w-4 h-4 text-muted-foreground shrink-0" />;
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 85) return "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300";
-    if (score >= 60) return "bg-amber-100 text-amber-700 ring-1 ring-amber-300";
-    return "bg-red-100 text-red-600 ring-1 ring-red-200";
+  const getScoreBadge = (score: number | null) => {
+    if (score === null) return <span className="text-muted-foreground text-xs">—</span>;
+    let colorClasses = "bg-rose-500/10 text-rose-700 dark:text-rose-400 ring-rose-500/20";
+    if (score >= 85) {
+      colorClasses = "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-emerald-500/30";
+    } else if (score >= 60) {
+      colorClasses = "bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-amber-500/30";
+    }
+
+    return (
+      <span
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs ring-1 ${colorClasses}`}
+      >
+        {score}
+      </span>
+    );
   };
 
   const handleCollect = async () => {
@@ -146,7 +161,6 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
       const response = await generateContentAction(id, title);
       if (response.success) {
         toast.success("İçerik başarıyla üretildi! İçerik Merkezi'ne kaydedildi.", { id: toastId });
-        // Remove from list since content was generated
         setNewsData((prev) => prev.filter((n) => n.id !== id));
       } else {
         toast.error((response as any).error || "İçerik üretilemedi.", { id: toastId });
@@ -163,23 +177,28 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Haber Merkezi</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Trabzonspor gündemine düşen son haberler
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Haber Merkezi</h1>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
+              RSS Feed
+            </span>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            Trabzonspor gündemine düşen son haberlerin akışı ve AI değerlendirmeleri
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2.5">
           <Button
             variant="outline"
             size="sm"
             onClick={handleCollect}
             disabled={isCollecting}
-            className="h-9"
+            className="h-9 px-3.5 border-border/80 hover:bg-muted font-medium shadow-xs"
           >
             {isCollecting ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="w-4 h-4 mr-2 animate-spin text-muted-foreground" />
             ) : (
-              <RefreshCw className="w-4 h-4 mr-2" />
+              <RefreshCw className="w-4 h-4 mr-2 text-muted-foreground" />
             )}
             Haberleri Güncelle
           </Button>
@@ -187,7 +206,7 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
             size="sm"
             onClick={handleAnalyzeAll}
             disabled={isAnalyzingAll}
-            className="h-9"
+            className="h-9 px-4 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-xs"
           >
             {isAnalyzingAll ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -196,7 +215,7 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
             )}
             Tümünü Analiz Et
             {pendingCount > 0 && (
-              <span className="ml-1.5 bg-primary-foreground/20 text-primary-foreground text-xs px-1.5 py-0.5 rounded-full font-bold">
+              <span className="ml-2 bg-white/20 text-white text-xs px-1.5 py-0.2 rounded-full font-bold">
                 {pendingCount}
               </span>
             )}
@@ -207,27 +226,27 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
       {/* Stats strip */}
       <div className="flex flex-wrap gap-3">
         {[
-          { label: "Toplam", value: newsData.length, color: "text-foreground" },
-          { label: "Bekleyen", value: pendingCount, color: "text-amber-600" },
-          { label: "Analiz Edildi", value: analyzedCount, color: "text-emerald-600" },
+          { label: "Toplam Akış", value: newsData.length, color: "text-foreground", badgeBg: "bg-muted/40" },
+          { label: "Analiz Bekleyen", value: pendingCount, color: "text-amber-700 dark:text-amber-400", badgeBg: "bg-amber-500/10 border-amber-500/20" },
+          { label: "Analiz Edildi", value: analyzedCount, color: "text-emerald-700 dark:text-emerald-400", badgeBg: "bg-emerald-500/10 border-emerald-500/20" },
         ].map((s) => (
-          <div key={s.label} className="bg-card border rounded-lg px-4 py-2 flex items-center gap-2">
-            <span className={`text-xl font-bold ${s.color}`}>{s.value}</span>
-            <span className="text-xs text-muted-foreground">{s.label}</span>
+          <div key={s.label} className="bg-card border border-border/80 rounded-xl px-4 py-2.5 flex items-center gap-3 shadow-xs">
+            <span className={`text-xl font-extrabold ${s.color}`}>{s.value}</span>
+            <span className="text-xs font-medium text-muted-foreground">{s.label}</span>
           </div>
         ))}
       </div>
 
       {/* Table Card */}
-      <div className="bg-card border rounded-xl overflow-hidden">
+      <div className="bg-card border border-border/80 rounded-xl overflow-hidden shadow-xs">
         {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row gap-3 p-4 border-b bg-muted/30">
+        <div className="flex flex-col sm:flex-row gap-3 p-4 border-b border-border/70 bg-muted/20">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               type="text"
-              placeholder="Haber veya kaynak ara..."
-              className="pl-8 h-9 bg-background"
+              placeholder="Haber başlığı veya kaynak ara..."
+              className="pl-9 h-9 bg-background border-border/80 focus-visible:ring-primary"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -235,7 +254,7 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
             <Select value={filterStatus} onValueChange={(val) => setFilterStatus(val || "ALL")}>
-              <SelectTrigger className="w-44 h-9 bg-background">
+              <SelectTrigger className="w-44 h-9 bg-background border-border/80">
                 <SelectValue placeholder="Durum filtrele" />
               </SelectTrigger>
               <SelectContent>
@@ -252,42 +271,43 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className="w-[420px] font-semibold">Haber Başlığı</TableHead>
-                <TableHead className="font-semibold">Kaynak</TableHead>
-                <TableHead className="font-semibold">Tarih</TableHead>
-                <TableHead className="font-semibold">Durum</TableHead>
-                <TableHead className="text-center font-semibold">AI Skoru</TableHead>
-                <TableHead className="text-right font-semibold pr-4">İşlemler</TableHead>
+              <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/80">
+                <TableHead className="w-[420px] font-bold text-xs uppercase tracking-wider text-muted-foreground">Haber Başlığı</TableHead>
+                <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Kaynak</TableHead>
+                <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Tarih</TableHead>
+                <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Durum</TableHead>
+                <TableHead className="text-center font-bold text-xs uppercase tracking-wider text-muted-foreground">AI Skoru</TableHead>
+                <TableHead className="text-right font-bold text-xs uppercase tracking-wider text-muted-foreground pr-4">İşlemler</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredNews.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center">
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <Newspaper className="w-8 h-8 opacity-30" />
-                      <span className="text-sm">Haber bulunamadı.</span>
+                  <TableCell colSpan={6} className="h-36 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground py-6">
+                      <Newspaper className="w-10 h-10 opacity-25" />
+                      <span className="text-sm font-medium">Haber akışı boş veya filtrelere uygun haber bulunamadı.</span>
+                      <p className="text-xs text-muted-foreground/70">"Haberleri Güncelle" butonuna basarak yeni kaynak taraması yapabilirsiniz.</p>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredNews.map((news) => (
-                  <TableRow key={news.id} className="hover:bg-muted/20 transition-colors">
+                  <TableRow key={news.id} className="hover:bg-muted/25 transition-colors border-b border-border/60">
                     <TableCell>
-                      <div className="flex items-center gap-2 max-w-[400px]">
-                        {getConfidenceIcon(news.confidence)}
-                        <span className="text-sm font-medium line-clamp-2 leading-snug">
+                      <div className="flex items-start gap-2.5 max-w-[420px]">
+                        <div className="mt-0.5">{getConfidenceIcon(news.confidence)}</div>
+                        <span className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">
                           {news.title}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs font-medium px-2 py-1 rounded-md bg-muted text-muted-foreground">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/60">
                         {news.source}
                       </span>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                    <TableCell className="text-muted-foreground text-xs font-medium whitespace-nowrap">
                       {new Date(news.publishedAt).toLocaleDateString("tr-TR", {
                         day: "2-digit",
                         month: "short",
@@ -297,42 +317,34 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
                     </TableCell>
                     <TableCell>{getStatusBadge(news.status)}</TableCell>
                     <TableCell className="text-center">
-                      {news.aiScore !== null ? (
-                        <span
-                          className={`inline-flex items-center justify-center w-9 h-9 rounded-full font-bold text-sm ${getScoreColor(news.aiScore)}`}
-                        >
-                          {news.aiScore}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
-                      )}
+                      {getScoreBadge(news.aiScore)}
                     </TableCell>
                     <TableCell className="text-right pr-4">
                       <div className="flex justify-end gap-1.5">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-8 text-xs"
+                          className="h-8 px-2.5 text-xs font-medium border-border/80 hover:bg-primary/5 hover:text-primary hover:border-primary/40 transition-all"
                           onClick={() => handleAnalyze(news.id, news.title)}
                           disabled={analyzingId === news.id}
                         >
                           {analyzingId === news.id ? (
-                            <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin text-primary" />
                           ) : (
-                            <Sparkles className="w-3.5 h-3.5 mr-1 text-primary" />
+                            <Sparkles className="w-3.5 h-3.5 mr-1.5 text-primary" />
                           )}
                           Analiz Et
                         </Button>
                         <Button
                           size="sm"
-                          className="h-8 text-xs"
+                          className="h-8 px-3 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs transition-all"
                           onClick={() => handleGenerate(news.id, news.title)}
                           disabled={generatingId === news.id}
                         >
                           {generatingId === news.id ? (
-                            <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                           ) : (
-                            <PenTool className="w-3.5 h-3.5 mr-1" />
+                            <PenTool className="w-3.5 h-3.5 mr-1.5" />
                           )}
                           İçerik Üret
                         </Button>
@@ -347,14 +359,12 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
 
         {/* Footer count */}
         {filteredNews.length > 0 && (
-          <div className="px-4 py-3 border-t bg-muted/20 text-xs text-muted-foreground">
-            {filteredNews.length} haber listeleniyor
+          <div className="px-4 py-3 border-t border-border/70 bg-muted/20 text-xs font-medium text-muted-foreground flex items-center justify-between">
+            <span>Toplam {filteredNews.length} haber listeleniyor</span>
+            <span>Sayfa Başına Gösterim: Tümü</span>
           </div>
         )}
       </div>
     </div>
   );
 }
-
-// Needed import for the empty state icon
-import { Newspaper } from "lucide-react";

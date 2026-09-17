@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { changePasswordAction } from "./actions";
@@ -31,44 +31,46 @@ export default function SecurityClient() {
 
   return (
     <div className="space-y-6">
-      <div className="p-6 bg-card border border-border rounded-xl">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-primary/20 rounded-lg">
+      <div className="p-6 bg-card border border-border/80 rounded-2xl shadow-xs max-w-xl">
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/60">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
             <KeyRound className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h3 className="text-lg font-bold">Şifre Değiştir</h3>
-            <p className="text-sm text-muted-foreground">Hesap şifrenizi istediğiniz zaman güncelleyebilirsiniz.</p>
+            <h3 className="text-base font-bold text-foreground">Yönetici Şifresini Değiştir</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Hesap erişim şifrenizi istediğiniz zaman güvenle güncelleyebilirsiniz.</p>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 max-w-sm">
-          <div>
-            <label className="block text-sm font-medium mb-1">Mevcut Şifre</label>
+        <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Mevcut Şifre</label>
             <input 
               type="password"
               value={currentPassword}
               onChange={e => setCurrentPassword(e.target.value)}
-              className="w-full p-2 bg-background border border-input rounded-md"
+              className="w-full h-10 px-3.5 bg-background border border-border/80 rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+              placeholder="••••••••"
               required
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Yeni Şifre</label>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Yeni Şifre</label>
             <input 
               type="password"
               value={newPassword}
               onChange={e => setNewPassword(e.target.value)}
-              className="w-full p-2 bg-background border border-input rounded-md"
+              className="w-full h-10 px-3.5 bg-background border border-border/80 rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+              placeholder="En az 6 karakter"
               required
             />
           </div>
           <button 
             type="submit" 
             disabled={isLoading}
-            className="w-full py-2 bg-primary text-primary-foreground font-semibold rounded-md hover:opacity-90 disabled:opacity-50"
+            className="w-full h-10 bg-primary text-primary-foreground font-semibold text-xs rounded-lg hover:bg-primary/90 focus:ring-2 focus:ring-primary/50 shadow-sm shadow-primary/20 disabled:opacity-50 transition-all cursor-pointer mt-2"
           >
-            {isLoading ? "Bekleyin..." : "Şifreyi Güncelle"}
+            {isLoading ? "Güncelleniyor..." : "Şifreyi Güvenle Güncelle"}
           </button>
         </form>
       </div>

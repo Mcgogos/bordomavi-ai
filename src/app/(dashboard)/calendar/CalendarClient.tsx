@@ -84,13 +84,14 @@ export default function CalendarClient({ initialEvents }: { initialEvents: any[]
             return (
               <div 
                 key={e.id}
-                className={`text-[11px] p-1.5 rounded-md truncate cursor-pointer transition-opacity hover:opacity-80 flex items-center gap-1.5 ${
-                  isPublished ? "bg-green-500/10 border border-green-500/20 text-green-600" :
-                  isReady ? "bg-blue-500/10 border border-blue-500/20 text-blue-500" :
-                  "bg-muted border border-border text-muted-foreground"
+                className={`text-[11px] px-2 py-1 rounded-md truncate cursor-pointer transition-opacity hover:opacity-80 flex items-center gap-1.5 ${
+                  isPublished ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-medium" :
+                  isReady ? "bg-sky-500/10 border border-sky-500/20 text-[#164E7A] dark:text-sky-400 font-medium" :
+                  "bg-muted border border-border/70 text-muted-foreground"
                 }`}
                 title={e.title}
               >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isPublished ? 'bg-emerald-500' : isReady ? 'bg-sky-500' : 'bg-muted-foreground'}`} />
                 <span className="truncate">{e.title}</span>
               </div>
             );
@@ -101,30 +102,30 @@ export default function CalendarClient({ initialEvents }: { initialEvents: any[]
   }
 
   return (
-    <Card className="bg-card border-border shadow-sm">
-      <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-border/50">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center rounded-md border border-input bg-background overflow-hidden">
-            <Button variant="ghost" size="icon" onClick={prevMonth} className="h-9 w-9 rounded-none hover:bg-muted">
+    <Card className="bg-card border-border/80 shadow-xs overflow-hidden">
+      <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-border/70 bg-muted/20">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center rounded-lg border border-border/80 bg-background overflow-hidden shadow-xs">
+            <Button variant="ghost" size="icon" onClick={prevMonth} className="h-8 w-8 rounded-none hover:bg-muted">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="font-semibold px-4 min-w-[120px] text-center">
+            <div className="font-bold text-sm px-4 min-w-[130px] text-center text-foreground">
               {monthNames[month]} {year}
             </div>
-            <Button variant="ghost" size="icon" onClick={nextMonth} className="h-9 w-9 rounded-none hover:bg-muted">
+            <Button variant="ghost" size="icon" onClick={nextMonth} className="h-8 w-8 rounded-none hover:bg-muted">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
+          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="h-8 text-xs font-semibold border-border/80">
             Bugün
           </Button>
         </div>
       </CardHeader>
       
       <CardContent className="p-0">
-        <div className="grid grid-cols-7 border-b border-border bg-muted/30">
+        <div className="grid grid-cols-7 border-b border-border/70 bg-muted/30">
           {dayNames.map((d, i) => (
-            <div key={i} className="p-3 text-center text-xs font-semibold text-muted-foreground border-r border-border/50 last:border-r-0">
+            <div key={i} className="p-3 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground border-r border-border/50 last:border-r-0">
               {d}
             </div>
           ))}
