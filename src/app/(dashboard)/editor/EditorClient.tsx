@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { 
   Save, Send, Trash, Wand2, Sparkles, Scissors, Zap, 
   LayoutTemplate, Globe, MoreHorizontal, ThumbsUp, MessageCircle, Share2, 
-  Loader2, CheckCircle, Search, ExternalLink, ChevronRight
+  Loader2, CheckCircle, Search, ExternalLink, ChevronRight,
+  ShieldCheck, SplitSquareVertical, Film, Copy, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { saveContentAction, deleteContentAction, publishContentDirectlyAction } from "./actions";
+import { EngagementEngine, ABHeadlineVariant } from "@/lib/ai/engagement-engine";
 
 export default function EditorClient({ initialContents }: { initialContents: any[] }) {
   const [contents, setContents] = useState(initialContents);
@@ -22,11 +24,19 @@ export default function EditorClient({ initialContents }: { initialContents: any
   const [isPublishing, setIsPublishing] = useState(false);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
+  // New Engagement & A/B State
+  const [abVariants, setAbVariants] = useState<ABHeadlineVariant[] | null>(null);
+  const [showAbModal, setShowAbModal] = useState(false);
+  const [showReelModal, setShowReelModal] = useState(false);
+
   const selectedContent = contents.find(c => c.id === selectedId);
 
   // Local edits for the selected content
   const [localTitle, setLocalTitle] = useState("");
   const [localBody, setLocalBody] = useState("");
+
+  // Risk & Sentiment analysis
+  const riskAnalysis = EngagementEngine.analyzeRiskAndReputation(localTitle, localBody);
 
   // Sync local state when selected content changes
   useEffect(() => {
@@ -202,11 +212,33 @@ export default function EditorClient({ initialContents }: { initialContents: any
                     </a>
                   </CardDescription>
                 </div>
+
+                {/* Canlı İtibar & Risk Radarı Rozeti */}
+                <div className="flex items-center gap-2">
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold ${riskAnalysis.badgeColor}`}>
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Risk: %{100 - riskAnalysis.score} ({riskAnalysis.sentiment})</span>
+                  </div>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col gap-4 p-5 overflow-y-auto">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Başlık</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Başlık</label>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      const variants = EngagementEngine.generateABHeadlines(localTitle);
+                      setAbVariants(variants);
+                      setShowAbModal(true);
+                    }}
+                    className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1"
+                  >
+                    <SplitSquareVertical className="w-3 h-3" />
+                    A/B Başlık Öner (3 Varyasyon)
+                  </button>
+                </div>
                 <Input 
                   value={localTitle} 
                   onChange={(e) => setLocalTitle(e.target.value)} 
@@ -230,12 +262,51 @@ export default function EditorClient({ initialContents }: { initialContents: any
                 />
               </div>
 
-              {/* AI Araç Kutusu */}
+              {/* AI Araç Kutusu (Genişletilmiş Algoritma Tetikleyiciler) */}
               <div className="bg-primary/5 border border-primary/15 p-3 rounded-xl flex flex-wrap gap-2 items-center">
                 <div className="flex items-center text-xs font-bold text-primary mr-2">
                   <Sparkles className="w-4 h-4 mr-1.5" />
-                  AI Yardımcıları:
+                  Topluluk & Algoritma Araçları:
                 </div>
+
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 px-3 text-xs bg-card hover:bg-muted border-border/80 text-foreground" 
+                  onClick={() => {
+                    const cta = EngagementEngine.generateEngagementCTA(localTitle, localBody);
+                    setLocalBody(prev => prev.trim() + "\n\n" + cta);
+                    toast.success("Etkileşim sorusu metnin sonuna eklendi!");
+                  }}
+                >
+                  <MessageCircle className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                  Etkileşim Sorusu Ekle (CTA)
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 px-3 text-xs bg-card hover:bg-muted border-border/80 text-foreground" 
+                  onClick={() => {
+                    const variants = EngagementEngine.generateABHeadlines(localTitle);
+                    setAbVariants(variants);
+                    setShowAbModal(true);
+                  }}
+                >
+                  <SplitSquareVertical className="w-3.5 h-3.5 mr-1.5 text-purple-500" />
+                  A/B Başlık Testi
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 px-3 text-xs bg-card hover:bg-muted border-border/80 text-foreground" 
+                  onClick={() => setShowReelModal(true)}
+                >
+                  <Film className="w-3.5 h-3.5 mr-1.5 text-rose-500" />
+                  Reels Senaryosu
+                </Button>
+
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -245,16 +316,6 @@ export default function EditorClient({ initialContents }: { initialContents: any
                 >
                   {isProcessing === "shorten" ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5 mr-1.5 text-amber-500" />}
                   Kısalt
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-8 px-3 text-xs bg-card hover:bg-muted border-border/80" 
-                  onClick={() => handleAIAction("enhance")} 
-                  disabled={isProcessing !== null}
-                >
-                  {isProcessing === "enhance" ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />}
-                  Güçlendir (Harekete Geçirici Mesaj Ekle)
                 </Button>
               </div>
             </CardContent>
@@ -381,6 +442,124 @@ export default function EditorClient({ initialContents }: { initialContents: any
             </CardContent>
           </Card>
 
+        </div>
+      )}
+
+      {/* A/B Başlık Seçim Modalı */}
+      {showAbModal && abVariants && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-card border border-border/90 rounded-2xl p-6 shadow-2xl max-w-xl w-full space-y-4">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2">
+                <SplitSquareVertical className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-base text-foreground">A/B Başlık Testi & Önerileri</h3>
+              </div>
+              <button 
+                onClick={() => setShowAbModal(false)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Facebook algoritmasında daha yüksek tıklama ve paylaşım almak için yapay zeka tarafından üretilen 3 farklı başlık açısı:
+            </p>
+
+            <div className="space-y-3">
+              {abVariants.map((variant) => (
+                <div 
+                  key={variant.type}
+                  className="p-3.5 rounded-xl border border-border/80 hover:border-primary/50 bg-muted/20 hover:bg-muted/40 transition-all space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground">{variant.label}</span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                      {variant.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs font-medium text-foreground/90 leading-snug">{variant.headline}</p>
+                  <p className="text-[11px] text-muted-foreground">{variant.reason}</p>
+                  <div className="pt-1 flex justify-end">
+                    <Button 
+                      size="sm" 
+                      className="h-7 text-xs bg-[#781324] hover:bg-[#5e0e1c] text-white"
+                      onClick={() => {
+                        setLocalTitle(variant.headline);
+                        setShowAbModal(false);
+                        toast.success(`"${variant.label}" başlığı seçildi!`);
+                      }}
+                    >
+                      Bu Başlığı Uygula
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reels / Video Senaryosu Modalı */}
+      {showReelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-card border border-border/90 rounded-2xl p-6 shadow-2xl max-w-lg w-full space-y-4">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2">
+                <Film className="w-5 h-5 text-rose-500" />
+                <h3 className="font-bold text-base text-foreground">15 Saniyelik Reels / Shorts Senaryosu</h3>
+              </div>
+              <button 
+                onClick={() => setShowReelModal(false)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
+                <span className="font-bold text-primary block mb-0.5">🎬 Sahne 1: Kanca / Dikkat Çekme (0-3 sn)</span>
+                <p className="text-muted-foreground italic">"Trabzonspor'da yer yerinden oynuyor! İşte son dakika bombası..."</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
+                <span className="font-bold text-foreground block mb-0.5">⚡ Sahne 2: Gelişme & Detay (3-8 sn)</span>
+                <p className="text-muted-foreground italic">{localTitle.substring(0, 90)}...</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
+                <span className="font-bold text-foreground block mb-0.5">🔥 Sahne 3: Perde Arkası (8-12 sn)</span>
+                <p className="text-muted-foreground italic">{localBody.substring(0, 110)}...</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                <span className="font-bold text-emerald-600 block mb-0.5">📢 Sahne 4: Eylem Çağrısı (12-15 sn)</span>
+                <p className="text-muted-foreground italic">"Sizce bu karar doğru mu? Yorumlarda buluşalım, takipte kalın!"</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(`Sahne 1 (0-3s): "Trabzonspor'da flaş gelişme!"\nSahne 2 (3-8s): ${localTitle}\nSahne 3 (8-12s): ${localBody}\nSahne 4 (12-15s): Yorumlarda buluşalım!`);
+                  toast.success("Reels senaryosu panoya kopyalandı!");
+                }}
+              >
+                <Copy className="w-3.5 h-3.5 mr-1.5" />
+                Senaryoyu Kopyala
+              </Button>
+              <Button 
+                size="sm" 
+                className="bg-[#781324] hover:bg-[#5e0e1c] text-white"
+                onClick={() => setShowReelModal(false)}
+              >
+                Kapat
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

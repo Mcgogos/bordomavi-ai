@@ -17,20 +17,30 @@ export async function GET(request: NextRequest) {
     
     // 2. Colors
     const colors = CorporateVisualEngine.getColors();
+    const requestedTemplate = searchParams.get('template')?.toUpperCase();
+    const minute = searchParams.get('minute');
+    const score = searchParams.get('score');
+    const player = searchParams.get('player');
     
     // Determine dynamic badge
     let badgeText = 'ÖZEL HABER';
     let badgeColor = colors.mavi;
     
-    if (template === VisualTemplateType.BREAKING) {
-      badgeText = 'SON DAKİKA';
-      badgeColor = '#E30A17'; // Daha canlı bir kırmızı/bordo
-    } else if (template === VisualTemplateType.TRANSFER) {
-      badgeText = 'TRANSFER ATEŞİ';
-      badgeColor = '#F59E0B'; // Daha canlı Gold/Yellow
-    } else if (template === VisualTemplateType.PRE_MATCH) {
-      badgeText = 'MAÇ GÜNÜ';
-      badgeColor = '#0284C7'; // Canlı Mavi
+    if (requestedTemplate === 'GOAL') {
+      badgeText = '⚽ CANLI GOL ANONS KARTI';
+      badgeColor = '#DC2626';
+    } else if (requestedTemplate === 'TRANSFER' || template === VisualTemplateType.TRANSFER) {
+      badgeText = '🔥 TRANSFER BOMBASI';
+      badgeColor = '#F59E0B';
+    } else if (requestedTemplate === 'MATCH_DAY' || template === VisualTemplateType.PRE_MATCH) {
+      badgeText = '🏟️ MAÇ GÜNÜ';
+      badgeColor = '#0284C7';
+    } else if (requestedTemplate === 'OFFICIAL') {
+      badgeText = '🏛️ KULÜPTEN RESMİ AÇIKLAMA';
+      badgeColor = '#781324';
+    } else if (template === VisualTemplateType.BREAKING) {
+      badgeText = '🚨 SON DAKİKA';
+      badgeColor = '#E30A17';
     }
 
     const canvasWidth = 1200;
