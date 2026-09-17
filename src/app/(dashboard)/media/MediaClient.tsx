@@ -4,13 +4,17 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Upload, Image as ImageIcon, ExternalLink, Film, Play, Sparkles, Filter } from "lucide-react";
+import { Upload, Image as ImageIcon, ExternalLink, Film, Play, Sparkles, Filter, Palette } from "lucide-react";
 import { ReelStudioModal } from "@/components/media/ReelStudioModal";
+import { CanvaStudioModal } from "@/components/media/CanvaStudioModal";
 
 export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any[], generatedImages: any[] }) {
   const [activeTab, setActiveTab] = useState<"generated" | "uploaded">("generated");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("ALL");
   
+  // Canva Studio Modal State
+  const [canvaModalOpen, setCanvaModalOpen] = useState(false);
+
   // Reel Studio Modal State
   const [reelModalOpen, setReelModalOpen] = useState(false);
   const [activeReel, setActiveReel] = useState<{ title: string; imageUrl?: string; summary?: string }>({
@@ -53,6 +57,13 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Button 
+            onClick={() => setCanvaModalOpen(true)}
+            className="bg-[#00C4CC] hover:bg-[#00B4BC] text-white font-bold text-xs h-9 shadow-xs"
+          >
+            <Palette className="mr-1.5 h-4 w-4" /> Canva ile Tasarla
+          </Button>
+
           <Button 
             onClick={() => openReelStudio(generatedImages[0]?.title || "Trabzonspor'da Son Dakika Gelişmesi!")}
             className="bg-gradient-to-r from-[#781324] to-[#164E7A] text-white hover:opacity-90 font-semibold text-xs h-9 shadow-xs"
@@ -220,6 +231,13 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
         title={activeReel.title}
         imageUrl={activeReel.imageUrl}
         summary={activeReel.summary}
+      />
+
+      {/* Canva Tasarım Stüdyosu Modalı */}
+      <CanvaStudioModal
+        isOpen={canvaModalOpen}
+        onClose={() => setCanvaModalOpen(false)}
+        initialTitle={generatedImages[0]?.title || "TRABZONSPOR GÜNDEMİ"}
       />
     </div>
   );

@@ -3,6 +3,7 @@ import { getNewsSources } from "./actions";
 import SettingsClient from "./SettingsClient";
 import AiProvidersSettings from "./AiProvidersSettings";
 import FacebookSettings from "./FacebookSettings";
+import CanvaSettings from "./CanvaSettings";
 
 export default async function SettingsPage() {
   const sources = await getNewsSources();
@@ -17,11 +18,12 @@ export default async function SettingsPage() {
           </span>
         </div>
         <p className="text-muted-foreground text-sm">
-          Facebook Graph API bağlantısı, Gemini AI servisleri ve otomatik RSS haber kaynaklarını yönetin.
+          Facebook Graph API bağlantısı, Canva tasarım stüdyosu, Gemini AI servisleri ve otomatik RSS haber kaynaklarını yönetin.
         </p>
       </div>
 
       <FacebookSettings />
+      <CanvaSettings />
       <AiProvidersSettings />
       <SettingsClient initialSources={sources} />
     </div>

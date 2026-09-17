@@ -5,7 +5,7 @@ import {
   Save, Send, Trash, Wand2, Sparkles, Scissors, Zap, 
   LayoutTemplate, Globe, MoreHorizontal, ThumbsUp, MessageCircle, Share2, 
   Loader2, CheckCircle, Search, ExternalLink, ChevronRight,
-  ShieldCheck, SplitSquareVertical, Film, Copy, X
+  ShieldCheck, SplitSquareVertical, Film, Copy, X, Palette
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { saveContentAction, deleteContentAction, publishContentDirectlyAction } from "./actions";
 import { EngagementEngine, ABHeadlineVariant } from "@/lib/ai/engagement-engine";
+import { CanvaStudioModal } from "@/components/media/CanvaStudioModal";
 
 export default function EditorClient({ initialContents }: { initialContents: any[] }) {
   const [contents, setContents] = useState(initialContents);
@@ -28,6 +29,7 @@ export default function EditorClient({ initialContents }: { initialContents: any
   const [abVariants, setAbVariants] = useState<ABHeadlineVariant[] | null>(null);
   const [showAbModal, setShowAbModal] = useState(false);
   const [showReelModal, setShowReelModal] = useState(false);
+  const [showCanvaModal, setShowCanvaModal] = useState(false);
 
   const selectedContent = contents.find(c => c.id === selectedId);
 
@@ -310,6 +312,16 @@ export default function EditorClient({ initialContents }: { initialContents: any
                 <Button 
                   variant="outline" 
                   size="sm" 
+                  className="h-8 px-3 text-xs bg-card hover:bg-muted border-border/80 text-foreground" 
+                  onClick={() => setShowCanvaModal(true)}
+                >
+                  <Palette className="w-3.5 h-3.5 mr-1.5 text-[#00C4CC]" />
+                  Canva ile Görselleştir
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  size="sm" 
                   className="h-8 px-3 text-xs bg-card hover:bg-muted border-border/80" 
                   onClick={() => handleAIAction("shorten")} 
                   disabled={isProcessing !== null}
@@ -562,6 +574,14 @@ export default function EditorClient({ initialContents }: { initialContents: any
           </div>
         </div>
       )}
+
+      {/* Canva Tasarım Stüdyosu Modalı */}
+      <CanvaStudioModal
+        isOpen={showCanvaModal}
+        onClose={() => setShowCanvaModal(false)}
+        initialTitle={localTitle}
+        initialSubtitle={localBody ? localBody.slice(0, 100) : "Trabzonspor flaş gündem"}
+      />
     </div>
   );
 }
