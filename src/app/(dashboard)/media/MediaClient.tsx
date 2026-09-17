@@ -14,6 +14,18 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
   
   // Canva Studio Modal State
   const [canvaModalOpen, setCanvaModalOpen] = useState(false);
+  const [activeCanvaContent, setActiveCanvaContent] = useState<{ title: string; subtitle?: string }>({
+    title: "TRABZONSPOR'DA FLAŞ GELİŞME!",
+    subtitle: "Bordo-mavili kulüpten taraftarı heyecanlandıran önemli adım."
+  });
+
+  const openCanvaStudio = (title: string, subtitle?: string) => {
+    setActiveCanvaContent({
+      title,
+      subtitle: subtitle || "Bordo-mavili kulüpten taraftarı heyecanlandıran önemli adım."
+    });
+    setCanvaModalOpen(true);
+  };
 
   // Reel Studio Modal State
   const [reelModalOpen, setReelModalOpen] = useState(false);
@@ -156,15 +168,23 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
                         )}
                       </div>
 
-                      {/* Video Reels Hover Butonu */}
-                      <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      {/* Video Reels & Canva Hover Butonları */}
+                      <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
+                        <Button
+                          size="sm"
+                          onClick={() => openCanvaStudio(img.title, img.body)}
+                          className="h-8 text-xs font-semibold bg-[#00C4CC] text-white hover:bg-[#00B4BC] shadow-lg"
+                        >
+                          <Palette className="w-3.5 h-3.5 mr-1" />
+                          Canva
+                        </Button>
                         <Button
                           size="sm"
                           onClick={() => openReelStudio(img.title, undefined, img.body)}
                           className="h-8 text-xs font-semibold bg-white text-slate-900 hover:bg-slate-100 shadow-lg"
                         >
                           <Play className="w-3.5 h-3.5 mr-1 text-[#781324]" />
-                          Reels İzle
+                          Reels
                         </Button>
                       </div>
                     </div>
@@ -175,6 +195,15 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
                       <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between text-[11px] text-muted-foreground">
                         <span>{formatDate(img.createdAt)}</span>
                         <div className="flex items-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground" 
+                            title="Canva ile Otomatik Tasarla" 
+                            onClick={() => openCanvaStudio(img.title, img.body)}
+                          >
+                            <Palette className="h-3.5 w-3.5 text-[#00C4CC]" />
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="icon" 
@@ -250,7 +279,8 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
       <CanvaStudioModal
         isOpen={canvaModalOpen}
         onClose={() => setCanvaModalOpen(false)}
-        initialTitle={generatedImages[0]?.title || "TRABZONSPOR GÜNDEMİ"}
+        initialTitle={activeCanvaContent.title}
+        initialSubtitle={activeCanvaContent.subtitle}
       />
     </div>
   );

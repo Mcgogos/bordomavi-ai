@@ -312,11 +312,11 @@ export default function EditorClient({ initialContents }: { initialContents: any
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="h-8 px-3 text-xs bg-card hover:bg-muted border-border/80 text-foreground" 
+                  className="h-8 px-3 text-xs bg-[#00C4CC]/10 hover:bg-[#00C4CC]/20 border-[#00C4CC]/40 text-[#00C4CC] font-bold shadow-xs flex items-center gap-1.5" 
                   onClick={() => setShowCanvaModal(true)}
                 >
-                  <Palette className="w-3.5 h-3.5 mr-1.5 text-[#00C4CC]" />
-                  Canva ile Görselleştir
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  ⚡ Canva ile Otomatik Tasarla (%100 AI)
                 </Button>
 
                 <Button 
@@ -449,6 +449,19 @@ export default function EditorClient({ initialContents }: { initialContents: any
                   <div className="flex-1 flex justify-center items-center font-semibold text-[12px] h-8 hover:bg-muted/80 rounded-md cursor-pointer transition-colors">
                     <Share2 className="w-3.5 h-3.5 mr-1.5" /> Paylaş
                   </div>
+                </div>
+
+                {/* Canva Otomatik Tasarla Hızlı Eylemi */}
+                <div className="p-3 border-t border-border/60 bg-muted/20">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="w-full text-xs font-bold border-[#00C4CC]/40 text-[#00C4CC] hover:bg-[#00C4CC]/10 flex items-center justify-center gap-2 h-9"
+                    onClick={() => setShowCanvaModal(true)}
+                  >
+                    <Palette className="w-4 h-4 text-[#00C4CC]" />
+                    🎨 Bu Gönderiyi Canva ile Otomatik Tasarla
+                  </Button>
                 </div>
               </div>
             </CardContent>

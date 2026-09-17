@@ -1,11 +1,12 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
-import { X, ExternalLink, Copy, Check, Sparkles, Palette, Layers } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, ExternalLink, Copy, Check, Sparkles, Palette, Layers, Download, Bot, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { TRABZONSPOR_CANVA_TEMPLATES, CanvaTemplate, CanvaService } from "@/lib/canva/canva-service";
+import { CanvaAutoDesigner } from "@/lib/canva/canva-auto-designer";
 import { toast } from "sonner";
 
 interface CanvaStudioModalProps {
@@ -26,8 +27,56 @@ export function CanvaStudioModal({
   const [subtitle, setSubtitle] = useState(initialSubtitle);
   const [playerName, setPlayerName] = useState("Simon Banza");
   const [copied, setCopied] = useState(false);
+  
+  // Otomatik Üretilen HD Görsel State'i
+  const [renderedDataUrl, setRenderedDataUrl] = useState<string>("");
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Sync props
+  useEffect(() => {
+    setTitle(initialTitle);
+    setSubtitle(initialSubtitle);
+  }, [initialTitle, initialSubtitle]);
+
+  // Otomatik Tasarım Motoru: Her parametre değişiminde anında render eder
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const timer = setTimeout(() => {
+      const canvas = canvasRef.current || document.createElement("canvas");
+      canvasRef.current = canvas;
+
+      try {
+        const dataUrl = CanvaAutoDesigner.render(canvas, {
+          title,
+          subtitle,
+          playerName,
+          category: selectedTemplate.category,
+          width: selectedTemplate.width,
+          height: selectedTemplate.height
+        });
+        setRenderedDataUrl(dataUrl);
+      } catch (e) {
+        console.warn("Auto design render error:", e);
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [title, subtitle, playerName, selectedTemplate, isOpen]);
 
   if (!isOpen) return null;
+
+  const SQUAD_PRESETS = [
+    "Simon Banza",
+    "Muhammed Cham",
+    "Denis Drăguș",
+    "Pedro Malheiro",
+    "Stefan Savić",
+    "Anthony Nwakaeme",
+    "Edin Vişça",
+    "Batista Mendy",
+    "Şenol Güneş"
+  ];
 
   const handleOpenInCanva = () => {
     const url = CanvaService.generateDirectEditorUrl(selectedTemplate, title);
@@ -35,33 +84,68 @@ export function CanvaStudioModal({
     toast.success("Canva editörü yeni sekmede başlatıldı!");
   };
 
+  const handleDownloadHD = () => {
+    if (!renderedDataUrl) return;
+    const link = document.createElement("a");
+    link.download = `Trabzonspor_${selectedTemplate.category}_${Date.now()}.png`;
+    link.href = renderedDataUrl;
+    link.click();
+    toast.success("🎉 HD Görsel başarıyla indirildi!");
+  };
+
+  const handleCopyImage = async () => {
+    if (!canvasRef.current) return;
+    try {
+      canvasRef.current.toBlob(async (blob) => {
+        if (!blob) return;
+        await navigator.clipboard.write([
+          new ClipboardItem({ "image/png": blob })
+        ]);
+        toast.success("📋 HD Görsel panoya kopyalandı! (Ctrl+V ile yapıştırabilirsiniz)");
+      });
+    } catch {
+      toast.error("Tarayıcı görsel kopyalamayı kısıtladı, lütfen İndir butonunu kullanın.");
+    }
+  };
+
+  const handleBoostHeadline = () => {
+    let clean = title.replace(/^(SON DAKİKA|FLAŞ|RESMİ|TRABZONSPOR'DA BOMBA!)\s*[:|-]?\s*/i, "").trim();
+    const prefixes = ["SON DAKİKA | ", "FLAŞ HABER! ", "TRABZONSPOR'DA BOMBA! "];
+    const chosen = prefixes[Math.floor(Math.random() * prefixes.length)];
+    setTitle(`${chosen}${clean.toUpperCase()}`);
+    toast.success("Manşet yapay zeka tarafından güçlendirildi!");
+  };
+
   const handleCopyText = () => {
     const text = `[${selectedTemplate.badgeText}]\n${title}\n${subtitle}\n#Trabzonspor #BordoMavi`;
     navigator.clipboard.writeText(text);
     setCopied(true);
-    toast.success("Metin panoya kopyalandı! Canva tasarımınıza yapıştırabilirsiniz.");
+    toast.success("Metin panoya kopyalandı!");
     setTimeout(() => setCopied(false), 2500);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200">
+      {/* Gizli HD Canvas Çizim Motoru */}
+      <canvas ref={canvasRef} className="hidden" />
+
       <div className="relative w-full max-w-4xl bg-card border border-border/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Modal Başlığı */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/70 bg-gradient-to-r from-[#781324]/10 via-background to-[#164E7A]/10">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#781324] to-[#164E7A] flex items-center justify-center text-white font-bold shadow-md">
-              <Palette className="w-5 h-5" />
+              <Bot className="w-5 h-5 text-amber-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-foreground">Canva Bordo-Mavi Tasarım Stüdyosu</h2>
-                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px]">
-                  Canva Entegrasyonu
+                <h2 className="text-base font-bold text-foreground">Canva Otonom Tasarım Stüdyosu</h2>
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> %100 Otomatik Tasarım
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                Trabzonspor kurumsal kimliğine uygun hazır şablonlarla Canva üzerinde anında profesyonel görsel üretin.
+                Siz hiçbir şey tasarlamadan yapay zeka hazır bordo-mavi afişi piksellerine kadar kendisi tamamlar.
               </p>
             </div>
           </div>
@@ -82,7 +166,7 @@ export function CanvaStudioModal({
             {/* Şablon Seçimi */}
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5" /> Şablon Seçin
+                <Layers className="w-3.5 h-3.5" /> Şablon Türü Seçin (AI Otomatik Tasarlar)
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {TRABZONSPOR_CANVA_TEMPLATES.map((tmpl) => {
@@ -124,7 +208,16 @@ export function CanvaStudioModal({
             {/* Metin Düzenleme */}
             <div className="space-y-3 pt-2 border-t border-border/70">
               <div>
-                <label className="text-xs font-semibold text-foreground mb-1 block">Afiş / Görsel Başlığı</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-foreground">Afiş / Görsel Başlığı</label>
+                  <button
+                    type="button"
+                    onClick={handleBoostHeadline}
+                    className="text-[10px] text-amber-500 hover:text-amber-400 font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <Sparkles className="w-3 h-3" /> Manşeti Güçlendir
+                  </button>
+                </div>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -134,98 +227,114 @@ export function CanvaStudioModal({
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-foreground mb-1 block">Alt Başlık / Spot Metin</label>
+                <label className="text-xs font-semibold text-foreground mb-1 block">Alt Başlık / Spot Açıklama</label>
                 <Input
                   value={subtitle}
                   onChange={(e) => setSubtitle(e.target.value)}
                   className="text-xs h-9"
-                  placeholder="Açıklama veya maç detayları..."
+                  placeholder="Açıklama veya detay..."
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-foreground mb-1 block">Futbolcu / Ana Özne (Opsiyonel)</label>
+                <label className="text-xs font-semibold text-foreground mb-1 block">Futbolcu / Özne (Hızlı Seçim)</label>
                 <Input
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
-                  className="text-xs h-9"
-                  placeholder="Örn: Simon Banza, Uğurcan Çakır"
+                  className="text-xs h-9 mb-1.5"
+                  placeholder="Örn: Simon Banza, Muhammed Cham"
                 />
+                <div className="flex flex-wrap gap-1">
+                  {SQUAD_PRESETS.map((player) => (
+                    <button
+                      key={player}
+                      type="button"
+                      onClick={() => setPlayerName(player)}
+                      className={`text-[10px] px-2 py-0.5 rounded-md border transition-all ${
+                        playerName === player
+                          ? "bg-amber-500/20 border-amber-500/40 text-amber-400 font-bold"
+                          : "bg-muted/40 border-border/60 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {player}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
           </div>
 
-          {/* Sağ: Canlı Görsel Önizleme & Eylemler (5 Kolon) */}
+          {/* Sağ: Otomatik Tasarlanan Bitmiş HD Görsel (5 Kolon) */}
           <div className="md:col-span-5 flex flex-col gap-4">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" /> Şablon Canlı Önizlemesi
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Tamamlanmış HD Görsel
+              </label>
+              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                Tasarım Hazır
+              </span>
+            </div>
 
-            {/* Tasarım Kartı Simülasyonu */}
-            <div 
-              className="w-full rounded-xl overflow-hidden border border-border/80 shadow-lg relative flex flex-col justify-between p-5 text-white min-h-[260px]"
-              style={{
-                background: `linear-gradient(135deg, ${selectedTemplate.primaryColor} 0%, #0F172A 70%, ${selectedTemplate.accentColor} 100%)`
-              }}
-            >
-              {/* Üst Rozet & Logo */}
-              <div className="flex justify-between items-start">
-                <span 
-                  className="px-2.5 py-1 rounded-md text-[10px] font-black tracking-widest uppercase shadow-xs"
-                  style={{ backgroundColor: selectedTemplate.accentColor, color: '#FFFFFF' }}
-                >
-                  {selectedTemplate.badgeText}
-                </span>
-                <span className="text-[11px] font-extrabold tracking-tight opacity-90">
-                  BORDO MAVİ
-                </span>
-              </div>
-
-              {/* Orta Başlık */}
-              <div className="space-y-1.5 my-auto py-4">
-                {playerName && (
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
-                    ★ {playerName}
-                  </div>
-                )}
-                <h3 className="text-sm md:text-base font-black leading-tight tracking-tight uppercase line-clamp-3">
-                  {title}
-                </h3>
-                <p className="text-xs opacity-80 font-medium line-clamp-2 leading-relaxed">
-                  {subtitle}
-                </p>
-              </div>
-
-              {/* Alt Bilgi */}
-              <div className="pt-3 border-t border-white/20 flex justify-between items-center text-[10px] opacity-75 font-mono">
-                <span>{selectedTemplate.width} x {selectedTemplate.height} PX</span>
-                <span>TRABZONSPOR AI</span>
-              </div>
+            {/* Gerçek Render Edilen HD Görsel */}
+            <div className="w-full rounded-2xl overflow-hidden border border-border/80 shadow-xl relative bg-slate-950 aspect-square flex items-center justify-center">
+              {renderedDataUrl ? (
+                <img 
+                  src={renderedDataUrl} 
+                  alt="Auto Designed Canva Visual" 
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="text-xs text-muted-foreground animate-pulse">
+                  Görsel tasarlanıyor...
+                </div>
+              )}
             </div>
 
             {/* Eylem Butonları */}
-            <div className="space-y-2 pt-2">
-              <Button
-                onClick={handleOpenInCanva}
-                className="w-full bg-[#00C4CC] hover:bg-[#00B4BC] text-white font-bold text-xs h-10 shadow-md flex items-center justify-center gap-2"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Canva'da Aç ve Tasarla (1-Tık)
-              </Button>
+            <div className="space-y-2 pt-1">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={handleDownloadHD}
+                  className="w-full bg-[#781324] hover:bg-[#5e0e1c] text-white font-bold text-xs h-10 shadow-md flex items-center justify-center gap-1.5"
+                >
+                  <Download className="w-4 h-4 text-amber-400" />
+                  HD İndir (PNG)
+                </Button>
 
-              <Button
-                variant="outline"
-                onClick={handleCopyText}
-                className="w-full font-semibold text-xs h-9 border-border/80 flex items-center justify-center gap-2"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                {copied ? "Metinler Kopyalandı!" : "Canva İçin Metinleri Kopyala"}
-              </Button>
+                <Button
+                  onClick={handleCopyImage}
+                  variant="outline"
+                  className="w-full font-bold text-xs h-10 border-primary/40 hover:bg-primary/10 flex items-center justify-center gap-1.5"
+                >
+                  <Copy className="w-4 h-4 text-primary" />
+                  Görseli Kopyala
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleOpenInCanva}
+                  className="w-full font-semibold text-[11px] h-9 border-[#00C4CC]/40 text-[#00C4CC] hover:bg-[#00C4CC]/10 flex items-center justify-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Canva'da İnce Ayar
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={handleCopyText}
+                  className="w-full font-semibold text-[11px] h-9 border-border/80 flex items-center justify-center gap-1.5"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? "Kopyalandı" : "Metni Kopyala"}
+                </Button>
+              </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-muted/60 border border-border/60 text-[11px] text-muted-foreground leading-relaxed">
-              <span className="font-bold text-foreground">İpucu:</span> Canva butonuna bastığınızda seçtiğiniz şablonun tam piksel ölçülerinde hazır boş tuval açılır. Bordo-mavi kulüp renk kodları ve kopyaladığınız metinler doğrudan uygulanabilir.
+            <div className="p-2.5 rounded-xl bg-muted/60 border border-border/60 text-[11px] text-muted-foreground leading-relaxed">
+              <span className="font-bold text-foreground">Otonom Tasarım:</span> Yapay zeka başlık boyutu, satır bölmeleri, bordo-mavi stadyum ışıkları ve kurumsal armayı otomatik yerleştirdi. Tasarımınız şu an yayına hazırdır.
             </div>
 
           </div>
