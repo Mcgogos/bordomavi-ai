@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Required for Netlify deployment
-  output: "standalone",
+  // Required for Netlify deployment (Vercel uses native build without standalone)
+  ...(process.env.VERCEL ? {} : { output: "standalone" as const }),
 
   // Allow external images if needed
   images: {
