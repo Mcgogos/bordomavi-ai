@@ -26,7 +26,7 @@ try {
         throw "CRON_SECRET not found in .env file"
     }
 
-    $Url = "http://localhost:3000/api/cron/sync-news?secret=$CronSecret"
+    $Url = "https://bordomavi-ai.vercel.app/api/cron/sync-news?secret=$CronSecret"
     $msgStart = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [INFO] Requesting: $Url"
     Add-Content -Path $LogFile -Value $msgStart
 

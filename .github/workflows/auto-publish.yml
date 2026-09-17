@@ -1,0 +1,31 @@
+name: 24/7 Auto Publish Cron
+
+on:
+  schedule:
+    # Her 30 dakikada bir calistir
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Manuel olarak GitHub panelinden tetikleme imkani
+
+jobs:
+  trigger-publish:
+    name: Trigger News Sync & Auto Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Send Trigger to Vercel Auto-Publish Endpoint
+        run: |
+          echo "Triggering 30-min auto publish on Vercel..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 120 "https://bordomavi-ai.vercel.app/api/cron/sync-news?secret=test_secret")
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response Body: $BODY"
+          
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "Auto publish cycle completed successfully!"
+          else
+            echo "Error: Received HTTP $HTTP_STATUS"
+            exit 1
+          fi

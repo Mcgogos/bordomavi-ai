@@ -4,6 +4,8 @@ import { analyzePendingNews } from '@/lib/news/news-ai-analyzer';
 import { generateAutomatedContent } from '@/lib/content/content-generator';
 import { checkContentQuality } from '@/lib/content/content-quality-checker';
 import { publishReadyContent } from '@/lib/content/content-publisher';
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {

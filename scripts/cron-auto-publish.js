@@ -444,7 +444,7 @@ async function publishToFacebook(limit = 1) {
 
   log(`${readyItems.length} içerik Facebook'a gönderiliyor...`);
   let published = 0;
-  const appUrl = 'https://bordomavi-ai-editor.netlify.app';
+  const appUrl = 'https://bordomavi-ai.vercel.app';
 
   for (const item of readyItems) {
     try {
