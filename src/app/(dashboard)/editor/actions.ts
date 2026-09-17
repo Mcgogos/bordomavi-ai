@@ -41,19 +41,26 @@ export async function publishContentDirectlyAction(id: string, updates: { title?
   try {
     const { FacebookService } = await import("@/services/facebook.service");
     
-    // 1. Önce güncellemeleri kaydet
+    // 1. Önce güncellemeleri temizle ve kaydet
+    const cleanTitle = updates.title
+      ? updates.title.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim()
+      : undefined;
+    const cleanBody = updates.body
+      ? updates.body.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim()
+      : undefined;
+
     const updatedContent = await prisma.content.update({
       where: { id },
       data: {
-        title: updates.title,
-        body: updates.body,
+        ...(cleanTitle ? { title: cleanTitle } : {}),
+        ...(cleanBody ? { body: cleanBody } : {}),
       }
     });
 
     // 2. Facebook yayını için hazırlık
-    const messageBody = updatedContent.body || '';
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai-editor.netlify.app';
-    const mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(updatedContent.title || '')}`;
+    const messageBody = (updatedContent.body || '').replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai.vercel.app';
+    const mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent((updatedContent.title || '').replace(/\*\*/g, '').trim())}`;
 
     // 3. Facebook'a gönder — content ID'yi lockKey olarak geçirerek aynı anda iki kez basılmasını engelle
     const publishResponse = await FacebookService.publishPost(messageBody, mediaUrl, id);

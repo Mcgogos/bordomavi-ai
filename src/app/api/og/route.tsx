@@ -8,8 +8,10 @@ import path from 'path';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const title = searchParams.get('title') || "Trabzonspor'da Flaş Gelişme!";
-    const summary = searchParams.get('summary') || '';
+    const rawTitle = searchParams.get('title') || "Trabzonspor'da Flaş Gelişme!";
+    const title = rawTitle.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    const rawSummary = searchParams.get('summary') || '';
+    const summary = rawSummary.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
     const externalImageUrl = searchParams.get('imageUrl') || null;
     
     // 1. TemplateSelector (Haber türünü analiz edip template seçer)

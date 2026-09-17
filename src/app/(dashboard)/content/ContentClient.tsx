@@ -213,17 +213,17 @@ export default function ContentClient({
           </div>
         </div>
 
-        {/* Table */}
+        {/* Table with Horizontal Scroll Safety & Full Width */}
         <div className="overflow-x-auto">
-          <Table>
+          <Table className="min-w-[1050px]">
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/80">
-                <TableHead className="w-[340px] font-bold text-xs uppercase tracking-wider text-muted-foreground">İçerik Başlığı</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Kaynak Haber</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Durum</TableHead>
-                <TableHead className="text-center font-bold text-xs uppercase tracking-wider text-muted-foreground">Kalite Skoru</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Tarih</TableHead>
-                <TableHead className="text-right font-bold text-xs uppercase tracking-wider text-muted-foreground pr-4">İşlemler</TableHead>
+                <TableHead className="w-[380px] min-w-[340px] font-bold text-xs uppercase tracking-wider text-muted-foreground">İçerik Başlığı</TableHead>
+                <TableHead className="w-[220px] min-w-[200px] font-bold text-xs uppercase tracking-wider text-muted-foreground">Kaynak Haber</TableHead>
+                <TableHead className="w-[120px] min-w-[110px] font-bold text-xs uppercase tracking-wider text-muted-foreground">Durum</TableHead>
+                <TableHead className="w-[90px] text-center font-bold text-xs uppercase tracking-wider text-muted-foreground">Kalite</TableHead>
+                <TableHead className="w-[120px] min-w-[110px] font-bold text-xs uppercase tracking-wider text-muted-foreground">Tarih</TableHead>
+                <TableHead className="w-[280px] min-w-[260px] text-right font-bold text-xs uppercase tracking-wider text-muted-foreground pr-4">İşlemler</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -240,21 +240,21 @@ export default function ContentClient({
               ) : (
                 filteredContent.map((content) => (
                   <TableRow key={content.id} className="hover:bg-muted/25 transition-colors border-b border-border/60">
-                    <TableCell>
-                      <span className="text-sm font-semibold line-clamp-2 leading-snug text-foreground">
-                        {content.title}
+                    <TableCell className="w-[380px] min-w-[340px] py-3.5">
+                      <span className="text-sm font-semibold leading-relaxed text-foreground block line-clamp-2">
+                        {content.title.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[200px]">
-                      <span className="line-clamp-2 font-medium" title={content.sourceNews?.title}>
-                        {content.sourceNews?.title || "—"}
+                    <TableCell className="w-[220px] min-w-[200px] text-xs text-muted-foreground py-3.5">
+                      <span className="line-clamp-2 font-medium leading-relaxed" title={content.sourceNews?.title}>
+                        {content.sourceNews?.title?.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3') || "—"}
                       </span>
                     </TableCell>
-                    <TableCell>{getStatusBadge(content.status)}</TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="w-[120px] min-w-[110px] py-3.5">{getStatusBadge(content.status)}</TableCell>
+                    <TableCell className="w-[90px] text-center py-3.5">
                       {getScoreBadge(content.qualityScore)}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-medium whitespace-nowrap">
+                    <TableCell className="w-[120px] min-w-[110px] text-xs text-muted-foreground font-medium whitespace-nowrap py-3.5">
                       {new Date(content.createdAt).toLocaleDateString("tr-TR", {
                         day: "2-digit",
                         month: "short",
@@ -262,12 +262,12 @@ export default function ContentClient({
                         minute: "2-digit",
                       })}
                     </TableCell>
-                    <TableCell className="text-right pr-4">
-                      <div className="flex justify-end items-center gap-1.5">
+                    <TableCell className="w-[280px] min-w-[260px] text-right pr-4 py-3.5 whitespace-nowrap">
+                      <div className="flex justify-end items-center gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"
+                          className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
                           onClick={() => setPreviewContent(content)}
                         >
                           <Eye className="w-3.5 h-3.5 mr-1" />
@@ -276,7 +276,7 @@ export default function ContentClient({
                         {content.status !== "PUBLISHED" && (
                           <Button
                             size="sm"
-                            className="h-8 px-3 text-xs font-semibold bg-[#164E7A] text-white hover:bg-[#123E62] shadow-xs transition-all"
+                            className="h-8 px-3.5 text-xs font-semibold bg-[#164E7A] text-white hover:bg-[#123E62] shadow-xs transition-all shrink-0 whitespace-nowrap"
                             onClick={() => handlePublishNow(content.id)}
                             disabled={isPublishing === content.id}
                           >
@@ -289,7 +289,7 @@ export default function ContentClient({
                           </Button>
                         )}
                         {content.status === "PUBLISHED" && content.facebookPostId && (
-                          <span className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+                          <span className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 shrink-0 whitespace-nowrap">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                             Yayında
                           </span>
@@ -297,7 +297,7 @@ export default function ContentClient({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors shrink-0"
                           onClick={() => handleDelete(content.id)}
                           disabled={isDeleting === content.id}
                           title="Reddet ve Sil"
@@ -348,12 +348,14 @@ export default function ContentClient({
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Başlık</span>
-                <h4 className="font-bold text-base text-foreground mt-0.5">{previewContent.title}</h4>
+                <h4 className="font-bold text-base text-foreground mt-0.5">
+                  {previewContent.title.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')}
+                </h4>
               </div>
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">İçerik Metni</span>
                 <div className="mt-1 p-4 rounded-xl bg-muted/30 border border-border/60 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                  {previewContent.body}
+                  {previewContent.body.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')}
                 </div>
               </div>
             </div>

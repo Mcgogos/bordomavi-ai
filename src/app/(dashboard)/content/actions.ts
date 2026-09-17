@@ -29,11 +29,18 @@ export async function publishContentNowAction(contentId: string) {
       return { success: false, error: "İçerik bulunamadı." };
     }
 
-    // Build the og image URL for the news title
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const mediaUrl = `${baseUrl}/api/og?title=${encodeURIComponent(content.title)}`;
+    // Build clean plain text message without markdown asterisks
+    const cleanTitle = (content.title || '').replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    const cleanBody = (content.body || '').replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    let message = cleanTitle ? cleanTitle + "\n\n" + cleanBody : cleanBody;
+    if (content.hashtags) message += "\n\n" + content.hashtags.trim();
+    message = message.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
 
-    const result = await FacebookService.publishPost(content.body, mediaUrl);
+    // Build the og image URL for the news title
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || "https://bordomavi-ai.vercel.app";
+    const mediaUrl = `${baseUrl}/api/og?title=${encodeURIComponent(cleanTitle)}`;
+
+    const result = await FacebookService.publishPost(message, mediaUrl, contentId);
 
     if (result.success && result.postId) {
       await prisma.content.update({

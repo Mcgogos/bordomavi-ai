@@ -1,6 +1,15 @@
 import { prisma } from '@/lib/db';
 import { AIFactory } from '@/services/ai/ai.factory';
 
+// Helper to strictly remove markdown asterisks (** and *) for clean plain text publishing
+export function sanitizePlainText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+    .trim();
+}
+
 // In-memory lock for generation
 const generatingIds = new Set<string>();
 
@@ -13,19 +22,22 @@ export async function generateAutomatedContent(limit: number = 5) {
     results: [] as any[]
   };
 
-  // Minimum AI score threshold for auto-generation
-  const MIN_AI_SCORE = 85;
+  // Minimum AI score threshold for auto-generation (65+ Trabzonspor news)
+  const MIN_AI_SCORE = 65;
 
   try {
     // 1. Find suitable news
-    // rules: isTrabzonsporRelated = true, aiRecommendedAction in [CREATE_CONTENT, URGENT], no content yet, importanceScore >= 85
+    // rules: isTrabzonsporRelated is true or null, action in [CREATE_CONTENT, URGENT], no content yet, importanceScore >= 65
     const candidateNews = await prisma.news.findMany({
       where: {
         isProcessed: true,
-        isTrabzonsporRelated: true,
+        OR: [
+          { isTrabzonsporRelated: true },
+          { isTrabzonsporRelated: null }
+        ],
         aiRecommendedAction: { in: ['CREATE_CONTENT', 'URGENT'] },
         content: null, // no content generated yet
-        importanceScore: { gte: MIN_AI_SCORE } // Only high-quality news (85+)
+        importanceScore: { gte: MIN_AI_SCORE } // High-quality news (65+)
       },
       include: { source: true },
       orderBy: { importanceScore: 'desc' }, // Best news first
@@ -58,9 +70,9 @@ export async function generateAutomatedContent(limit: number = 5) {
         const prompt = `
 Lütfen aşağıdaki haber detaylarını kullanarak Bordo Mavi (Trabzonspor) taraftar platformu için dikkat çekici bir Facebook gönderisi taslağı oluştur.
         
-Haber Başlığı: ${news.title}
+Haber Başlığı: ${sanitizePlainText(news.title)}
 Kaynak: ${news.source?.name || 'Bilinmiyor'}
-Haber Özeti: ${news.summary || news.aiSummary || ''}
+Haber Özeti: ${sanitizePlainText(news.summary || news.aiSummary || '')}
         
 Kurallar:
 1. Dikkat çekici bir başlık ile başla.
@@ -69,13 +81,17 @@ Kurallar:
 4. Kesinleşmemiş haberler için "iddia edildi", "öne sürüldü" gibi güvenilirlik ifadeleri kullan.
 5. Sonunda Bordo Mavi tarzında kısa bir yorum ekle (Örn: "Sizce bu transfer takıma katkı sağlar mı?", "Fırtına'nın yeni rotası ne olacak?").
 6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
-7. Yanıtını doğrudan paylaşılacak metin olarak gönder (JSON veya ekstra açıklama olmadan).`;
+7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.
+8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).`;
 
         const generatedText = await aiProvider.generateContent(prompt);
 
         if (!generatedText) {
           throw new Error("AI failed to generate content.");
         }
+
+        const cleanTitle = sanitizePlainText(news.title);
+        const cleanBody = sanitizePlainText(generatedText);
 
         // Save to DB
         // Determine type based on recommended content type
@@ -86,8 +102,8 @@ Kurallar:
 
         await prisma.content.create({
           data: {
-            title: news.title,
-            body: generatedText,
+            title: cleanTitle,
+            body: cleanBody,
             type: contentType as any,
             // High-score content goes directly to publishing queue (no manual approval needed)
             status: 'READY_TO_PUBLISH',
@@ -96,7 +112,7 @@ Kurallar:
         });
 
         result.processed++;
-        result.results.push({ newsId: news.id, title: news.title, success: true });
+        result.results.push({ newsId: news.id, title: cleanTitle, success: true });
         console.log(`[Content Generator] Success for news ID: ${news.id}`);
 
       } catch (err: any) {
@@ -137,9 +153,9 @@ export async function generateSingleContent(newsId: string) {
     const prompt = `
 Lütfen aşağıdaki haber detaylarını kullanarak Bordo Mavi (Trabzonspor) taraftar platformu için dikkat çekici bir Facebook gönderisi taslağı oluştur.
     
-Haber Başlığı: ${news.title}
+Haber Başlığı: ${sanitizePlainText(news.title)}
 Kaynak: ${news.source?.name || 'Bilinmiyor'}
-Haber Özeti: ${news.summary || news.aiSummary || ''}
+Haber Özeti: ${sanitizePlainText(news.summary || news.aiSummary || '')}
     
 Kurallar:
 1. Dikkat çekici bir başlık ile başla.
@@ -148,11 +164,15 @@ Kurallar:
 4. Kesinleşmemiş haberler için "iddia edildi", "öne sürüldü" gibi güvenilirlik ifadeleri kullan.
 5. Sonunda Bordo Mavi tarzında kısa bir yorum ekle (Örn: "Sizce bu transfer takıma katkı sağlar mı?", "Fırtına'nın yeni rotası ne olacak?").
 6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
-7. Yanıtını doğrudan paylaşılacak metin olarak gönder (JSON veya ekstra açıklama olmadan).`;
+7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.
+8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).`;
 
     const generatedText = await aiProvider.generateContent(prompt);
 
     if (!generatedText) throw new Error("AI failed to generate content.");
+
+    const cleanTitle = sanitizePlainText(news.title);
+    const cleanBody = sanitizePlainText(generatedText);
 
     let contentType = 'NEWS';
     if (news.aiRecommendedContentType) {
@@ -161,8 +181,8 @@ Kurallar:
 
     const created = await prisma.content.create({
       data: {
-        title: news.title,
-        body: generatedText,
+        title: cleanTitle,
+        body: cleanBody,
         type: contentType as any,
         status: 'DRAFT',
         sourceNewsId: news.id,

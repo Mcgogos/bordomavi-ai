@@ -29,8 +29,8 @@ export async function GET(request: Request) {
     console.log("[CRON] Phase 2: Analyzing pending news...");
     const analyzeResult = await analyzePendingNews(15);
 
-    // 3. 85+ Puanlı Haberlerden İçerik Üret (Max 3) — otomatik READY_TO_PUBLISH
-    console.log("[CRON] Phase 3: Generating automated content (score >= 85)...");
+    // 3. 65+ Puanlı Kaliteli Haberlerden İçerik Üret (Max 3) — otomatik READY_TO_PUBLISH
+    console.log("[CRON] Phase 3: Generating automated content (score >= 65)...");
     const generateResult = await generateAutomatedContent(3);
 
     // 4. Üretilen İçerikleri Kalite Kontrolünden Geçir (Max 3)

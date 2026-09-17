@@ -46,15 +46,25 @@ export async function publishReadyContent(limit: number = 1) {
       try {
         console.log(`[Content Publisher] Publishing content ID: ${content.id}`);
 
-        let messageBody = content.title + '\n\n' + content.body;
+        const cleanTitle = (content.title || '')
+          .replace(/\*\*/g, '')
+          .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+          .trim();
+        const cleanBody = (content.body || '')
+          .replace(/\*\*/g, '')
+          .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+          .trim();
+
+        let messageBody = cleanTitle + '\n\n' + cleanBody;
         if (content.hashtags) {
-          messageBody += '\n\n' + content.hashtags;
+          messageBody += '\n\n' + content.hashtags.trim();
         }
+        messageBody = messageBody.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
 
         // Dinamik görsel (OG Image) URL'sini oluştur.
         // Orijinal haberdeki fotoğrafı arka plan olarak kullanmak için imageUrl ekle
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai-editor.netlify.app';
-        let mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(content.title)}`;
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai.vercel.app';
+        let mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(cleanTitle)}`;
         
         if (content.sourceNews?.imageUrl) {
           mediaUrl += `&imageUrl=${encodeURIComponent(content.sourceNews.imageUrl)}`;

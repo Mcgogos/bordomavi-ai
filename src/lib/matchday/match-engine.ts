@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { FacebookService } from "@/services/facebook.service";
 
 export interface MatchEventParams {
-  type: "GOAL" | "RED_CARD" | "HALF_TIME" | "FULL_TIME";
+  type: "LINEUP" | "GOAL" | "YELLOW_CARD" | "RED_CARD" | "HALF_TIME" | "FULL_TIME";
   opponent: string;
   homeScore: number;
   awayScore: number;
@@ -163,16 +163,37 @@ export class MatchAutomationEngine {
     let title = "";
     let body = "";
     let template = "GOAL";
-    const cleanPlayer = player || "Paul Onuachu";
+    const cleanPlayer = (player || "Paul Onuachu").replace(/\*\*/g, '').replace(/\*/g, '').trim();
     const playerHashtag = "#" + cleanPlayer.replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ]/g, "");
 
     switch (type) {
+      case "LINEUP": {
+        template = "MATCH_DAY";
+        title = `📋 İLK 11'İMİZ AÇIKLANDI! | Trabzonspor - ${opponent}`;
+        const squadList = [
+          "🧤 24. André Onana",
+          "🛡️ 15. Stefan Savić",
+          "🛡️ 44. Arseniy Batagov",
+          "🛡️ 20. Wagner Pina",
+          "🛡️ 39. Cenk Özkacar",
+          "⚙️ 5. Okay Yokuşlu",
+          "⚙️ 11. Ozan Tufan",
+          "🎯 10. Muhammed Cham",
+          "⚡ 7. Edin Vişça",
+          "⚡ 9. Anthony Nwakaeme",
+          "🎯 30. Paul Onuachu"
+        ].join("\n");
+
+        body = `📋 Trabzonspor'umuzun ${opponent} derbisi ilk 11'i açıklandı!\n\n${squadList}\n\n👔 Teknik Direktör: Şenol Güneş\n\nBaşarılar Fırtına! Zafer bizim olsun!\n\n#Trabzonspor #BordoMavi #İlk11 #SüperLig #Fırtına #TSvGS`;
+        break;
+      }
+
       case "GOAL": {
         template = "GOAL";
         const isTrabzonsporGoal = !team || team === "Trabzonspor";
         if (isTrabzonsporGoal) {
           title = `⚽ GOOOLLL! ${cleanPlayer}! Trabzonspor ${homeScore} - ${awayScore} ${opponent} (${minute})`;
-          const assistText = assist ? ` ${assist}'nın enfes asistinde` : "";
+          const assistText = assist ? ` ${assist.replace(/\*\*/g, '')}'nın enfes asistinde` : "";
           body = `⚽ GOOOOOLLLL! DAKİKA ${minute}!\n\nTrabzonspor'umuz ${cleanPlayer}'nın${assistText} attığı muazzam golle skoru ${homeScore} - ${awayScore} yapıyor! Papara Park ayakta!\n\n🔴🔵 Trabzonspor ${homeScore} - ${awayScore} ${opponent}\n\nSizce bu maçı kaç kaç kazanırız? Yorumlarda buluşalım! 👇\n\n#Trabzonspor #BordoMavi ${playerHashtag} #Fırtına #Gol`;
         } else {
           title = `⚽ Rakip Golü | Trabzonspor ${homeScore} - ${awayScore} ${opponent} (${minute})`;
@@ -181,11 +202,21 @@ export class MatchAutomationEngine {
         break;
       }
 
+      case "YELLOW_CARD": {
+        template = "MATCH_DAY";
+        const isOpponent = team && team !== "Trabzonspor";
+        const teamLabel = isOpponent ? opponent : "Trabzonspor";
+        title = `🟨 SARI KART! ${cleanPlayer} (${minute}) | Trabzonspor ${homeScore} - ${awayScore} ${opponent}`;
+        body = `🟨 SARI KART! DAKİKA ${minute}!\n\nHakem ${teamLabel} takımından ${cleanPlayer}'a sarı kart gösterdi.\n\n🔴🔵 Trabzonspor ${homeScore} - ${awayScore} ${opponent}\n\n#Trabzonspor #BordoMavi #SarıKart #SüperLig`;
+        break;
+      }
+
       case "RED_CARD": {
         template = "RED_CARD";
         const isOpponent = team && team !== "Trabzonspor";
+        const teamLabel = isOpponent ? opponent : "Trabzonspor";
         title = `🟥 KIRMIZI KART! ${cleanPlayer} (${minute}) | Trabzonspor ${homeScore} - ${awayScore} ${opponent}`;
-        body = `🟥 KIRMIZI KART! DAKİKA ${minute}!\n\nMücadelede tansiyon zirveye çıktı! ${isOpponent ? opponent : "Trabzonspor"} takımında ${cleanPlayer} kırmızı kart görerek oyun dışında kaldı!\n\n🔴🔵 Trabzonspor ${homeScore} - ${awayScore} ${opponent}\n\nBu kart maçı nasıl etkiler? Görüşlerinizi yorumda belirtin! 👇\n\n#Trabzonspor #BordoMavi #KırmızıKart #SüperLig`;
+        body = `🟥 KIRMIZI KART! DAKİKA ${minute}!\n\nMücadelede tansiyon zirveye çıktı! ${teamLabel} takımında ${cleanPlayer} kırmızı kart görerek oyun dışında kaldı!\n\n🔴🔵 Trabzonspor ${homeScore} - ${awayScore} ${opponent}\n\nBu kart maçı nasıl etkiler? Görüşlerinizi yorumda belirtin! 👇\n\n#Trabzonspor #BordoMavi #KırmızıKart #SüperLig`;
         break;
       }
 
@@ -211,6 +242,10 @@ export class MatchAutomationEngine {
         break;
       }
     }
+
+    // Markdown yıldız işaretlerini (**) kesin olarak temizle
+    title = title.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    body = body.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
 
     const ogUrl = `${appUrl}/api/og?title=${encodeURIComponent(title)}&template=${template}&score=${homeScore}-${awayScore}&player=${encodeURIComponent(cleanPlayer)}&minute=${encodeURIComponent(minute)}`;
 

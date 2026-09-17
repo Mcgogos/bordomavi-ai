@@ -30,12 +30,27 @@ export function CanvaStudioModal({
   
   // Otomatik Üretilen HD Görsel State'i
   const [renderedDataUrl, setRenderedDataUrl] = useState<string>("");
+  const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Sync props
+  // Kullanıcının yüklediği orijinal logoyu tarayıcıda önceden yükle
   useEffect(() => {
-    setTitle(initialTitle);
-    setSubtitle(initialSubtitle);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = "/assets/brand/bordomavi-logo.png";
+    img.onload = () => setLogoImage(img);
+    img.onerror = () => {
+      const fallback = new Image();
+      fallback.crossOrigin = "anonymous";
+      fallback.src = "/logo.png";
+      fallback.onload = () => setLogoImage(fallback);
+    };
+  }, []);
+
+  // Sync props (temizlenmiş metin ile)
+  useEffect(() => {
+    setTitle((initialTitle || "").replace(/\*\*/g, "").replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3"));
+    setSubtitle((initialSubtitle || "").replace(/\*\*/g, "").replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3"));
   }, [initialTitle, initialSubtitle]);
 
   // Otomatik Tasarım Motoru: Her parametre değişiminde anında render eder
@@ -53,7 +68,8 @@ export function CanvaStudioModal({
           playerName,
           category: selectedTemplate.category,
           width: selectedTemplate.width,
-          height: selectedTemplate.height
+          height: selectedTemplate.height,
+          logoImage
         });
         setRenderedDataUrl(dataUrl);
       } catch (e) {
@@ -62,7 +78,7 @@ export function CanvaStudioModal({
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [title, subtitle, playerName, selectedTemplate, isOpen]);
+  }, [title, subtitle, playerName, selectedTemplate, isOpen, logoImage]);
 
   if (!isOpen) return null;
 
@@ -113,7 +129,11 @@ export function CanvaStudioModal({
   };
 
   const handleBoostHeadline = () => {
-    let clean = title.replace(/^(SON DAKİKA|FLAŞ|RESMİ|TRABZONSPOR'DA BOMBA!)\s*[:|-]?\s*/i, "").trim();
+    let clean = title
+      .replace(/\*\*/g, "")
+      .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3")
+      .replace(/^(SON DAKİKA|FLAŞ|RESMİ|TRABZONSPOR'DA BOMBA!)\s*[:|-]?\s*/i, "")
+      .trim();
     const prefixes = ["SON DAKİKA | ", "FLAŞ HABER! ", "TRABZONSPOR'DA BOMBA! "];
     const chosen = prefixes[Math.floor(Math.random() * prefixes.length)];
     setTitle(`${chosen}${clean.toUpperCase()}`);
@@ -121,7 +141,9 @@ export function CanvaStudioModal({
   };
 
   const handleCopyText = () => {
-    const text = `[${selectedTemplate.badgeText}]\n${title}\n${subtitle}\n#Trabzonspor #BordoMavi`;
+    const cleanT = title.replace(/\*\*/g, "").replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3").trim();
+    const cleanS = subtitle.replace(/\*\*/g, "").replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3").trim();
+    const text = `[${selectedTemplate.badgeText}]\n${cleanT}\n${cleanS}\n#Trabzonspor #BordoMavi`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     toast.success("Metin panoya kopyalandı!");

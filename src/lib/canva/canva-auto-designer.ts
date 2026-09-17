@@ -11,6 +11,24 @@ export interface AutoDesignOptions {
   category: "TRANSFER" | "MATCH_DAY" | "GOAL" | "REELS" | "OFFICIAL";
   width?: number;
   height?: number;
+  logoImage?: CanvasImageSource | null;
+}
+
+// Client-side logo cache for the user's authentic uploaded logo
+let cachedUserLogo: HTMLImageElement | null = null;
+if (typeof window !== "undefined") {
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = "/assets/brand/bordomavi-logo.png";
+    img.onload = () => { cachedUserLogo = img; };
+    img.onerror = () => {
+      const fallback = new Image();
+      fallback.crossOrigin = "anonymous";
+      fallback.src = "/logo.png";
+      fallback.onload = () => { cachedUserLogo = fallback; };
+    };
+  } catch {}
 }
 
 export class CanvaAutoDesigner {
@@ -209,9 +227,31 @@ export class CanvaAutoDesigner {
     ctx.textBaseline = "middle";
     ctx.fillText(badgeText, badgeX + 24, badgeY + badgeHeight / 2);
 
-    // Sağ Üst Trabzonspor Vektörel Arması & Şampiyonluk Yıldızı
-    const crestSize = Math.min(width, height) * 0.14;
-    this.drawCrest(ctx, width - 110, 110, crestSize);
+    // Sağ Üst: Kullanıcının Yüklediği Orijinal Logo veya Vektörel Arma
+    const logoToDraw = options.logoImage || cachedUserLogo;
+    if (logoToDraw) {
+      const logoBoxSize = Math.min(width, height) * 0.14;
+      const logoX = width - logoBoxSize - 60;
+      const logoY = 50;
+
+      // Şık beyaz/şeffaf cam zemin rozeti
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 4;
+      ctx.beginPath();
+      ctx.roundRect(logoX - 8, logoY - 8, logoBoxSize + 16, logoBoxSize + 16, 16);
+      ctx.fill();
+
+      // Logoyu çiz
+      ctx.drawImage(logoToDraw, logoX, logoY, logoBoxSize, logoBoxSize);
+      ctx.restore();
+    } else {
+      const crestSize = Math.min(width, height) * 0.14;
+      this.drawCrest(ctx, width - 110, 110, crestSize);
+    }
     ctx.restore();
 
     // 5. OYUNCU / ÖZNE ETİKETİ (Varsa)
@@ -225,7 +265,12 @@ export class CanvaAutoDesigner {
       ctx.restore();
     }
 
-    // 6. ANA MANŞET (Otomatik Kelime Bölme & Dinamik Boyutlama)
+    // 6. ANA MANŞET (Metin Temizleme: ** ve * kaldırılır, Otomatik Kelime Bölme & Boyutlandırma)
+    const cleanTitle = (options.title || "")
+      .replace(/\*\*/g, "")
+      .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3")
+      .trim();
+
     ctx.save();
     ctx.fillStyle = "#FFFFFF";
     ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
@@ -234,14 +279,14 @@ export class CanvaAutoDesigner {
     ctx.shadowOffsetY = 6;
 
     let fontSize = 64;
-    if (options.title.length > 70) fontSize = 52;
-    if (options.title.length > 100) fontSize = 44;
+    if (cleanTitle.length > 70) fontSize = 52;
+    if (cleanTitle.length > 100) fontSize = 44;
 
     ctx.font = `900 ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
     ctx.textBaseline = "top";
 
     const maxLineWidth = width - 144;
-    const words = options.title.split(" ");
+    const words = cleanTitle.split(" ");
     let currentLine = "";
     const lines: string[] = [];
 
@@ -265,9 +310,14 @@ export class CanvaAutoDesigner {
     }
     ctx.restore();
 
-    // 7. ALT METİN / SPOT AÇIKLAMA
+    // 7. ALT METİN / SPOT AÇIKLAMA (** ve * temizliği yapılmış)
     currentY += 20;
-    const subText = options.subtitle || "Trabzonspor kulübünden taraftarı heyecanlandıran önemli adım.";
+    const rawSubtitle = options.subtitle || "Trabzonspor kulübünden taraftarı heyecanlandıran önemli adım.";
+    const subText = rawSubtitle
+      .replace(/\*\*/g, "")
+      .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3")
+      .trim();
+
     ctx.save();
     ctx.font = "500 28px -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.fillStyle = "#E2E8F0";
@@ -293,7 +343,7 @@ export class CanvaAutoDesigner {
     }
     ctx.restore();
 
-    // 8. ALT BİLGİ BANDI (Tarih & Kulüp Damgası)
+    // 8. ALT BİLGİ BANDI (Sadece 'BORDO MAVİ' & Kulüp Etiketi)
     ctx.save();
     const footerY = height - 90;
     ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
@@ -303,10 +353,10 @@ export class CanvaAutoDesigner {
     ctx.lineTo(width - 72, footerY - 20);
     ctx.stroke();
 
-    ctx.font = "600 20px -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+    ctx.font = "bold 26px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillStyle = "#FFFFFF";
     ctx.textBaseline = "middle";
-    ctx.fillText("BORDOMAVİ AI • PAPARA PARK ÖZEL YAYINI", 72, footerY + 10);
+    ctx.fillText("BORDO MAVİ", 72, footerY + 10);
 
     ctx.textAlign = "right";
     ctx.font = "bold 20px sans-serif";

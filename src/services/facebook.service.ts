@@ -57,7 +57,11 @@ export class FacebookService {
 
     try {
       const { token, pageId } = await resolvePageToken();
-      let payload: any = { message, access_token: token };
+      const sanitizedMessage = (message || '')
+        .replace(/\*\*/g, '')
+        .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+        .trim();
+      let payload: any = { message: sanitizedMessage, access_token: token };
 
       // İki adımlı görsel paylaşım: önce gizli yükle, sonra feed'e ekle.
       // Bu yöntemde Facebook paylaşımının altında URL görünmez.
