@@ -76,6 +76,12 @@ export async function publishReadyContent(limit: number = 1) {
         result.results.push({ contentId: content.id, status: 'PUBLISHED', facebookPostId: publishResponse.postId, mockMode: publishResponse.mockMode });
         console.log(`[Content Publisher] Done for ${content.id}: ${publishResponse.postId}`);
 
+        // Facebook anti-spam: Çoklu paylaşımlar arasına 3 saniyelik güvenli bekleme ekle
+        if (result.processed < limit) {
+          console.log("[Content Publisher] Waiting 3s before next post to prevent Facebook velocity flag...");
+          await new Promise(res => setTimeout(res, 3000));
+        }
+
       } catch (err: any) {
         console.error(`[Content Publisher] Error publishing content ${content.id}:`, err);
         result.failed++;

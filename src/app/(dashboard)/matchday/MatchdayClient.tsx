@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { 
   Trophy, Flame, Send, Sparkles, CheckCircle, Clock, 
-  Share2, Shield, Calendar, Users, Eye, Copy, RefreshCw, AlertCircle
+  Share2, Shield, Calendar, Users, Eye, Copy, RefreshCw, AlertCircle, Bot, Zap
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { publishContentDirectlyAction } from "../editor/actions";
+import { publishMatchEventAction } from "./actions";
+import { CURRENT_TRABZONSPOR_SQUAD, CURRENT_SUPER_LIG_OPPONENTS } from "@/lib/matchday/match-engine";
 
 interface MatchdayClientProps {
   initialNews?: any[];
@@ -21,45 +22,44 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
   const [opponent, setOpponent] = useState("Fenerbahçe");
   const [competition, setCompetition] = useState("Trendyol Süper Lig");
   const [venue, setVenue] = useState("Papara Park (İç Saha)");
-  const [matchMinute, setMatchMinute] = useState("64'");
+  const [matchMinute, setMatchMinute] = useState("61'");
   const [homeScore, setHomeScore] = useState(2);
   const [awayScore, setAwayScore] = useState(1);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isAutonomousActive, setIsAutonomousActive] = useState(true);
 
-  // Goal Card Creator State
+  // Goal & Card State
   const [scorer, setScorer] = useState("Simon Banza");
   const [assist, setAssist] = useState("Edin Vişça");
-  const [goalMinute, setGoalMinute] = useState("64'");
+  const [goalMinute, setGoalMinute] = useState("61'");
+  const [cardPlayer, setCardPlayer] = useState("Simon Banza");
+  const [cardTeam, setCardTeam] = useState<"Trabzonspor" | "Rakip">("Rakip");
 
   // Generated Post Preview State
   const [generatedPost, setGeneratedPost] = useState<{
+    type: "GOAL" | "RED_CARD" | "HALF_TIME" | "FULL_TIME";
     title: string;
     body: string;
     ogUrl: string;
   }>({
-    title: `⚽ GOOOLLL! Simon Banza! Trabzonspor 2 - 1 Fenerbahçe (64')`,
-    body: `⚽ GOOOOOLLLL! DAKİKA 64'!\n\nTrabzonspor'umuz Simon Banza'nın attığı harika golle öne geçiyor! Edin Vişça'nın mükemmel asistiyle Papara Park ayakta!\n\n🔴🔵 Trabzonspor 2 - 1 Fenerbahçe\n\n#Trabzonspor #BordoMavi #SimonBanza #Fırtına`,
-    ogUrl: `/api/og?title=${encodeURIComponent("⚽ GOOOLLL! Simon Banza! (64')")}&template=GOAL&score=2-1&player=Simon+Banza&minute=64'`
+    type: "GOAL",
+    title: `⚽ GOOOLLL! Simon Banza! Trabzonspor 2 - 1 Fenerbahçe (61')`,
+    body: `⚽ GOOOOOLLLL! DAKİKA 61'!\n\nTrabzonspor'umuz Simon Banza'nın attığı muhteşem golle öne geçiyor! Edin Vişça'nın harika pasında Papara Park ayakta!\n\n🔴🔵 Trabzonspor 2 - 1 Fenerbahçe\n\n#Trabzonspor #BordoMavi #SimonBanza #Fırtına #Gol`,
+    ogUrl: `/api/og?title=${encodeURIComponent("⚽ GOOOLLL! Simon Banza! (61')")}&template=GOAL&score=2-1&player=Simon+Banza&minute=61'`
   });
-
-  const popularOpponents = [
-    "Fenerbahçe", "Galatasaray", "Beşiktaş", "Çaykur Rizespor", 
-    "Samsunspor", "Sivasspor", "Başakşehir", "Göztepe"
-  ];
-
-  const popularPlayers = [
-    "Simon Banza", "Edin Vişça", "Muhammed Cham", "Denis Dragus", 
-    "Batista Mendy", "Anthony Nwakaeme", "Okay Yokuşlu", "Stefan Savic"
-  ];
 
   // Generate Goal Post
   const handleGenerateGoalPost = () => {
-    const newTitle = `⚽ GOOOLLL! ${scorer}! Trabzonspor ${homeScore} - ${awayScore} ${opponent} (${goalMinute})`;
-    const assistText = assist ? ` ${assist}'nın harika pasında topu ağlara gönderdi.` : "";
-    const newBody = `⚽ GOOOOOLLLL! DAKİKA ${goalMinute}!\n\nTrabzonspor'umuz ${scorer}'nın attığı muazzam golle skoru ${homeScore} - ${awayScore} yapıyor!${assistText} Papara Park'ta coşku tavan yaptı!\n\n🔴🔵 Trabzonspor ${homeScore} - ${awayScore} ${opponent}\n\nSizce maç kaç kaç biter? Skor tahminlerinizi yoruma yazın! 👇\n\n#Trabzonspor #BordoMavi #${scorer.replace(/\s+/g, '')} #Fırtına`;
-    const newOg = `/api/og?title=${encodeURIComponent(`⚽ GOOOLLL! ${scorer}! (${goalMinute})`)}&template=GOAL&score=${homeScore}-${awayScore}&player=${encodeURIComponent(scorer)}&minute=${encodeURIComponent(goalMinute)}`;
+    const cleanScorer = scorer || "Simon Banza";
+    const newTitle = `⚽ GOOOLLL! ${cleanScorer}! Trabzonspor ${homeScore} - ${awayScore} ${opponent} (${goalMinute})`;
+    const assistText = assist ? ` ${assist}'nın harika pasında` : "";
+    const playerTag = "#" + cleanScorer.replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ]/g, "");
+    
+    const newBody = `⚽ GOOOOOLLLL! DAKİKA ${goalMinute}!\n\nTrabzonspor'umuz ${cleanScorer}'nın${assistText} attığı muazzam golle skoru ${homeScore} - ${awayScore} yapıyor! Papara Park'ta coşku tavan yaptı!\n\n🔴🔵 Trabzonspor ${homeScore} - ${awayScore} ${opponent}\n\nSizce maç kaç kaç biter? Skor tahminlerinizi yoruma yazın! 👇\n\n#Trabzonspor #BordoMavi ${playerTag} #Fırtına #Gol`;
+    const newOg = `/api/og?title=${encodeURIComponent(`⚽ GOOOLLL! ${cleanScorer}! (${goalMinute})`)}&template=GOAL&score=${homeScore}-${awayScore}&player=${encodeURIComponent(cleanScorer)}&minute=${encodeURIComponent(goalMinute)}`;
 
     setGeneratedPost({
+      type: "GOAL",
       title: newTitle,
       body: newBody,
       ogUrl: newOg
@@ -68,17 +68,36 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
     toast.success("Canlı Gol Kartı ve Facebook gönderisi hazırlandı!");
   };
 
-  // Generate Match End Post
+  // Generate Red Card Post
+  const handleGenerateRedCardPost = () => {
+    const cleanPlayer = cardPlayer || "Oyuncu";
+    const teamName = cardTeam === "Trabzonspor" ? "Trabzonspor" : opponent;
+    const newTitle = `🟥 KIRMIZI KART! ${cleanPlayer} (${goalMinute}) | Trabzonspor ${homeScore} - ${awayScore} ${opponent}`;
+    const newBody = `🟥 KIRMIZI KART! DAKİKA ${goalMinute}!\n\nMücadelede tansiyon zirveye çıktı! ${teamName} takımında ${cleanPlayer} kırmızı kart görerek oyun dışında kaldı!\n\n🔴🔵 Trabzonspor ${homeScore} - ${awayScore} ${opponent}\n\nBu karar hakkında ne düşünüyorsunuz? Yorumlarda buluşalım! 👇\n\n#Trabzonspor #BordoMavi #KırmızıKart #SüperLig`;
+    const newOg = `/api/og?title=${encodeURIComponent(`🟥 KIRMIZI KART! ${cleanPlayer} (${goalMinute})`)}&template=RED_CARD&score=${homeScore}-${awayScore}&player=${encodeURIComponent(cleanPlayer)}&minute=${encodeURIComponent(goalMinute)}`;
+
+    setGeneratedPost({
+      type: "RED_CARD",
+      title: newTitle,
+      body: newBody,
+      ogUrl: newOg
+    });
+
+    toast.success("Kırmızı Kart infografiği ve Facebook gönderisi hazırlandı!");
+  };
+
+  // Generate Final Post
   const handleGenerateFinalPost = () => {
     const isWin = homeScore > awayScore;
     const isDraw = homeScore === awayScore;
     const resultWord = isWin ? "BÜYÜK GALİBİYET! 3 PUAN FIRTINA'NIN!" : isDraw ? "MÜCADELE SONA ERDİ" : "MAÇ SONUCU";
     
     const newTitle = `🏁 MAÇ SONUCU | Trabzonspor ${homeScore} - ${awayScore} ${opponent}`;
-    const newBody = `🏁 ${resultWord}!\n\nTrendyol Süper Lig mücadelesinde Trabzonspor'umuz ${opponent} karşısında sahadan ${homeScore} - ${awayScore} skorla ayrılıyor.\n\n🔴🔵 Trabzonspor ${homeScore} - ${awayScore} ${opponent}\n\nMaçın adamı sizce kimdi? Maç hakkındaki tüm görüşlerinizi yorumlarda bekliyoruz! 👇\n\n#Trabzonspor #BordoMavi #MaçSonucu`;
-    const newOg = `/api/og?title=${encodeURIComponent(`🏁 MAÇ SONUCU: Trabzonspor ${homeScore} - ${awayScore} ${opponent}`)}&template=MATCH_DAY&score=${homeScore}-${awayScore}`;
+    const newBody = `🏁 ${resultWord}!\n\nTrendyol Süper Lig mücadelesinde Trabzonspor'umuz ${opponent} karşısında sahadan ${homeScore} - ${awayScore} skorla ayrılıyor.\n\n🔴🔵 Trabzonspor ${homeScore} - ${awayScore} ${opponent}\n\nMaçın adamı sizce kimdi? Maç hakkındaki tüm görüşlerinizi yorumlarda bekliyoruz! 👇\n\n#Trabzonspor #BordoMavi #MaçSonucu #SüperLig`;
+    const newOg = `/api/og?title=${encodeURIComponent(`🏁 MAÇ SONUCU: Trabzonspor ${homeScore} - ${awayScore} ${opponent}`)}&template=FULL_TIME&score=${homeScore}-${awayScore}`;
 
     setGeneratedPost({
+      type: "FULL_TIME",
       title: newTitle,
       body: newBody,
       ogUrl: newOg
@@ -90,37 +109,73 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
   // Publish Directly to Facebook
   const handlePublishPost = async () => {
     setIsPublishing(true);
+    toast.info("Facebook Graph API üzerinden sayfanıza gönderiliyor...");
+    
     try {
-      // Create a transient record or direct publish
-      toast.info("Facebook sayfasına gönderiliyor...");
-      // For instant response simulation or integration
-      setTimeout(() => {
-        setIsPublishing(false);
-        toast.success("🎉 [BAŞARILI] Maç anonsu Facebook sayfanızda yayınlandı!");
-      }, 1500);
+      const res = await publishMatchEventAction({
+        type: generatedPost.type,
+        opponent,
+        homeScore,
+        awayScore,
+        minute: goalMinute,
+        player: generatedPost.type === "RED_CARD" ? cardPlayer : scorer,
+        assist: generatedPost.type === "GOAL" ? assist : undefined,
+        team: cardTeam === "Trabzonspor" ? "Trabzonspor" : opponent
+      });
+
+      const data = res as any;
+      if (data.success) {
+        toast.success(`🎉 ${data.message || "Yayınlandı!"} ${data.mockMode ? "(Mock Modu)" : ""}`);
+      } else {
+        toast.error(data.error || "Yayınlama hatası");
+      }
     } catch (e: any) {
-      toast.error(e.message || "Yayınlama hatası");
+      toast.error(e.message || "Bilinmeyen bir hata oluştu");
+    } finally {
       setIsPublishing(false);
     }
   };
 
   return (
     <div className="space-y-8 max-w-[1400px] mx-auto p-6 lg:p-8">
-      {/* Üst Başlık & Canlı Rozet */}
+      {/* Üst Başlık & Otonom Robot Rozeti */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
               <Trophy className="w-6 h-6 text-amber-500" />
-              Maç Günü Canlı Modu (Matchday Automation)
+              Maç Günü Canlı Modu (2024-2026 Sezonu)
             </h1>
             <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-600 text-white animate-pulse">
               CANLI MOD
             </span>
           </div>
           <p className="text-muted-foreground text-sm">
-            Maç anında tek tıkla canlı gol anonsu, devre arası ve maç sonu infografik kartları üretip Facebook'ta anında paylaşın
+            Güncel Trabzonspor kadrosu ile maç anında tek tıkla gol, kırmızı kart ve maç sonu infografiklerini Facebook'ta anında yayınlayın
           </p>
+        </div>
+
+        {/* 7/24 Otonom Canlı Maç Robotu Toggle */}
+        <div className="flex items-center gap-3 p-2.5 px-4 rounded-2xl bg-card border border-border/80 shadow-xs">
+          <div className="flex items-center gap-2">
+            <Bot className={`w-5 h-5 ${isAutonomousActive ? 'text-emerald-500 animate-bounce' : 'text-muted-foreground'}`} />
+            <div className="text-left">
+              <div className="text-xs font-bold text-foreground">Otonom Canlı Maç Robotu</div>
+              <div className="text-[10px] text-muted-foreground">
+                {isAutonomousActive ? "7/24 Otomatik Yayın Aktif" : "Manuel Mod"}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsAutonomousActive(!isAutonomousActive);
+              toast.success(!isAutonomousActive ? "Otonom Maç Robotu Aktif Edildi!" : "Manuel moda geçildi.");
+            }}
+            className={`w-10 h-6 rounded-full transition-colors relative p-0.5 ${isAutonomousActive ? 'bg-emerald-600' : 'bg-muted'}`}
+          >
+            <div className={`w-5 h-5 rounded-full bg-white transition-transform ${isAutonomousActive ? 'translate-x-4' : 'translate-x-0'}`} />
+          </button>
         </div>
       </div>
 
@@ -169,7 +224,7 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
                 <div className="w-16 h-16 rounded-2xl bg-white/10 border-2 border-white/30 backdrop-blur-md flex items-center justify-center text-xl font-black text-white/90 shadow-lg">
                   {opponent.substring(0, 3).toUpperCase()}
                 </div>
-                <span className="font-bold text-sm tracking-wide">{opponent}</span>
+                <span className="font-bold text-sm tracking-wide line-clamp-1 max-w-[100px]">{opponent}</span>
               </div>
             </div>
 
@@ -192,18 +247,18 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
                 onClick={() => setAwayScore(prev => prev + 1)}
                 className="h-8 text-xs font-semibold text-white border-white/30 hover:bg-white/10"
               >
-                +1 Gol ({opponent})
+                +1 Gol ({opponent.split(" ")[0]})
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Maç Ayarları & Hızlı Seçim */}
+        {/* Maç Ayarları & Güncel 2024-2026 Süper Lig Fikstürü */}
         <Card className="lg:col-span-7 bg-card border-border/80 shadow-xs">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold text-foreground">Maç Parametreleri</CardTitle>
+            <CardTitle className="text-base font-bold text-foreground">Güncel Maç Parametreleri</CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Canlı maç verilerini girin veya sık karşılaşılan rakiplerden tek tıkla seçin
+              2024-2026 Trendyol Süper Lig rakiplerinden tek tıkla seçin veya canlı dakikayı ayarlayın
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -241,16 +296,18 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
                     setGoalMinute(e.target.value);
                   }}
                   className="h-9 text-xs font-mono" 
-                  placeholder="Örn: 64'"
+                  placeholder="Örn: 61'"
                 />
               </div>
             </div>
 
-            {/* Hızlı Rakip Seçici Piller */}
+            {/* Güncel Süper Lig Rakipleri Seçici */}
             <div className="space-y-1.5 pt-1">
-              <span className="text-[11px] font-semibold text-muted-foreground block">Hızlı Rakip Seçimi:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {popularOpponents.map((team) => (
+              <span className="text-[11px] font-semibold text-muted-foreground block">
+                2024-2026 Süper Lig Rakipleri:
+              </span>
+              <div className="flex flex-wrap gap-1.5 max-h-[90px] overflow-y-auto pr-1">
+                {CURRENT_SUPER_LIG_OPPONENTS.map((team) => (
                   <button
                     key={team}
                     type="button"
@@ -266,21 +323,23 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
         </Card>
       </div>
 
-      {/* 2. Bölüm: Anlık Gol Kartı Üretici & Canlı Önizleme */}
+      {/* 2. Bölüm: Canlı Olay Üretici (Gol & Kırmızı Kart & Maç Sonu) */}
       <div className="grid gap-6 lg:grid-cols-12">
         
-        {/* Gol Üretici Formu */}
+        {/* Canlı Olay Formu */}
         <Card className="lg:col-span-5 bg-card border-border/80 shadow-xs space-y-4">
           <CardHeader className="pb-3 border-b border-border/70">
             <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
-              <Flame className="w-5 h-5 text-rose-600" />
-              ⚽ Anlık Gol Kartı Üretici
+              <Zap className="w-5 h-5 text-amber-500" />
+              Canlı Olay Masası (Gol & Kırmızı Kart)
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Gol olduğunda golcü ve dakikayı seçip tek tıkla Facebook paylaşımı oluşturun
+              2024-2026 kadrosundaki güncel futbolcuları seçerek tek tıkla canlı anons oluşturun
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            
+            {/* Gol Seçimi */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">Golü Atan Futbolcu</label>
               <Input 
@@ -288,23 +347,24 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
                 onChange={(e) => setScorer(e.target.value)}
                 className="h-9 text-xs font-semibold" 
               />
-              <div className="flex flex-wrap gap-1 pt-1">
-                {popularPlayers.slice(0, 5).map((player) => (
+              <div className="flex flex-wrap gap-1 pt-1 max-h-[75px] overflow-y-auto pr-1">
+                {CURRENT_TRABZONSPOR_SQUAD.map((player) => (
                   <button
-                    key={player}
+                    key={player.name}
                     type="button"
-                    onClick={() => setScorer(player)}
-                    className={`text-[10px] px-2 py-0.5 rounded transition-colors ${scorer === player ? 'bg-primary text-white font-bold' : 'bg-muted/60 text-muted-foreground'}`}
+                    onClick={() => setScorer(player.name)}
+                    className={`text-[10px] px-2 py-0.5 rounded transition-colors ${scorer === player.name ? 'bg-[#781324] text-white font-bold' : 'bg-muted/70 text-muted-foreground hover:bg-muted'}`}
                   >
-                    {player}
+                    {player.name} ({player.position})
                   </button>
                 ))}
               </div>
             </div>
 
+            {/* Asist & Dakika */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Asisti Yapan (Opsiyonel)</label>
+                <label className="text-xs font-semibold text-muted-foreground">Asist Yapan</label>
                 <Input 
                   value={assist} 
                   onChange={(e) => setAssist(e.target.value)}
@@ -312,7 +372,7 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Gol Dakikası</label>
+                <label className="text-xs font-semibold text-muted-foreground">Olay Dakikası</label>
                 <Input 
                   value={goalMinute} 
                   onChange={(e) => setGoalMinute(e.target.value)}
@@ -321,26 +381,66 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
               </div>
             </div>
 
+            {/* Kırmızı Kart Oyuncu & Takım Seçimi */}
+            <div className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-rose-600">
+                <span>🟥 Kırmızı Kart Olayı</span>
+                <div className="flex gap-1 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setCardTeam("Rakip")}
+                    className={`px-2 py-0.5 rounded ${cardTeam === "Rakip" ? "bg-rose-600 text-white font-bold" : "bg-muted text-muted-foreground"}`}
+                  >
+                    {opponent.split(" ")[0]}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCardTeam("Trabzonspor")}
+                    className={`px-2 py-0.5 rounded ${cardTeam === "Trabzonspor" ? "bg-rose-600 text-white font-bold" : "bg-muted text-muted-foreground"}`}
+                  >
+                    Trabzonspor
+                  </button>
+                </div>
+              </div>
+              <Input
+                value={cardPlayer}
+                onChange={(e) => setCardPlayer(e.target.value)}
+                className="h-8 text-xs"
+                placeholder="Kırmızı kart gören oyuncu..."
+              />
+            </div>
+
+            {/* Eylem Butonları */}
             <div className="pt-2 flex flex-col gap-2">
               <Button 
                 onClick={handleGenerateGoalPost}
                 className="w-full bg-[#781324] hover:bg-[#5e0e1c] text-white font-semibold text-xs h-10 shadow-xs"
               >
-                <Sparkles className="w-4 h-4 mr-1.5" />
-                ⚽ Canlı Gol Kartı ve Gönderi Oluştur
+                <Flame className="w-4 h-4 mr-1.5 text-amber-400" />
+                ⚽ 1. Canlı Gol Kartı ve Gönderi Oluştur
               </Button>
-              <Button 
-                variant="outline"
-                onClick={handleGenerateFinalPost}
-                className="w-full text-xs font-semibold h-9 border-border/80"
-              >
-                🏁 Maç Sonu Raporu Hazırla
-              </Button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button 
+                  variant="outline"
+                  onClick={handleGenerateRedCardPost}
+                  className="w-full text-xs font-semibold h-9 border-rose-500/30 text-rose-600 hover:bg-rose-50"
+                >
+                  🟥 Kırmızı Kart Gönderisi
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={handleGenerateFinalPost}
+                  className="w-full text-xs font-semibold h-9 border-border/80"
+                >
+                  🏁 Maç Sonu Raporu
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Canlı Önizleme & Facebook Gönderim Alanı */}
+        {/* Canlı Önizleme & Facebook Anında Gönderim Alanı */}
         <Card className="lg:col-span-7 bg-card border-border/80 shadow-xs flex flex-col justify-between">
           <CardHeader className="pb-3 border-b border-border/70">
             <div className="flex items-center justify-between">
@@ -350,50 +450,57 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
                   Yapay zeka tarafından hazırlanan Facebook yayını ve otomatik logolu görsel
                 </CardDescription>
               </div>
-              <Badge className="bg-emerald-600 text-white text-[10px]">Yayına Hazır</Badge>
+              <Badge variant="outline" className="text-[10px] font-mono">
+                {generatedPost.type}
+              </Badge>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4 pt-4 flex-1">
-            {/* Canlı OG Görsel Önizleme */}
-            <div className="relative aspect-video rounded-xl overflow-hidden border border-border/80 bg-slate-950 shadow-md">
+          
+          <CardContent className="py-4 space-y-4 flex-1 flex flex-col justify-between">
+            {/* Önizleme Görseli */}
+            <div className="rounded-xl overflow-hidden border border-border/80 bg-slate-950 aspect-[1200/630] relative max-h-[260px] flex items-center justify-center">
               <img 
                 src={generatedPost.ogUrl} 
-                alt="Matchday Card Preview"
-                className="w-full h-full object-cover"
+                alt="OG Preview" 
+                className="w-full h-full object-contain"
               />
             </div>
 
-            {/* Metin Önizleme */}
-            <div className="p-3.5 rounded-xl bg-muted/30 border border-border/70 text-xs whitespace-pre-line leading-relaxed font-sans text-foreground/90">
+            {/* Gönderi Metni */}
+            <div className="p-3 rounded-xl bg-muted/40 border border-border/70 text-xs font-sans whitespace-pre-line leading-relaxed max-h-[140px] overflow-y-auto">
+              <div className="font-bold text-primary mb-1">{generatedPost.title}</div>
               {generatedPost.body}
             </div>
+
+            {/* Yayınlama Butonları */}
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <Button 
+                onClick={handlePublishPost}
+                disabled={isPublishing}
+                className="flex-1 bg-gradient-to-r from-[#781324] to-[#164E7A] text-white hover:opacity-90 font-bold text-xs h-10 shadow-md"
+              >
+                {isPublishing ? (
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-2" />
+                )}
+                {isPublishing ? "Facebook'ta Yayınlanıyor..." : "Facebook'ta Anında Yayınla (1-Tık)"}
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${generatedPost.title}\n\n${generatedPost.body}`);
+                  toast.success("Gönderi metni panoya kopyalandı!");
+                }}
+                className="text-xs font-semibold h-10 border-border/80"
+              >
+                <Copy className="w-3.5 h-3.5 mr-1.5" /> Metni Kopyala
+              </Button>
+            </div>
           </CardContent>
-
-          {/* Aksiyon Barı */}
-          <div className="p-4 border-t border-border/70 bg-muted/10 flex items-center justify-between gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                navigator.clipboard.writeText(generatedPost.body);
-                toast.success("Gönderi metni panoya kopyalandı!");
-              }}
-              className="text-xs"
-            >
-              <Copy className="w-3.5 h-3.5 mr-1.5" /> Metni Kopyala
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={handlePublishPost}
-              disabled={isPublishing}
-              className="bg-[#164E7A] hover:bg-[#123E62] text-white font-semibold text-xs h-9 shadow-xs"
-            >
-              <Send className="w-3.5 h-3.5 mr-1.5" />
-              {isPublishing ? "Yayınlanıyor..." : "Facebook'ta Anında Yayınla"}
-            </Button>
-          </div>
         </Card>
+
       </div>
     </div>
   );

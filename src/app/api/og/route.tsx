@@ -29,6 +29,12 @@ export async function GET(request: NextRequest) {
     if (requestedTemplate === 'GOAL') {
       badgeText = '⚽ CANLI GOL ANONS KARTI';
       badgeColor = '#DC2626';
+    } else if (requestedTemplate === 'RED_CARD') {
+      badgeText = '🟥 KIRMIZI KART';
+      badgeColor = '#B91C1C';
+    } else if (requestedTemplate === 'FULL_TIME') {
+      badgeText = '🏁 MAÇ SONUCU';
+      badgeColor = '#164E7A';
     } else if (requestedTemplate === 'TRANSFER' || template === VisualTemplateType.TRANSFER) {
       badgeText = '🔥 TRANSFER BOMBASI';
       badgeColor = '#F59E0B';
@@ -164,24 +170,63 @@ export async function GET(request: NextRequest) {
             height: '100%',
             zIndex: 10
           }}>
-            {/* Top Badge */}
+            {/* Top Badges (Category, Score & Minute) */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              backgroundColor: badgeColor,
-              padding: '12px 32px',
-              borderRadius: '8px', 
-              fontWeight: '900',
-              fontSize: '26px',
-              letterSpacing: '3px',
-              textTransform: 'uppercase',
-              boxShadow: `0 8px 32px ${badgeColor}`,
-              marginBottom: '40px',
-              width: 'auto',
-              alignSelf: 'flex-start',
-              border: `2px solid ${badgeColor}`,
+              gap: '16px',
+              marginBottom: '35px',
+              alignSelf: 'flex-start'
             }}>
-              {badgeText}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: badgeColor,
+                padding: '10px 28px',
+                borderRadius: '8px', 
+                fontWeight: '900',
+                fontSize: '22px',
+                letterSpacing: '2px',
+                textTransform: 'uppercase',
+                boxShadow: `0 8px 32px ${badgeColor}`,
+                color: '#FFFFFF',
+                border: `2px solid ${badgeColor}`,
+              }}>
+                {badgeText}
+              </div>
+
+              {score && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                  border: '2px solid rgba(255,255,255,0.4)',
+                  padding: '10px 22px',
+                  borderRadius: '8px',
+                  fontWeight: '900',
+                  fontSize: '22px',
+                  letterSpacing: '1px',
+                  color: '#FFFFFF'
+                }}>
+                  SKOR: {score}
+                </div>
+              )}
+
+              {minute && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(220,38,38,0.3)',
+                  border: '2px solid #EF4444',
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  fontWeight: '900',
+                  fontSize: '20px',
+                  color: '#FEE2E2'
+                }}>
+                  {minute}
+                </div>
+              )}
             </div>
 
             {/* Headline (Title) - MAXIMUM CONTRAST */}

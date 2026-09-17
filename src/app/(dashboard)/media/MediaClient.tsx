@@ -103,10 +103,22 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
               ⚽ Canlı Gol Kartı
             </button>
             <button
+              onClick={() => setSelectedTemplate("RED_CARD")}
+              className={`px-3 py-1 rounded-full font-semibold shrink-0 transition-colors ${selectedTemplate === "RED_CARD" ? "bg-red-700 text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+            >
+              🟥 Kırmızı Kart
+            </button>
+            <button
               onClick={() => setSelectedTemplate("MATCH_DAY")}
               className={`px-3 py-1 rounded-full font-semibold shrink-0 transition-colors ${selectedTemplate === "MATCH_DAY" ? "bg-sky-600 text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
             >
               🏟️ Maç Günü
+            </button>
+            <button
+              onClick={() => setSelectedTemplate("OFFICIAL")}
+              className={`px-3 py-1 rounded-full font-semibold shrink-0 transition-colors ${selectedTemplate === "OFFICIAL" ? "bg-[#781324] text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+            >
+              🏛️ Kulüp Açıklaması
             </button>
           </div>
 
@@ -231,6 +243,7 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
         title={activeReel.title}
         imageUrl={activeReel.imageUrl}
         summary={activeReel.summary}
+        availableNews={generatedImages}
       />
 
       {/* Canva Tasarım Stüdyosu Modalı */}

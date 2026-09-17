@@ -4,6 +4,7 @@ import { analyzePendingNews } from '@/lib/news/news-ai-analyzer';
 import { generateAutomatedContent } from '@/lib/content/content-generator';
 import { checkContentQuality } from '@/lib/content/content-quality-checker';
 import { publishReadyContent } from '@/lib/content/content-publisher';
+import { SmartPublisher } from '@/lib/content/smart-publisher';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log("[CRON] Starting News Sync Workflow (AUTO-PUBLISH MODE: min score 85)...");
+    console.log("[CRON] Starting News Sync Workflow (SMART PUBLISH MODE)...");
 
     // 1. Haberleri Topla
     console.log("[CRON] Phase 1: Collecting news...");
@@ -36,9 +37,16 @@ export async function GET(request: Request) {
     console.log("[CRON] Phase 4: Checking content quality...");
     const qualityResult = await checkContentQuality(3);
 
-    // 5. Facebook'ta Yayınla — En fazla 1 içerik per cron (spam önlemi)
-    console.log("[CRON] Phase 5: Publishing to Facebook (max 1 per cycle)...");
-    const publishResult = await publishReadyContent(1);
+    // 5. Facebook'ta Yayınla — Saatlik Isı Haritasına göre dinamik akıllı kota (Pik saatlerde 3'e kadar)
+    const quotaInfo = SmartPublisher.getPublishingQuota();
+    console.log(`[CRON] Phase 5: Publishing to Facebook (${quotaInfo.windowName} - Kota: ${quotaInfo.quota})...`);
+    
+    let publishResult = { success: true, requested: quotaInfo.quota, processed: 0, failed: 0, results: [] as any[] };
+    if (quotaInfo.quota > 0) {
+      publishResult = await publishReadyContent(quotaInfo.quota);
+    } else {
+      console.log(`[CRON] Phase 5: ${quotaInfo.reason}`);
+    }
 
     console.log("[CRON] Workflow completed successfully.");
 
