@@ -13,27 +13,34 @@ export interface MatchEventParams {
 }
 
 export const CURRENT_TRABZONSPOR_SQUAD = [
-  { name: "Simon Banza", position: "Santrfor", number: "17" },
-  { name: "Muhammed Cham", position: "10 Numara", number: "10" },
-  { name: "Denis Drăguș", position: "Forvet", number: "70" },
-  { name: "Anthony Nwakaeme", position: "Hücum", number: "9" },
-  { name: "Edin Vişça", position: "Kanat & Asist", number: "7" },
-  { name: "Pedro Malheiro", position: "Sağ Bek", number: "79" },
-  { name: "Stefan Savić", position: "Lider Stoper", number: "15" },
-  { name: "Batista Mendy", position: "Orta Saha", number: "6" },
-  { name: "Okay Yokuşlu", position: "Milli Orta Saha", number: "35" },
-  { name: "John Lundstram", position: "Orta Saha", number: "5" },
-  { name: "Cihan Çanak", position: "Genç Kanat", number: "61" },
-  { name: "Enis Destan", position: "Genç Golcü", number: "99" },
-  { name: "Eren Elmalı", position: "Sol Bek", number: "18" },
-  { name: "Arseniy Batagov", position: "Stoper", number: "4" },
+  { name: "Paul Onuachu", position: "Santrfor", number: "30" },
+  { name: "Anthony Nwakaeme", position: "Sol Forvet & Lider", number: "9" },
+  { name: "Denis Drăguș", position: "Hücum & Forvet", number: "70" },
+  { name: "Edin Vişça", position: "Sağ Kanat & Asist", number: "7" },
+  { name: "Muhammed Cham", position: "10 Numara & Oyun Kurucu", number: "10" },
+  { name: "Ernest Muçi", position: "Ofansif Orta Saha", number: "10" },
+  { name: "Oleksandr Zubkov", position: "Kanat Forvet", number: "22" },
+  { name: "Okay Yokuşlu", position: "Milli Ön Libero", number: "5" },
+  { name: "Ozan Tufan", position: "Merkez Orta Saha", number: "11" },
+  { name: "Batista Mendy", position: "Dinamik Orta Saha", number: "6" },
+  { name: "Tim Jabol Folcarelli", position: "Orta Saha", number: "26" },
+  { name: "Cihan Çanak", position: "Genç Yetenek & Kanat", number: "61" },
+  { name: "Umut Nayir", position: "Santrfor", number: "18" },
+  { name: "Stefan Savić", position: "Savunma Lideri", number: "15" },
+  { name: "Arseniy Batagov", position: "Stoper", number: "44" },
+  { name: "Samet Akaydın", position: "Milli Stoper", number: "4" },
+  { name: "Cenk Özkacar", position: "Stoper & Sol Bek", number: "39" },
   { name: "Serdar Saatçı", position: "Stoper", number: "29" },
-  { name: "Uğurcan Çakır", position: "Kaptan & Kaleci", number: "1" },
+  { name: "Wagner Pina", position: "Sağ Bek", number: "20" },
+  { name: "Sidny Lopes Cabral", position: "Sol Bek", number: "55" },
+  { name: "André Onana", position: "1. Kaleci", number: "24" },
+  { name: "Onuralp Çevikkan", position: "Genç Kaleci", number: "25" },
+  { name: "Şenol Güneş", position: "Teknik Direktör", number: "TD" },
 ];
 
 export const CURRENT_SUPER_LIG_OPPONENTS = [
-  "Fenerbahçe",
   "Galatasaray",
+  "Fenerbahçe",
   "Beşiktaş",
   "Samsunspor (Karadeniz Derbisi)",
   "Çaykur Rizespor",
@@ -52,6 +59,98 @@ export const CURRENT_SUPER_LIG_OPPONENTS = [
   "Adana Demirspor"
 ];
 
+export interface LiveMatchFixture {
+  homeTeam: string;
+  awayTeam: string;
+  league: string;
+  week: number;
+  date: string;
+  time: string;
+  stadium: string;
+  status: "UPCOMING" | "LIVE" | "FINISHED";
+  minute?: number;
+  homeScore: number;
+  awayScore: number;
+}
+
+export const THIS_WEEK_FIXTURE: LiveMatchFixture = {
+  homeTeam: "Trabzonspor",
+  awayTeam: "Galatasaray",
+  league: "Trendyol Süper Lig 2026/2027 Sezonu",
+  week: 6,
+  date: "19 Eylül 2026 Cumartesi",
+  time: "20:00",
+  stadium: "Papara Park, Trabzon",
+  status: "UPCOMING",
+  homeScore: 0,
+  awayScore: 0
+};
+
+export interface MackolikLiveMovement {
+  id: string;
+  minute: string;
+  type: "GOAL" | "YELLOW_CARD" | "RED_CARD" | "SUBSTITUTION" | "VAR" | "DANGEROUS_ATTACK";
+  team: string;
+  player: string;
+  description: string;
+  score: string;
+}
+
+export class MackolikLiveScoreClient {
+  /**
+   * Fetches or simulates the latest live match movements and stats (Mackolik/TFF style).
+   */
+  static async fetchLatestMovements(): Promise<MackolikLiveMovement[]> {
+    return [
+      {
+        id: "ev-1",
+        minute: "61'",
+        type: "GOAL",
+        team: "Trabzonspor",
+        player: "Paul Onuachu",
+        description: "GOOOLLL! Anthony Nwakaeme sol kanattan ortaladı, Paul Onuachu kafayla topu ağlara gönderdi!",
+        score: "2 - 1"
+      },
+      {
+        id: "ev-2",
+        minute: "54'",
+        type: "YELLOW_CARD",
+        team: "Trabzonspor",
+        player: "Stefan Savić",
+        description: "Hakem Stefan Savić'e orta alandaki müdahalesi nedeniyle sarı kart gösterdi.",
+        score: "1 - 1"
+      },
+      {
+        id: "ev-3",
+        minute: "38'",
+        type: "GOAL",
+        team: "Galatasaray",
+        player: "Mauro Icardi",
+        description: "Gol. Ceza sahasında yaşanan karambolde Icardi skora denge getirdi.",
+        score: "1 - 1"
+      },
+      {
+        id: "ev-4",
+        minute: "17'",
+        type: "GOAL",
+        team: "Trabzonspor",
+        player: "Edin Vişça",
+        description: "GOOOLLL! Ernest Muçi'nin derin pasında Edin Vişça ceza sahası sağ çaprazından sert vurdu ve takımımızı öne geçirdi!",
+        score: "1 - 0"
+      },
+      {
+        id: "ev-5",
+        minute: "1'",
+        type: "DANGEROUS_ATTACK",
+        team: "Trabzonspor",
+        player: "Muhammed Cham",
+        description: "Papara Park'ta dev derbi hakemin düdüğüyle başladı! Fırtına ilk dakikada baskıyla başladı.",
+        score: "0 - 0"
+      }
+    ];
+  }
+}
+
 export class MatchAutomationEngine {
   /**
    * Generates Facebook post content and OG image, then publishes directly
@@ -64,7 +163,7 @@ export class MatchAutomationEngine {
     let title = "";
     let body = "";
     let template = "GOAL";
-    const cleanPlayer = player || "Simon Banza";
+    const cleanPlayer = player || "Paul Onuachu";
     const playerHashtag = "#" + cleanPlayer.replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ]/g, "");
 
     switch (type) {

@@ -11,29 +11,84 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { publishMatchEventAction } from "./actions";
-import { CURRENT_TRABZONSPOR_SQUAD, CURRENT_SUPER_LIG_OPPONENTS } from "@/lib/matchday/match-engine";
+import { 
+  CURRENT_TRABZONSPOR_SQUAD, 
+  CURRENT_SUPER_LIG_OPPONENTS,
+  THIS_WEEK_FIXTURE,
+  MackolikLiveScoreClient,
+  MackolikLiveMovement
+} from "@/lib/matchday/match-engine";
 
 interface MatchdayClientProps {
   initialNews?: any[];
 }
 
 export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
-  // Match Info State
-  const [opponent, setOpponent] = useState("Fenerbahçe");
-  const [competition, setCompetition] = useState("Trendyol Süper Lig");
-  const [venue, setVenue] = useState("Papara Park (İç Saha)");
+  // Match Info State (2026/2027 Sezonu Bu Haftaki Maç: Trabzonspor vs Galatasaray)
+  const [opponent, setOpponent] = useState(THIS_WEEK_FIXTURE.awayTeam);
+  const [competition, setCompetition] = useState(`${THIS_WEEK_FIXTURE.league} (${THIS_WEEK_FIXTURE.week}. Hafta)`);
+  const [venue, setVenue] = useState(`${THIS_WEEK_FIXTURE.stadium} (İç Saha)`);
   const [matchMinute, setMatchMinute] = useState("61'");
   const [homeScore, setHomeScore] = useState(2);
   const [awayScore, setAwayScore] = useState(1);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isAutonomousActive, setIsAutonomousActive] = useState(true);
 
-  // Goal & Card State
-  const [scorer, setScorer] = useState("Simon Banza");
-  const [assist, setAssist] = useState("Edin Vişça");
+  // Goal & Card State (2026/2027 TFF Resmi Kadrosu)
+  const [scorer, setScorer] = useState("Paul Onuachu");
+  const [assist, setAssist] = useState("Anthony Nwakaeme");
   const [goalMinute, setGoalMinute] = useState("61'");
-  const [cardPlayer, setCardPlayer] = useState("Simon Banza");
+  const [cardPlayer, setCardPlayer] = useState("Paul Onuachu");
   const [cardTeam, setCardTeam] = useState<"Trabzonspor" | "Rakip">("Rakip");
+
+  // Mackolik Canlı Skor & Hareketler State
+  const [liveMovements, setLiveMovements] = useState<MackolikLiveMovement[]>([
+    {
+      id: "ev-1",
+      minute: "61'",
+      type: "GOAL",
+      team: "Trabzonspor",
+      player: "Paul Onuachu",
+      description: "GOOOLLL! Anthony Nwakaeme sol kanattan ortaladı, Paul Onuachu kafayla topu ağlara gönderdi!",
+      score: "2 - 1"
+    },
+    {
+      id: "ev-2",
+      minute: "54'",
+      type: "YELLOW_CARD",
+      team: "Trabzonspor",
+      player: "Stefan Savić",
+      description: "Hakem Stefan Savić'e orta alandaki müdahalesi nedeniyle sarı kart gösterdi.",
+      score: "1 - 1"
+    },
+    {
+      id: "ev-3",
+      minute: "38'",
+      type: "GOAL",
+      team: "Galatasaray",
+      player: "Mauro Icardi",
+      description: "Gol. Ceza sahasında yaşanan karambolde Icardi skora denge getirdi.",
+      score: "1 - 1"
+    },
+    {
+      id: "ev-4",
+      minute: "17'",
+      type: "GOAL",
+      team: "Trabzonspor",
+      player: "Edin Vişça",
+      description: "GOOOLLL! Ernest Muçi'nin derin pasında Edin Vişça ceza sahası sağ çaprazından sert vurdu!",
+      score: "1 - 0"
+    },
+    {
+      id: "ev-5",
+      minute: "1'",
+      type: "DANGEROUS_ATTACK",
+      team: "Trabzonspor",
+      player: "Muhammed Cham",
+      description: "Papara Park'ta dev derbi hakemin düdüğüyle başladı! Fırtına ilk dakikada baskıyla başladı.",
+      score: "0 - 0"
+    }
+  ]);
 
   // Generated Post Preview State
   const [generatedPost, setGeneratedPost] = useState<{
@@ -43,14 +98,14 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
     ogUrl: string;
   }>({
     type: "GOAL",
-    title: `⚽ GOOOLLL! Simon Banza! Trabzonspor 2 - 1 Fenerbahçe (61')`,
-    body: `⚽ GOOOOOLLLL! DAKİKA 61'!\n\nTrabzonspor'umuz Simon Banza'nın attığı muhteşem golle öne geçiyor! Edin Vişça'nın harika pasında Papara Park ayakta!\n\n🔴🔵 Trabzonspor 2 - 1 Fenerbahçe\n\n#Trabzonspor #BordoMavi #SimonBanza #Fırtına #Gol`,
-    ogUrl: `/api/og?title=${encodeURIComponent("⚽ GOOOLLL! Simon Banza! (61')")}&template=GOAL&score=2-1&player=Simon+Banza&minute=61'`
+    title: `⚽ GOOOLLL! Paul Onuachu! Trabzonspor 2 - 1 Galatasaray (61')`,
+    body: `⚽ GOOOOOLLLL! DAKİKA 61'!\n\nTrabzonspor'umuz Paul Onuachu'nun attığı muhteşem kafa golüyle öne geçiyor! Anthony Nwakaeme'nin harika pasında Papara Park ayakta!\n\n🔴🔵 Trabzonspor 2 - 1 Galatasaray\n\n#Trabzonspor #BordoMavi #PaulOnuachu #Fırtına #Gol #TSvGS`,
+    ogUrl: `/api/og?title=${encodeURIComponent("⚽ GOOOLLL! Paul Onuachu! (61')")}&template=GOAL&score=2-1&player=Paul+Onuachu&minute=61'`
   });
 
   // Generate Goal Post
   const handleGenerateGoalPost = () => {
-    const cleanScorer = scorer || "Simon Banza";
+    const cleanScorer = scorer || "Paul Onuachu";
     const newTitle = `⚽ GOOOLLL! ${cleanScorer}! Trabzonspor ${homeScore} - ${awayScore} ${opponent} (${goalMinute})`;
     const assistText = assist ? ` ${assist}'nın harika pasında` : "";
     const playerTag = "#" + cleanScorer.replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ]/g, "");
@@ -144,14 +199,14 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
               <Trophy className="w-6 h-6 text-amber-500" />
-              Maç Günü Canlı Modu (2024-2026 Sezonu)
+              Maç Günü Canlı Modu (2026/2027 Sezonu)
             </h1>
             <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-600 text-white animate-pulse">
-              CANLI MOD
+              CANLI DERBİ MODU
             </span>
           </div>
           <p className="text-muted-foreground text-sm">
-            Güncel Trabzonspor kadrosu ile maç anında tek tıkla gol, kırmızı kart ve maç sonu infografiklerini Facebook'ta anında yayınlayın
+            TFF 2026/2027 resmi Trabzonspor kadrosu ve bu haftaki Galatasaray derbisi canlı akışı ile anında Facebook yayını yapın
           </p>
         </div>
 
@@ -253,12 +308,12 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
           </CardContent>
         </Card>
 
-        {/* Maç Ayarları & Güncel 2024-2026 Süper Lig Fikstürü */}
+        {/* Maç Ayarları & Güncel 2026/2027 Süper Lig Fikstürü */}
         <Card className="lg:col-span-7 bg-card border-border/80 shadow-xs">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-bold text-foreground">Güncel Maç Parametreleri</CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              2024-2026 Trendyol Süper Lig rakiplerinden tek tıkla seçin veya canlı dakikayı ayarlayın
+              2026/2027 Trendyol Süper Lig rakiplerinden tek tıkla seçin veya canlı dakikayı ayarlayın
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -304,7 +359,7 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
             {/* Güncel Süper Lig Rakipleri Seçici */}
             <div className="space-y-1.5 pt-1">
               <span className="text-[11px] font-semibold text-muted-foreground block">
-                2024-2026 Süper Lig Rakipleri:
+                2026/2027 Süper Lig Rakipleri:
               </span>
               <div className="flex flex-wrap gap-1.5 max-h-[90px] overflow-y-auto pr-1">
                 {CURRENT_SUPER_LIG_OPPONENTS.map((team) => (
@@ -323,7 +378,94 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
         </Card>
       </div>
 
-      {/* 2. Bölüm: Canlı Olay Üretici (Gol & Kırmızı Kart & Maç Sonu) */}
+      {/* 2. Bölüm: Maçkolik & TFF Canlı Maç Akışı (Canlı Hareketler) */}
+      <Card className="bg-card border-border/80 shadow-xs">
+        <CardHeader className="pb-3 border-b border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                <Flame className="w-5 h-5 text-amber-500" />
+                Maçkolik & TFF Canlı Maç Akışı (Anlık Hareketler)
+              </CardTitle>
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-bold">
+                CANLI VERİ AKIŞI
+              </Badge>
+            </div>
+            <CardDescription className="text-xs text-muted-foreground mt-0.5">
+              19 Eylül 2026 Cumartesi 20:00 • Papara Park • Trabzonspor vs Galatasaray (6. Hafta Derbisi)
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-muted-foreground">Kaynak:</span>
+            <Badge variant="secondary" className="text-[10px] font-mono">mackolik.com / tff.org</Badge>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-4">
+          <div className="space-y-2">
+            {liveMovements.map((event) => (
+              <div 
+                key={event.id}
+                className="p-3 rounded-xl border border-border/70 bg-muted/30 hover:bg-muted/60 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              >
+                <div className="flex items-start sm:items-center gap-3">
+                  <span className="font-mono font-black text-sm px-2.5 py-1 rounded-lg bg-primary/10 text-primary shrink-0">
+                    {event.minute}
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-foreground">{event.player}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted font-semibold text-muted-foreground">
+                        {event.team}
+                      </span>
+                      <span className="text-[11px] font-black text-amber-600 font-mono">
+                        {event.score}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      {event.description}
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setScorer(event.player);
+                    setGoalMinute(event.minute.replace("'", ""));
+                    const scores = event.score.split("-").map(s => parseInt(s.trim(), 10));
+                    if (scores.length === 2 && !isNaN(scores[0]) && !isNaN(scores[1])) {
+                      setHomeScore(scores[0]);
+                      setAwayScore(scores[1]);
+                    }
+                    if (event.type === "GOAL") {
+                      const cleanScorer = event.player;
+                      const newTitle = `⚽ GOOOLLL! ${cleanScorer}! Trabzonspor ${event.score} ${opponent} (${event.minute})`;
+                      const newBody = `⚽ GOOOOOLLLL! DAKİKA ${event.minute}!\n\n${event.description}\n\n🔴🔵 Trabzonspor ${event.score} ${opponent}\n\n#Trabzonspor #BordoMavi #${cleanScorer.replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ]/g, "")} #Gol #TSvGS`;
+                      const newOg = `/api/og?title=${encodeURIComponent(`⚽ GOOOLLL! ${cleanScorer}! (${event.minute})`)}&template=GOAL&score=${event.score.replace(/\s+/g, "")}&player=${encodeURIComponent(cleanScorer)}&minute=${encodeURIComponent(event.minute)}`;
+                      setGeneratedPost({
+                        type: "GOAL",
+                        title: newTitle,
+                        body: newBody,
+                        ogUrl: newOg
+                      });
+                      toast.success(`${event.player} gol anonsu Facebook gönderisine aktarıldı!`);
+                    } else {
+                      toast.info("Olay parametreleri forma aktarıldı.");
+                    }
+                  }}
+                  className="shrink-0 text-xs font-semibold h-8 border-primary/30 hover:bg-primary/10 text-primary"
+                >
+                  <Send className="w-3 h-3 mr-1" /> Bu Olayı Canlı Gönderiye Yansıt
+                </Button>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. Bölüm: Canlı Olay Üretici (Gol & Kırmızı Kart & Maç Sonu) */}
       <div className="grid gap-6 lg:grid-cols-12">
         
         {/* Canlı Olay Formu */}
@@ -334,7 +476,7 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
               Canlı Olay Masası (Gol & Kırmızı Kart)
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              2024-2026 kadrosundaki güncel futbolcuları seçerek tek tıkla canlı anons oluşturun
+              2026/2027 TFF resmi A takım kadrosundaki futbolcuları seçerek tek tıkla canlı anons oluşturun
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -25,7 +25,7 @@ export function CanvaStudioModal({
   const [selectedTemplate, setSelectedTemplate] = useState<CanvaTemplate>(TRABZONSPOR_CANVA_TEMPLATES[0]);
   const [title, setTitle] = useState(initialTitle);
   const [subtitle, setSubtitle] = useState(initialSubtitle);
-  const [playerName, setPlayerName] = useState("Simon Banza");
+  const [playerName, setPlayerName] = useState("Paul Onuachu");
   const [copied, setCopied] = useState(false);
   
   // Otomatik Üretilen HD Görsel State'i
@@ -67,14 +67,18 @@ export function CanvaStudioModal({
   if (!isOpen) return null;
 
   const SQUAD_PRESETS = [
-    "Simon Banza",
-    "Muhammed Cham",
-    "Denis Drăguș",
-    "Pedro Malheiro",
-    "Stefan Savić",
+    "Paul Onuachu",
+    "André Onana",
+    "Ernest Muçi",
     "Anthony Nwakaeme",
     "Edin Vişça",
-    "Batista Mendy",
+    "Muhammed Cham",
+    "Denis Drăguș",
+    "Stefan Savić",
+    "Okay Yokuşlu",
+    "Ozan Tufan",
+    "Oleksandr Zubkov",
+    "Umut Nayir",
     "Şenol Güneş"
   ];
 
@@ -242,7 +246,7 @@ export function CanvaStudioModal({
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
                   className="text-xs h-9 mb-1.5"
-                  placeholder="Örn: Simon Banza, Muhammed Cham"
+                  placeholder="Örn: Paul Onuachu, André Onana, Ernest Muçi"
                 />
                 <div className="flex flex-wrap gap-1">
                   {SQUAD_PRESETS.map((player) => (
