@@ -150,73 +150,7 @@ export class CanvaAutoDesigner {
     ctx.stroke();
     ctx.restore();
 
-    // 4. ÜST ROZET (10 Kategori Rozeti)
-    let badgeText = "🚨 SON DAKİKA";
-    let badgeBg = "#DC2626";
-
-    switch (options.category) {
-      case "BREAKING":
-        badgeText = "🚨 SON DAKİKA / FLAŞ";
-        badgeBg = "#DC2626";
-        break;
-      case "TRANSFER":
-        badgeText = "🔥 FLAŞ TRANSFER BOMBASI";
-        badgeBg = "#D97706";
-        break;
-      case "MATCH_DAY":
-        badgeText = "🏟️ MAÇ GÜNÜ & STADYUM";
-        badgeBg = "#0284C7";
-        break;
-      case "LINEUP":
-        badgeText = "📋 İLK 11 KADROMUZ";
-        badgeBg = "#059669";
-        break;
-      case "GOAL":
-        badgeText = "⚽ CANLI GOL ANONS KARTI";
-        badgeBg = "#DC2626";
-        break;
-      case "PENALTY_CARD":
-        badgeText = "⚠️ KRİTİK MAÇ KARARI";
-        badgeBg = "#991B1B";
-        break;
-      case "RESULT":
-        badgeText = "🏁 MAÇ SONUCU & ZAFER";
-        badgeBg = "#781324";
-        break;
-      case "QUOTE":
-        badgeText = "🎙️ BASIN TOPLANTISI & DEMEÇ";
-        badgeBg = "#0284C7";
-        break;
-      case "REELS":
-        badgeText = "📱 9:16 REELS & STORY";
-        badgeBg = "#7C3AED";
-        break;
-      case "OFFICIAL":
-        badgeText = "🏛️ RESMİ KULÜP AÇIKLAMASI";
-        badgeBg = "#781324";
-        break;
-    }
-
-    ctx.save();
-    ctx.font = "bold 24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-    const badgeWidth = ctx.measureText(badgeText).width + 48;
-    const badgeHeight = 52;
-    const badgeX = 72;
-    const badgeY = 72;
-
-    // Rozet Arka Planı (Hafif yuvarlak)
-    ctx.fillStyle = badgeBg;
-    ctx.beginPath();
-    ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 10);
-    ctx.fill();
-
-    // Rozet Metni
-    ctx.fillStyle = "#FFFFFF";
-    ctx.textBaseline = "middle";
-    ctx.fillText(badgeText, badgeX + 24, badgeY + badgeHeight / 2);
-    ctx.restore();
-
-    // 5. SAĞ ÜST: KULLANICININ YÜKLEDİĞİ ORİJİNAL BORDOMAVİ LOGOSU (KESİN & GARANTİLİ)
+    // 4. SAĞ ÜST: KULLANICININ YÜKLEDİĞİ ORİJİNAL BORDOMAVİ LOGOSU (KESİN & GARANTİLİ)
     const logoBoxSize = Math.min(width, height) * 0.15;
     const logoX = width - logoBoxSize - 60;
     const logoY = 50;
@@ -259,14 +193,14 @@ export class CanvaAutoDesigner {
     }
     ctx.restore();
 
-    // 6. OYUNCU / ÖZNE ETİKETİ (Varsa ve doluysa)
-    let currentY = 240;
+    // 5. OYUNCU / ÖZNE ETİKETİ (Varsa ve doluysa)
+    let currentY = 120;
     if (options.playerName && options.playerName.trim()) {
       ctx.save();
       ctx.font = "bold 32px sans-serif";
       ctx.fillStyle = "#FBBF24"; // Altın sarısı
       ctx.fillText("★ " + options.playerName.toUpperCase(), 72, currentY);
-      currentY += 60;
+      currentY += 55;
       ctx.restore();
     }
 

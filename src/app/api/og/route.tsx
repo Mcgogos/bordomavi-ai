@@ -23,42 +23,6 @@ export async function GET(request: NextRequest) {
     const minute = searchParams.get('minute');
     const score = searchParams.get('score');
     const player = searchParams.get('player');
-    
-    // Determine dynamic badge
-    let badgeText = 'ÖZEL HABER';
-    let badgeColor = colors.mavi;
-    
-    if (requestedTemplate === 'GOAL') {
-      badgeText = '⚽ CANLI GOL ANONS KARTI';
-      badgeColor = '#DC2626';
-    } else if (requestedTemplate === 'PENALTY_CARD' || requestedTemplate === 'RED_CARD') {
-      badgeText = '⚠️ KRİTİK MAÇ KARARI';
-      badgeColor = '#B91C1C';
-    } else if (requestedTemplate === 'RESULT' || requestedTemplate === 'FULL_TIME') {
-      badgeText = '🏁 MAÇ SONUCU & ZAFER';
-      badgeColor = '#781324';
-    } else if (requestedTemplate === 'TRANSFER' || template === VisualTemplateType.TRANSFER) {
-      badgeText = '🔥 FLAŞ TRANSFER BOMBASI';
-      badgeColor = '#F59E0B';
-    } else if (requestedTemplate === 'MATCH_DAY' || template === VisualTemplateType.PRE_MATCH) {
-      badgeText = '🏟️ MAÇ GÜNÜ & STADYUM';
-      badgeColor = '#0284C7';
-    } else if (requestedTemplate === 'LINEUP') {
-      badgeText = '📋 İLK 11 KADROMUZ';
-      badgeColor = '#059669';
-    } else if (requestedTemplate === 'QUOTE') {
-      badgeText = '🎙️ BASIN TOPLANTISI & DEMEÇ';
-      badgeColor = '#0284C7';
-    } else if (requestedTemplate === 'REELS') {
-      badgeText = '📱 9:16 REELS & STORY';
-      badgeColor = '#7C3AED';
-    } else if (requestedTemplate === 'OFFICIAL') {
-      badgeText = '🏛️ KULÜPTEN RESMİ AÇIKLAMA';
-      badgeColor = '#781324';
-    } else {
-      badgeText = '🚨 SON DAKİKA / FLAŞ';
-      badgeColor = '#E30A17';
-    }
 
     const canvasWidth = 1200;
     const canvasHeight = 630;
@@ -181,64 +145,49 @@ export async function GET(request: NextRequest) {
             height: '100%',
             zIndex: 10
           }}>
-            {/* Top Badges (Category, Score & Minute) */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              marginBottom: '35px',
-              alignSelf: 'flex-start'
-            }}>
+            {/* Canlı Skor & Dakika Bilgisi (Sadece maç anında parametre iletilmişse gösterilir) */}
+            {(score || minute) && (
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                backgroundColor: badgeColor,
-                padding: '10px 28px',
-                borderRadius: '8px', 
-                fontWeight: '900',
-                fontSize: '22px',
-                letterSpacing: '2px',
-                textTransform: 'uppercase',
-                boxShadow: `0 8px 32px ${badgeColor}`,
-                color: '#FFFFFF',
-                border: `2px solid ${badgeColor}`,
+                gap: '16px',
+                marginBottom: '25px',
+                alignSelf: 'flex-start'
               }}>
-                {badgeText}
+                {score && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(255,255,255,0.15)',
+                    border: '2px solid rgba(255,255,255,0.4)',
+                    padding: '10px 22px',
+                    borderRadius: '8px',
+                    fontWeight: '900',
+                    fontSize: '22px',
+                    letterSpacing: '1px',
+                    color: '#FFFFFF'
+                  }}>
+                    SKOR: {score}
+                  </div>
+                )}
+
+                {minute && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(220,38,38,0.3)',
+                    border: '2px solid #EF4444',
+                    padding: '10px 18px',
+                    borderRadius: '8px',
+                    fontWeight: '900',
+                    fontSize: '20px',
+                    color: '#FEE2E2'
+                  }}>
+                    {minute}
+                  </div>
+                )}
               </div>
-
-              {score && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  backgroundColor: 'rgba(255,255,255,0.15)',
-                  border: '2px solid rgba(255,255,255,0.4)',
-                  padding: '10px 22px',
-                  borderRadius: '8px',
-                  fontWeight: '900',
-                  fontSize: '22px',
-                  letterSpacing: '1px',
-                  color: '#FFFFFF'
-                }}>
-                  SKOR: {score}
-                </div>
-              )}
-
-              {minute && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  backgroundColor: 'rgba(220,38,38,0.3)',
-                  border: '2px solid #EF4444',
-                  padding: '10px 18px',
-                  borderRadius: '8px',
-                  fontWeight: '900',
-                  fontSize: '20px',
-                  color: '#FEE2E2'
-                }}>
-                  {minute}
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Headline (Title) - MAXIMUM CONTRAST */}
             <h1 style={{

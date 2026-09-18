@@ -202,7 +202,9 @@ export function CanvaStudioModal({
   const handleCopyText = () => {
     const cleanT = title.replace(/\*\*/g, "").replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3").trim();
     const cleanS = subtitle.replace(/\*\*/g, "").replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3").trim();
-    const text = `[${selectedTemplate.badgeText}]\n${cleanT}\n${cleanS}\n#Trabzonspor #BordoMavi`;
+    const cleanB = body.replace(/\*\*/g, "").replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3").trim();
+    const mainText = cleanB || cleanS;
+    const text = `${cleanT}\n\n${mainText}\n\n#Trabzonspor #BordoMavi`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     toast.success("Metin panoya kopyalandı!");
