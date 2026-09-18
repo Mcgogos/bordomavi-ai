@@ -4,6 +4,29 @@ import { AIFactory } from '@/services/ai/ai.factory';
 // In-memory lock to prevent race conditions during concurrent runs
 const processingIds = new Set<string>();
 
+export function analyzeNewsHeuristic(newsItem: any) {
+  const text = `${newsItem.title || ''} ${newsItem.summary || ''}`.toLowerCase();
+  const keywords = ['trabzonspor', 'bordo mavi', 'fırtına', 'papara park', 'thomas reis', 'uğurcan', 'visca', 'cham', 'savic', 'mendy', 'bordo-mavi'];
+  const isTs = keywords.some(k => text.includes(k));
+  
+  return {
+    isTrabzonsporRelated: isTs,
+    importanceScore: isTs ? 75 : 30,
+    credibilityScore: 80,
+    trabzonsporRelevanceScore: isTs ? 85 : 20,
+    discussionPotentialScore: isTs ? 75 : 20,
+    sharePotentialScore: isTs ? 70 : 15,
+    viralPotentialScore: isTs ? 65 : 10,
+    recommendedContentType: 'NEWS',
+    recommendedAction: isTs ? 'CREATE_CONTENT' : 'IGNORE',
+    shortSummary: newsItem.summary?.slice(0, 200) || newsItem.title,
+    keyPoints: [newsItem.title],
+    riskLevel: 'LOW',
+    aiConfidence: 'MEDIUM',
+    confidenceLevel: 'POSSIBLE'
+  };
+}
+
 export async function analyzePendingNews(limit: number = 10) {
   const result = {
     success: true,
@@ -60,27 +83,36 @@ export async function analyzePendingNews(limit: number = 10) {
           sourceName: newsItem.source?.name
         };
 
-        // 4. AI Analysis
-        const aiResult = await aiProvider.analyzeNews(newsData);
+        // 4. AI Analysis with Heuristic Fallback
+        let aiResult: any;
+        try {
+          aiResult = await aiProvider.analyzeNews(newsData);
+        } catch (aiErr: any) {
+          console.warn(`[AI Analyzer] AI analysis failed (${aiErr.message}), using heuristic analyzer...`);
+          aiResult = analyzeNewsHeuristic(newsItem);
+        }
+
+        const isTs = aiResult.isTrabzonsporRelated ?? ((aiResult.trabzonsporRelevanceScore ?? 0) >= 50);
 
         // 5. Save to DB
         await prisma.news.update({
           where: { id: newsItem.id },
           data: {
             isProcessed: true,
-            isTrabzonsporRelated: aiResult.isTrabzonsporRelated,
-            importanceScore: aiResult.importanceScore,
-            credibilityScore: aiResult.credibilityScore,
-            relevanceScore: aiResult.trabzonsporRelevanceScore,
-            discussionScore: aiResult.discussionPotentialScore,
-            shareScore: aiResult.sharePotentialScore,
-            viralScore: aiResult.viralPotentialScore,
-            aiRecommendedContentType: aiResult.recommendedContentType,
-            aiRecommendedAction: aiResult.recommendedAction,
-            aiSummary: aiResult.shortSummary,
-            aiKeyPoints: aiResult.keyPoints,
-            aiRiskLevel: aiResult.riskLevel,
-            aiConfidence: aiResult.confidence,
+            isTrabzonsporRelated: isTs,
+            importanceScore: aiResult.importanceScore ?? (isTs ? 75 : 30),
+            credibilityScore: aiResult.credibilityScore ?? 80,
+            relevanceScore: aiResult.trabzonsporRelevanceScore ?? (isTs ? 85 : 20),
+            discussionScore: aiResult.discussionPotentialScore ?? (isTs ? 75 : 20),
+            shareScore: aiResult.sharePotentialScore ?? (isTs ? 70 : 15),
+            viralScore: aiResult.viralPotentialScore ?? (isTs ? 65 : 10),
+            aiRecommendedContentType: aiResult.recommendedContentType || 'NEWS',
+            aiRecommendedAction: aiResult.recommendedAction || (isTs ? 'CREATE_CONTENT' : 'IGNORE'),
+            aiSummary: aiResult.shortSummary || newsItem.summary || newsItem.title,
+            aiKeyPoints: aiResult.keyPoints || [newsItem.title],
+            aiRiskLevel: (['LOW', 'MEDIUM', 'HIGH'].includes((aiResult.riskLevel || '').toUpperCase()) ? aiResult.riskLevel.toUpperCase() : 'LOW') as any,
+            aiConfidence: (['LOW', 'MEDIUM', 'HIGH'].includes((aiResult.confidence || aiResult.aiConfidence || '').toUpperCase()) ? (aiResult.confidence || aiResult.aiConfidence).toUpperCase() : 'MEDIUM') as any,
+            confidenceLevel: (['VERIFIED', 'POSSIBLE', 'CLAIM', 'UNVERIFIED'].includes((aiResult.confidenceLevel || aiResult.confidence || '').toUpperCase()) ? (aiResult.confidenceLevel || aiResult.confidence).toUpperCase() : 'POSSIBLE') as any,
             aiAnalyzedAt: new Date()
           }
         });
@@ -92,7 +124,7 @@ export async function analyzePendingNews(limit: number = 10) {
           importanceScore: aiResult.importanceScore,
           credibilityScore: aiResult.credibilityScore,
           recommendedAction: aiResult.recommendedAction,
-          isTrabzonsporRelated: aiResult.isTrabzonsporRelated
+          isTrabzonsporRelated: isTs
         });
         
       } catch (err: any) {
@@ -104,7 +136,6 @@ export async function analyzePendingNews(limit: number = 10) {
           error: err.message
         });
         
-        // We DO NOT set isProcessed = true, but we DO increment the attempt counter
         await prisma.news.update({
           where: { id: newsItem.id },
           data: {
@@ -113,7 +144,6 @@ export async function analyzePendingNews(limit: number = 10) {
           }
         });
       } finally {
-        // Release lock
         processingIds.delete(newsItem.id);
       }
     }
