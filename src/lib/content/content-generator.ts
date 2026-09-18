@@ -10,6 +10,38 @@ export function sanitizePlainText(text: string): string {
     .trim();
 }
 
+export function generateSmartFallbackPost(news: any): string {
+  const cleanTitle = sanitizePlainText(news.title || '');
+  const cleanSummary = sanitizePlainText(news.summary || news.aiSummary || '');
+  const sourceName = news.source?.name ? `Kaynak: ${news.source.name}` : '';
+
+  const category = (news.category || news.aiRecommendedContentType || '').toUpperCase();
+  let badge = 'BORDO MAVİ FLAŞ HABER';
+  if (category.includes('TRANSFER')) badge = 'BORDO MAVİ TRANSFER GELİŞMESİ';
+  else if (category.includes('MATCH')) badge = 'TRABZONSPOR MAÇ GÜNDEMİ';
+  else if (category.includes('ANALYSIS')) badge = 'TRABZONSPOR ÖZEL ANALİZ';
+
+  const fanQuestions = [
+    'Bordo Mavi renklere gönül veren taraftarlarımız bu gelişme hakkında ne düşünüyor? Yorumlarda buluşalım!',
+    'Fırtına yeni hedefleri için kenetlenmeye devam ediyor. Sizce bu hamle takımımıza nasıl yansır? Görüşlerinizi yazın!',
+    'Bordo-Mavili sevdamızda yaşanan son gelişmeleri sıcağı sıcağına aktarıyoruz. Siz bu durumu nasıl değerlendiriyorsunuz?',
+    'Fırtına emin adımlarla yoluna devam ediyor. Bu önemli gelişme hakkındaki düşüncelerinizi merak ediyoruz!'
+  ];
+  const selectedQuestion = fanQuestions[Math.floor(Math.random() * fanQuestions.length)];
+
+  let post = `${badge}\n\n${cleanTitle}\n\n`;
+  if (cleanSummary && cleanSummary !== cleanTitle) {
+    post += `${cleanSummary}\n\n`;
+  }
+  if (sourceName) {
+    post += `${sourceName}\n\n`;
+  }
+  post += `${selectedQuestion}\n\n`;
+  post += '#Trabzonspor #BordoMavi #Fırtına #SüperLig';
+
+  return sanitizePlainText(post);
+}
+
 // In-memory lock for generation
 const generatingIds = new Set<string>();
 
@@ -116,9 +148,36 @@ Kurallar:
         console.log(`[Content Generator] Success for news ID: ${news.id}`);
 
       } catch (err: any) {
-        console.error(`[Content Generator] Error generating for news ${news.id}:`, err);
-        result.failed++;
-        result.results.push({ newsId: news.id, title: news.title, success: false, error: err.message });
+        console.warn(`[Content Generator] AI generation failed (${err.message}). Activating Autonomous Rule Fallback for: ${news.title}`);
+        
+        try {
+          const fallbackBody = generateSmartFallbackPost(news);
+          const cleanTitle = sanitizePlainText(news.title);
+
+          let contentType = 'NEWS';
+          if (news.aiRecommendedContentType) {
+            contentType = news.aiRecommendedContentType;
+          }
+
+          await prisma.content.create({
+            data: {
+              title: cleanTitle,
+              body: fallbackBody,
+              type: contentType as any,
+              status: 'READY_TO_PUBLISH',
+              sourceNewsId: news.id,
+              aiReasoning: `Otonom Kural Motoru (Yedek Mod): ${err.message?.slice(0, 100)}`
+            }
+          });
+
+          result.processed++;
+          result.results.push({ newsId: news.id, title: cleanTitle, success: true, mode: 'RULE_FALLBACK' });
+          console.log(`[Content Generator] Autonomous Fallback Success for news ID: ${news.id}`);
+        } catch (fallbackErr: any) {
+          console.error(`[Content Generator] Fallback error for news ${news.id}:`, fallbackErr);
+          result.failed++;
+          result.results.push({ newsId: news.id, title: news.title, success: false, error: fallbackErr.message });
+        }
       } finally {
         generatingIds.delete(news.id);
       }
@@ -167,12 +226,20 @@ Kurallar:
 7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.
 8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).`;
 
-    const generatedText = await aiProvider.generateContent(prompt);
+    let cleanBody = '';
+    try {
+      const generatedText = await aiProvider.generateContent(prompt);
+      cleanBody = sanitizePlainText(generatedText || '');
+    } catch (aiErr: any) {
+      console.warn(`[Content Generator] AI single generation failed (${aiErr.message}), using smart fallback...`);
+      cleanBody = generateSmartFallbackPost(news);
+    }
 
-    if (!generatedText) throw new Error("AI failed to generate content.");
+    if (!cleanBody) {
+      cleanBody = generateSmartFallbackPost(news);
+    }
 
     const cleanTitle = sanitizePlainText(news.title);
-    const cleanBody = sanitizePlainText(generatedText);
 
     let contentType = 'NEWS';
     if (news.aiRecommendedContentType) {

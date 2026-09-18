@@ -129,16 +129,36 @@ function reliableLookup(hostname, options, callback) {
   });
 }
 
-// ─── Gemini AI via Native HTTPS ─────────────────────────────────────────────
-function callGemini(prompt, apiKey) {
-  return new Promise((resolve) => {
+// ─── Gemini AI via Native HTTPS with Multi-Model Fallback ───────────────────
+const GEMINI_MODELS = [
+  'gemini-flash-latest',
+  'gemini-3.5-flash',
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite'
+];
+
+async function callGemini(prompt, apiKey) {
+  for (const model of GEMINI_MODELS) {
+    try {
+      const text = await callGeminiSingle(model, prompt, apiKey);
+      if (text && text.trim().length > 0) return text;
+    } catch (e) {
+      log(`Gemini ${model} hatası (${e.message}), sıradaki modele geçiliyor...`);
+    }
+  }
+  return '';
+}
+
+function callGeminiSingle(model, prompt, apiKey) {
+  return new Promise((resolve, reject) => {
     const postData = JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }]
     });
 
     const options = {
       hostname: 'generativelanguage.googleapis.com',
-      path: `/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
+      path: `/v1beta/models/${model}:generateContent?key=${apiKey}`,
       method: 'POST',
       lookup: reliableLookup,
       headers: {
@@ -154,6 +174,9 @@ function callGemini(prompt, apiKey) {
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data);
+          if (res.statusCode >= 400 || parsed.error) {
+            return reject(new Error(`HTTP ${res.statusCode}: ${parsed.error?.message || 'Error'}`));
+          }
           const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
           resolve(text || '');
         } catch (e) {
@@ -163,14 +186,12 @@ function callGemini(prompt, apiKey) {
     });
 
     req.on('error', (err) => {
-      log(`Gemini HTTPS Hatası: ${err.message}`);
-      resolve('');
+      reject(err);
     });
 
     req.on('timeout', () => {
       req.destroy();
-      log('Gemini HTTPS Zaman Aşımı');
-      resolve('');
+      reject(new Error('Gemini HTTPS Zaman Aşımı'));
     });
 
     req.write(postData);
@@ -311,15 +332,54 @@ Haber Başlığı: ${news.title}
   return { processed };
 }
 
+function cleanText(text) {
+  if (!text) return '';
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+    .trim();
+}
+
+function generateLocalFallback(news) {
+  const cleanTitle = cleanText(news.title || '');
+  const cleanSummary = cleanText(news.summary || news.aiSummary || '');
+  const sourceName = news.source?.name ? `Kaynak: ${news.source.name}` : '';
+
+  const category = (news.category || '').toUpperCase();
+  let badge = 'BORDO MAVİ FLAŞ HABER';
+  if (category.includes('TRANSFER')) badge = 'BORDO MAVİ TRANSFER GELİŞMESİ';
+  else if (category.includes('MATCH')) badge = 'TRABZONSPOR MAÇ GÜNDEMİ';
+
+  const fanQuestions = [
+    'Bordo Mavi renklere gönül veren taraftarlarımız bu gelişme hakkında ne düşünüyor? Yorumlarda buluşalım!',
+    'Fırtına yeni hedefleri için kenetlenmeye devam ediyor. Sizce bu hamle takımımıza nasıl yansır? Görüşlerinizi yazın!',
+    'Bordo-Mavili sevdamızda yaşanan son gelişmeleri sıcağı sıcağına aktarıyoruz. Siz bu durumu nasıl değerlendiriyorsunuz?'
+  ];
+  const selectedQuestion = fanQuestions[Math.floor(Math.random() * fanQuestions.length)];
+
+  let post = `${badge}\n\n${cleanTitle}\n\n`;
+  if (cleanSummary && cleanSummary !== cleanTitle) {
+    post += `${cleanSummary}\n\n`;
+  }
+  if (sourceName) {
+    post += `${sourceName}\n\n`;
+  }
+  post += `${selectedQuestion}\n\n#Trabzonspor #BordoMavi #Fırtına #SüperLig`;
+  return cleanText(post);
+}
+
 // ─── Phase 3: Content Generation ───────────────────────────────────────────
-async function generateContent(apiKey, limit = 2) {
-  log('--- Aşama 3: İçerik Üretimi (85+ Puanlı Haberler) ---');
+async function generateContent(apiKey, limit = 3) {
+  log('--- Aşama 3: İçerik Üretimi (65+ Puanlı Haberler) ---');
   const candidates = await prisma.news.findMany({
     where: {
       isProcessed: true,
-      isTrabzonsporRelated: true,
+      OR: [
+        { isTrabzonsporRelated: true },
+        { isTrabzonsporRelated: null }
+      ],
       aiRecommendedAction: { in: ['CREATE_CONTENT', 'URGENT'] },
-      importanceScore: { gte: 85 },
+      importanceScore: { gte: 65 },
       content: null
     },
     include: { source: true },
@@ -328,7 +388,7 @@ async function generateContent(apiKey, limit = 2) {
   });
 
   if (candidates.length === 0) {
-    log('85+ puanlı yeni içerik adayı bulunamadı.');
+    log('65+ puanlı yeni içerik adayı bulunamadı.');
     return { generated: 0 };
   }
 
@@ -339,31 +399,43 @@ async function generateContent(apiKey, limit = 2) {
     try {
       const prompt = `Trabzonspor taraftar platformu Bordo Mavi için dikkat çekici, heyecanlı bir Facebook gönderisi yaz:
 
-Haber Başlığı: ${news.title}
+Haber Başlığı: ${cleanText(news.title)}
 Kaynak: ${news.source?.name || 'Bordo Mavi'}
-Özet: ${news.summary || news.aiSummary || ''}
+Özet: ${cleanText(news.summary || news.aiSummary || '')}
 
 Kurallar:
-1. Dikkat çekici, güçlü bir başlıkla başla (örnek: "FLAŞ GELİŞME! 🚨" veya "TRABZONSPOR'DA SICAK DAKİKALAR! 🔴🔵").
+1. Dikkat çekici, güçlü bir başlıkla başla.
 2. 2-3 kısa paragrafta olayı net ve akıcı şekilde özetle.
 3. Sonuna Bordo Mavi taraftarlarına hitap eden kısa bir soru veya taraftar yorumu ekle.
 4. En alta 3-5 hashtag ekle (#Trabzonspor #BordoMavi vb.).
-5. SADECE Facebook'ta yayınlanacak metni yaz. Ekstra açıklama veya JSON ekleme.`;
+5. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA.
+6. SADECE Facebook'ta yayınlanacak metni yaz. Ekstra açıklama veya JSON ekleme.`;
 
-      const body = await callGemini(prompt, apiKey);
-      if (!body || body.length < 50) continue;
+      let body = '';
+      try {
+        body = await callGemini(prompt, apiKey);
+      } catch (aiErr) {
+        log(`AI üretim hatası (${aiErr.message}), kural motoruna geçiliyor...`);
+      }
+
+      if (!body || body.trim().length < 30) {
+        body = generateLocalFallback(news);
+      }
+
+      const finalTitle = cleanText(news.title);
+      const finalBody = cleanText(body);
 
       await prisma.content.create({
         data: {
-          title: news.title,
-          body: body.trim(),
-          type: 'NEWS',
+          title: finalTitle,
+          body: finalBody,
+          type: (news.aiRecommendedContentType || 'NEWS'),
           status: 'READY_TO_PUBLISH',
           sourceNewsId: news.id
         }
       });
       generated++;
-      log(`[İçerik Üretildi] ${news.title.slice(0, 45)}... -> READY_TO_PUBLISH`);
+      log(`[İçerik Üretildi] ${finalTitle.slice(0, 45)}... -> READY_TO_PUBLISH`);
     } catch (err) {
       log(`İçerik üretim hatası (${news.id}): ${err.message}`);
     }
@@ -448,7 +520,7 @@ async function publishToFacebook(limit = 1) {
 
   for (const item of readyItems) {
     try {
-      let payload = { message: item.body, access_token: token };
+      let payload = { message: cleanText(item.body), access_token: token };
 
       // Görsel varsa önce gizli yükle, sonra feed'e iliştir (URL GÖRÜNMEZ!)
       if (item.sourceNews?.imageUrl) {

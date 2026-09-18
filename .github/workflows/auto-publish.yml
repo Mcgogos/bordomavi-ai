@@ -1,31 +1,40 @@
-name: 24/7 Auto Publish Cron
+name: 24/7 Autonomous News & Matchday Publish Cron
 
 on:
   schedule:
-    # Her 30 dakikada bir calistir
+    # Her 30 dakikada bir otomatik calistir (Bulutta 7/24 Kesintisiz)
     - cron: '*/30 * * * *'
   workflow_dispatch: # Manuel olarak GitHub panelinden tetikleme imkani
 
 jobs:
   trigger-publish:
-    name: Trigger News Sync & Auto Publish
+    name: Trigger News Sync & Matchday Automation
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Send Trigger to Vercel Auto-Publish Endpoint
+      - name: Trigger 30-Min News Sync & Auto-Publish
         run: |
           echo "Triggering 30-min auto publish on Vercel..."
           RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 120 "https://bordomavi-ai.vercel.app/api/cron/sync-news?secret=test_secret")
           HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
           
-          echo "HTTP Status: $HTTP_STATUS"
-          echo "Response Body: $BODY"
+          echo "News Sync HTTP Status: $HTTP_STATUS"
+          echo "News Sync Response: $BODY"
           
           if [ "$HTTP_STATUS" -eq 200 ]; then
-            echo "Auto publish cycle completed successfully!"
+            echo "News sync cycle completed successfully!"
           else
-            echo "Error: Received HTTP $HTTP_STATUS"
-            exit 1
+            echo "Warning: Received HTTP $HTTP_STATUS on news sync"
           fi
+
+      - name: Trigger Matchday Live Automation Sync
+        run: |
+          echo "Triggering matchday live automation on Vercel..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 60 "https://bordomavi-ai.vercel.app/api/cron/sync-match?secret=test_secret")
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "Matchday Sync HTTP Status: $HTTP_STATUS"
+          echo "Matchday Sync Response: $BODY"
