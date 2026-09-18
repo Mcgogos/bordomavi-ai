@@ -14,14 +14,14 @@ if (!hookUrl) {
   process.exit(1);
 }
 
-const { execSync } = require('child_process');
-
 console.log('[Vercel Deploy] Vercel dağıtımı tetikleniyor...');
 
-try {
-  const res = execSync(`curl.exe -s -X POST "${hookUrl}"`, { encoding: 'utf8', timeout: 15000 });
-  const data = JSON.parse(res);
-  console.log('✅ [Vercel Deploy] Başarıyla tetiklendi! İş ID:', data.job?.id, '| Durum:', data.job?.state);
-} catch (e) {
-  console.error('❌ [Vercel Deploy] Hata:', e.message);
-}
+(async () => {
+  try {
+    const res = await fetch(hookUrl, { method: 'POST' });
+    const data = await res.json();
+    console.log('✅ [Vercel Deploy] Başarıyla tetiklendi! İş ID:', data.job?.id, '| Durum:', data.job?.state);
+  } catch (e) {
+    console.error('❌ [Vercel Deploy] Hata:', e.message);
+  }
+})();
