@@ -42,42 +42,111 @@ export const NVIDIA_FALLBACK_MODELS: FallbackModelDef[] = [
 ];
 
 export class NvidiaProvider implements AIProvider {
-  private apiKey: string;
-  private baseUrl = 'https://integrate.api.nvidia.com/v1/chat/completions';
+  private nvidiaApiKey: string;
+  private openrouterApiKey: string;
+  private nvidiaBaseUrl = 'https://integrate.api.nvidia.com/v1/chat/completions';
+  private openrouterBaseUrl = 'https://openrouter.ai/api/v1/chat/completions';
 
   constructor() {
-    this.apiKey = process.env.NVIDIA_API_KEY || '';
+    this.nvidiaApiKey = process.env.NVIDIA_API_KEY || '';
+    this.openrouterApiKey = process.env.OPENROUTER_API_KEY || '';
   }
 
   private isConfigured(): boolean {
-    return Boolean(this.apiKey && this.apiKey.startsWith('nvapi-'));
+    return Boolean(
+      (this.nvidiaApiKey && this.nvidiaApiKey.startsWith('nvapi-')) ||
+      (this.openrouterApiKey && this.openrouterApiKey.startsWith('sk-or-'))
+    );
+  }
+
+  private cleanGeneratedText(raw: string): string {
+    let text = raw.trim();
+    // Strip <think>...</think> reasoning tags if present
+    text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    // Strip markdown asterisks as per user rules
+    text = text.replace(/\*\*/g, '').replace(/\*/g, '').trim();
+    return text;
   }
 
   async generateContent(prompt: string): Promise<string> {
     if (!this.isConfigured()) {
-      throw new Error('[NvidiaProvider] NVIDIA_API_KEY is missing or invalid');
+      throw new Error('[NvidiaProvider] No NVIDIA or OpenRouter API key is configured');
     }
 
     let lastError: any = null;
 
-    for (const step of NVIDIA_FALLBACK_MODELS) {
-      for (const modelId of step.candidateIds) {
-        try {
-          console.log(`[NvidiaProvider] Trying model: ${step.name} (${modelId})...`);
+    // 1. Önce doğrudan NVIDIA NIM üzerinde 13 modeli sırayla dene
+    if (this.nvidiaApiKey && this.nvidiaApiKey.startsWith('nvapi-')) {
+      for (const step of NVIDIA_FALLBACK_MODELS) {
+        for (const modelId of step.candidateIds) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
 
+            const res = await fetch(this.nvidiaBaseUrl, {
+              method: 'POST',
+              signal: controller.signal,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.nvidiaApiKey}`,
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                model: modelId,
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.7,
+                max_tokens: 1024
+              })
+            });
+
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+              const data = await res.json();
+              const text = data.choices?.[0]?.message?.content || '';
+              const cleaned = this.cleanGeneratedText(text);
+              if (cleaned) {
+                console.log(`[NvidiaProvider] SUCCESS via Direct NVIDIA: ${step.name} (${modelId})`);
+                return cleaned;
+              }
+            } else {
+              lastError = new Error(`NVIDIA direct ${modelId} returned HTTP ${res.status}`);
+            }
+          } catch (err: any) {
+            lastError = err;
+          }
+        }
+      }
+    }
+
+    // 2. Eğer NVIDIA doğrudan 403 verirse, OpenRouter üzerindeki Nemotron / GLM / Llama modelleri üzerinden dene
+    if (this.openrouterApiKey && this.openrouterApiKey.startsWith('sk-or-')) {
+      const openRouterCandidates = [
+        { name: 'Nemotron-3 Super 120B', id: 'nvidia/nemotron-3-super-120b-a12b:free' },
+        { name: 'Nemotron Ultra', id: 'nvidia/nemotron-3-ultra-550b-a55b:free' },
+        { name: 'Nemotron Lightning', id: 'nvidia/nemotron-3.5-lightning:free' },
+        { name: 'GLM 5.2', id: 'z-ai/glm-5.2:free' },
+        { name: 'Gemma 31B', id: 'google/gemma-4-31b-it:free' },
+        { name: 'Qwen 27B', id: 'qwen/qwen3.8-27b:free' }
+      ];
+
+      for (const orModel of openRouterCandidates) {
+        try {
+          console.log(`[NvidiaProvider] Trying OpenRouter NIM mirror: ${orModel.name} (${orModel.id})...`);
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-          const res = await fetch(this.baseUrl, {
+          const res = await fetch(this.openrouterBaseUrl, {
             method: 'POST',
             signal: controller.signal,
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${this.apiKey}`,
-              'Accept': 'application/json'
+              'Authorization': `Bearer ${this.openrouterApiKey}`,
+              'HTTP-Referer': 'https://bordomavi-ai.vercel.app',
+              'X-Title': 'BordoMavi AI Editor'
             },
             body: JSON.stringify({
-              model: modelId,
+              model: orModel.id,
               messages: [{ role: 'user', content: prompt }],
               temperature: 0.7,
               max_tokens: 1024
@@ -89,23 +158,22 @@ export class NvidiaProvider implements AIProvider {
           if (res.ok) {
             const data = await res.json();
             const text = data.choices?.[0]?.message?.content || '';
-            if (text.trim()) {
-              console.log(`[NvidiaProvider] SUCCESS with ${step.name} (${modelId})`);
-              return text;
+            const cleaned = this.cleanGeneratedText(text);
+            if (cleaned) {
+              console.log(`[NvidiaProvider] SUCCESS via OpenRouter mirror: ${orModel.name}`);
+              return cleaned;
             }
           } else {
-            const errText = await res.text();
-            console.warn(`[NvidiaProvider] Model ${modelId} returned HTTP ${res.status}: ${errText.slice(0, 100)}`);
-            lastError = new Error(`HTTP ${res.status} from ${modelId}`);
+            console.warn(`[NvidiaProvider] OpenRouter ${orModel.id} returned HTTP ${res.status}`);
           }
         } catch (err: any) {
+          console.warn(`[NvidiaProvider] OpenRouter ${orModel.id} failed: ${err.message}`);
           lastError = err;
-          console.warn(`[NvidiaProvider] Model ${modelId} failed (${err.message}). Trying next in chain...`);
         }
       }
     }
 
-    throw lastError || new Error('All NVIDIA models in fallback chain failed');
+    throw lastError || new Error('All NVIDIA models and mirrors in fallback chain failed');
   }
 
   async analyzeNews(newsData: any): Promise<any> {
