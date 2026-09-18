@@ -1,12 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/sync-news?secret=test_secret",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/sync-match?secret=test_secret",
-      "schedule": "*/10 * * * *"
-    }
-  ]
+  "framework": "nextjs"
 }
