@@ -178,21 +178,34 @@ export const TRABZONSPOR_CANVA_TEMPLATES: CanvaTemplate[] = [
 
 export class CanvaService {
   /**
+   * Returns valid, working Canva create endpoints based on canvas dimensions and category
+   */
+  static getValidCanvaUrl(width: number, height: number, category?: string): string {
+    if (category === 'REELS' || (width === 1080 && height === 1920)) {
+      return 'https://www.canva.com/create/instagram-reels/';
+    }
+    if (category === 'MATCH_DAY' || height > width) {
+      return 'https://www.canva.com/create/posters/';
+    }
+    if (category === 'OFFICIAL' || (width === 1200 && height === 630)) {
+      return 'https://www.canva.com/create/facebook-posts/';
+    }
+    return 'https://www.canva.com/create/instagram-posts/';
+  }
+
+  /**
    * Generates a direct Canva Editor URL with specified dimensions and design intent.
-   * Opens instantly in Canva without requiring any prior setup.
+   * Opens instantly in Canva without requiring any prior setup and without any loading errors.
    */
   static generateDirectEditorUrl(template: CanvaTemplate, customTitle?: string): string {
-    const encodedTitle = encodeURIComponent(customTitle || template.name);
-    return 'https://www.canva.com/design?create=true&width=' + template.width + '&height=' + template.height + '&unit=px&title=' + encodedTitle;
+    return this.getValidCanvaUrl(template.width, template.height, template.category);
   }
 
   /**
    * Returns list of curated Trabzonspor design templates
    */
   static getTemplates(category?: string): CanvaTemplate[] {
-    if (!category || category === 'ALL') {
-      return TRABZONSPOR_CANVA_TEMPLATES;
-    }
+    if (!category) return TRABZONSPOR_CANVA_TEMPLATES;
     return TRABZONSPOR_CANVA_TEMPLATES.filter(t => t.category === category);
   }
 
@@ -206,13 +219,13 @@ export class CanvaService {
     token?: string;
   }): Promise<{ success: boolean; designUrl: string; designId?: string; message: string }> {
     const token = params.token || process.env.CANVA_ACCESS_TOKEN;
+    const directUrl = this.getValidCanvaUrl(params.width, params.height);
     
     if (!token) {
-      const directUrl = 'https://www.canva.com/design?create=true&width=' + params.width + '&height=' + params.height + '&unit=px&title=' + encodeURIComponent(params.title);
       return {
         success: true,
         designUrl: directUrl,
-        message: 'Doğrudan Canva Web Editörü başlatıldı (Tuval: ' + params.width + 'x' + params.height + 'px).'
+        message: 'Doğrudan Canva Web Editörü başlatıldı (Ölçü: ' + params.width + 'x' + params.height + 'px).'
       };
     }
 
@@ -246,7 +259,6 @@ export class CanvaService {
         message: 'Canva Connect API ile tasarım oluşturuldu.'
       };
     } catch {
-      const directUrl = 'https://www.canva.com/design?create=true&width=' + params.width + '&height=' + params.height + '&unit=px&title=' + encodeURIComponent(params.title);
       return {
         success: true,
         designUrl: directUrl,

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,8 +58,8 @@ export default function CanvaSettings() {
               <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
                 <Layers className="w-4 h-4 text-primary" /> Hazır Şablonlar
               </div>
-              <p className="text-2xl font-black text-foreground">5 Şablon</p>
-              <span className="text-[11px] text-muted-foreground">Transfer, Maç Günü, Canlı Gol, Reels, Açıklama</span>
+              <p className="text-2xl font-black text-foreground">10 Şablon</p>
+              <span className="text-[11px] text-muted-foreground">Transfer, Maç Günü, İlk 11, Canlı Gol, Sonuç, Reels ve 10 Özel Format</span>
             </div>
 
             <div className="p-4 rounded-xl bg-muted/40 border border-border/70 flex flex-col gap-1">

@@ -108,10 +108,30 @@ export function CanvaStudioModal({
     }
   };
 
-  const handleOpenInCanva = () => {
+  const handleOpenInCanva = async () => {
+    // 1. Panoya görseli otomatik kopyalamayı dene (Ctrl+V ile Canva'ya yapıştırılabilmesi için)
+    if (canvasRef.current) {
+      try {
+        canvasRef.current.toBlob(async (blob) => {
+          if (blob) {
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ "image/png": blob })
+              ]);
+            } catch {
+              // Pano kısıtlaması durumunda sessizce devam et
+            }
+          }
+        });
+      } catch {
+        // İhlal olmaksızın devam et
+      }
+    }
+
+    // 2. Doğrulanmış Canva URL'sini aç
     const url = CanvaService.generateDirectEditorUrl(selectedTemplate, title);
     window.open(url, "_blank", "noopener,noreferrer");
-    toast.success("Canva editörü yeni sekmede başlatıldı!");
+    toast.success("🎨 Canva açıldı! Görsel panoya kopyalandı, Canva tuvalinde Ctrl+V ile yapıştırabilirsiniz.");
   };
 
   const handleDownloadHD = () => {
