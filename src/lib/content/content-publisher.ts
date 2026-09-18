@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { FacebookService } from '@/services/facebook.service';
+import { isNewsTooOld, checkAgainstPublishedHistory } from '@/lib/news/news-similarity-engine';
 
 const publishingIds = new Set<string>();
 
@@ -40,6 +41,42 @@ export async function publishReadyContent(limit: number = 1) {
     for (const content of readyContents) {
       if (result.processed + result.failed >= limit) break;
       if (publishingIds.has(content.id)) continue;
+
+      // 1. Tazelik Denetimi (Anti-Stale Guard):
+      // İçerik veya kaynak haber 36 saatten eski ise Facebook'ta yayınlanmaz.
+      const isNewsOld = isNewsTooOld(content.sourceNews?.publishedAt, 36);
+      const isContentOld = isNewsTooOld(content.createdAt, 36);
+
+      if (isNewsOld || isContentOld) {
+        console.log(`[Content Publisher] Stale content detected (ID: ${content.id}). Older than 36h. Cancelling publish.`);
+        await prisma.content.update({
+          where: { id: content.id },
+          data: {
+            status: 'REJECTED',
+            aiReasoning: `[ZAMAN AŞIMI] Haber veya içerik 36 saatten eski olduğu için Facebook yayını iptal edildi.`
+          }
+        });
+        continue;
+      }
+
+      // 2. Mükerrer Yayın Denetimi (Anti-Duplicate Past Post Guard):
+      // Son 7 gün içinde Facebook'ta yayınlanmış gönderilerle başlık/konu kıyaslaması yap.
+      const historyCheck = await checkAgainstPublishedHistory(
+        { id: content.sourceNewsId || content.id, title: content.title, summary: content.body },
+        7
+      );
+
+      if (historyCheck.isDuplicate && historyCheck.matchedPost?.id !== content.id) {
+        console.log(`[Content Publisher] Duplicate content detected (ID: ${content.id}) matches past post "${historyCheck.matchedPost?.title}". Cancelling publish.`);
+        await prisma.content.update({
+          where: { id: content.id },
+          data: {
+            status: 'REJECTED',
+            aiReasoning: `[MÜKERRER YAYIN ENGELİ] ${historyCheck.reason}`
+          }
+        });
+        continue;
+      }
 
       publishingIds.add(content.id);
 

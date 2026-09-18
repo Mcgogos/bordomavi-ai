@@ -57,7 +57,21 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
   const handlePublishNow = async (id: string) => {
     setIsPublishing(id);
     try {
-      const res = await publishContentNowAction(id);
+      let res = await publishContentNowAction(id);
+
+      if (!res.success && (res as any).duplicateWarning) {
+        const confirmForce = confirm(
+          `${res.error}\n\nBu içerik geçmişte yayınlanan bir haberle neredeyse aynıdır. Yine de Facebook'ta YENİDEN YAYINLAMAK istiyor musunuz?`
+        );
+        if (confirmForce) {
+          res = await publishContentNowAction(id, true);
+        } else {
+          toast.info("Mükerrer yayın iptal edildi.");
+          setIsPublishing(null);
+          return;
+        }
+      }
+
       if (res.success) {
         toast.success("🎉 İçerik başarıyla Facebook'ta yayınlandı!");
         setContents(prev => prev.map(c => c.id === id ? { ...c, status: "PUBLISHED", facebookPostId: res.postId, publishedAt: new Date() } : c));

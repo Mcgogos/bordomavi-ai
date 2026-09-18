@@ -1,6 +1,7 @@
 import { fetchRss } from './rss-fetcher';
 import { normalizeNewsItem } from './news-normalizer';
 import { passesKeywordFilter } from './news-deduplicator';
+import { isNewsTooOld } from './news-similarity-engine';
 import { prisma } from '@/lib/db';
 
 export async function runNewsCollector() {
@@ -10,6 +11,7 @@ export async function runNewsCollector() {
     itemsFetched: 0,
     newItems: 0,
     duplicates: 0,
+    staleSkipped: 0,
     errors: 0
   };
 
@@ -56,6 +58,18 @@ export async function runNewsCollector() {
         result.itemsFetched++;
         const normalized = normalizeNewsItem(rawItem);
         if (!normalized) continue;
+
+        // Gelecek tarihli (sunucu saati uyuşmazlığı) haberleri şimdiki zamana eşitle
+        if (normalized.publishedAt.getTime() > Date.now() + 60 * 60 * 1000) {
+          normalized.publishedAt = new Date();
+        }
+
+        // Katı Tazelik Kapısı: 48 saatten eski haberleri doğrudan ele (veritabanını bayat arşivle kirletme)
+        if (isNewsTooOld(normalized.publishedAt, 48)) {
+          result.staleSkipped = (result.staleSkipped || 0) + 1;
+          continue;
+        }
+
         if (!passesKeywordFilter(normalized.title, normalized.summary || "", source.type)) continue;
         candidates.push({ normalized, sourceId: source.id, sourceName: source.name, sourceType: source.type });
       }

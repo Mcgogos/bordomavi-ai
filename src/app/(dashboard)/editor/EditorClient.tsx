@@ -140,12 +140,30 @@ export default function EditorClient({ initialContents }: { initialContents: any
     setIsPublishing(true);
     
     try {
-      const res = await publishContentDirectlyAction(selectedContent.id, {
+      let res = await publishContentDirectlyAction(selectedContent.id, {
         title: selectedContent.title,
         body: selectedContent.body,
         customImageUrl: selectedId ? customVisuals[selectedId] : undefined
       });
       
+      if (!res.success && res.duplicateWarning) {
+        const confirmForce = confirm(
+          `${res.error}\n\nBu içerik daha önce yayınlanmış bir haberle neredeyse aynıdır. Yine de Facebook'ta YENİDEN YAYINLAMAK istiyor musunuz?`
+        );
+        if (confirmForce) {
+          res = await publishContentDirectlyAction(selectedContent.id, {
+            title: selectedContent.title,
+            body: selectedContent.body,
+            customImageUrl: selectedId ? customVisuals[selectedId] : undefined,
+            forcePublish: true
+          });
+        } else {
+          toast.info("Mükerrer yayın iptal edildi.");
+          setIsPublishing(false);
+          return;
+        }
+      }
+
       if (res.success) {
         toast.success(`İçerik anında Facebook'ta yayınlandı! ${res.mockMode ? '(Mock Mode)' : ''}`);
         setContents(contents.filter(c => c.id !== selectedContent.id));

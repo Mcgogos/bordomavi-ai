@@ -1,5 +1,10 @@
 import { prisma } from '@/lib/db';
 import { AIFactory } from '@/services/ai/ai.factory';
+import {
+  isNewsTooOld,
+  checkAgainstPublishedHistory,
+  deduplicateNewsBatch
+} from '@/lib/news/news-similarity-engine';
 
 // Helper to strictly remove markdown asterisks (** and *) for clean plain text publishing
 export function sanitizePlainText(text: string): string {
@@ -56,10 +61,11 @@ export async function generateAutomatedContent(limit: number = 5) {
 
   // Minimum AI score threshold for auto-generation (65+ Trabzonspor news)
   const MIN_AI_SCORE = 65;
+  // Kesin tazelik eşiği: 24 saatten eski haberlerden ASLA otomatik içerik üretilmez
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   try {
-    // 1. Find suitable news
-    // rules: isTrabzonsporRelated is true or null, action in [CREATE_CONTENT, URGENT], no content yet, importanceScore >= 65
+    // 1. Taze ve kaliteli haberleri bul (son 24 saat, puan >= 65)
     const candidateNews = await prisma.news.findMany({
       where: {
         isProcessed: true,
@@ -68,24 +74,47 @@ export async function generateAutomatedContent(limit: number = 5) {
           { isTrabzonsporRelated: null }
         ],
         aiRecommendedAction: { in: ['CREATE_CONTENT', 'URGENT'] },
-        content: null, // no content generated yet
-        importanceScore: { gte: MIN_AI_SCORE } // High-quality news (65+)
+        content: null, // henüz içerik üretilmemiş
+        importanceScore: { gte: MIN_AI_SCORE },
+        publishedAt: { gte: twentyFourHoursAgo } // Katı tazelik filtresi
       },
       include: { source: true },
-      orderBy: { importanceScore: 'desc' }, // Best news first
-      take: limit * 2
+      orderBy: { importanceScore: 'desc' }, // En önemli haberler önce
+      take: limit * 4
     });
 
     if (candidateNews.length === 0) {
-      console.log(`[Content Generator] No candidate news found with AI score >= ${MIN_AI_SCORE}.`);
+      console.log(`[Content Generator] No fresh candidate news found (last 24h, AI score >= ${MIN_AI_SCORE}).`);
       return result;
     }
 
-    console.log(`[Content Generator] Found ${candidateNews.length} candidates with AI score >= ${MIN_AI_SCORE}.`);
+    console.log(`[Content Generator] Found ${candidateNews.length} candidates. Running cross-source deduplication...`);
+
+    // 2. Farklı yerel/ulusal kaynaklardan gelen AYNI olayı anlatan haberleri tekilleştir
+    const { uniqueNews, duplicateNews } = deduplicateNewsBatch(candidateNews);
+
+    // Mükerrer olanları veritabanında işaretle ki tekrar seçilmesinler
+    for (const dup of duplicateNews) {
+      console.log(`[Content Generator] Cross-source duplicate filtered: "${dup.item.title}" matches "${dup.duplicateOf.title}" (%${Math.round(dup.similarity * 100)})`);
+      try {
+        await prisma.news.update({
+          where: { id: dup.item.id },
+          data: {
+            isProcessed: true,
+            aiRecommendedAction: 'IGNORE',
+            aiSummary: (dup.item.aiSummary || dup.item.summary || '') + `\n[MÜKERRER KAYNAK] "${dup.duplicateOf.title}" haberi ile aynı olay (%${Math.round(dup.similarity * 100)}).`
+          }
+        });
+      } catch (e) {
+        // pas geç
+      }
+    }
+
+    console.log(`[Content Generator] ${uniqueNews.length} unique fresh candidates remaining after cross-source dedup.`);
 
     const aiProvider = AIFactory.getRouter("CONTENT_GENERATION");
 
-    for (const news of candidateNews) {
+    for (const news of uniqueNews) {
       if (result.processed + result.failed >= limit) {
         break;
       }
@@ -94,10 +123,44 @@ export async function generateAutomatedContent(limit: number = 5) {
         continue;
       }
 
+      // 3. Tazelik Son Kontrolü: 24 saatten eski ise atla
+      if (isNewsTooOld(news.publishedAt, 24)) {
+        console.log(`[Content Generator] Skipping stale news (>24h): ${news.title}`);
+        await prisma.news.update({
+          where: { id: news.id },
+          data: {
+            isProcessed: true,
+            aiRecommendedAction: 'IGNORE',
+            aiSummary: (news.aiSummary || news.summary || '') + '\n[BAYAT HABER] 24 saatten eski olduğu için otonom üretim engellendi.'
+          }
+        });
+        continue;
+      }
+
+      // 4. Geçmiş Yayın Hafızası Kontrolü (Son 14 gün)
+      // Eğer bu haber son 14 gün içinde Facebook'ta yayınlandıysa tekrar yayınlama!
+      const historyCheck = await checkAgainstPublishedHistory(
+        { id: news.id, title: news.title, summary: news.summary || news.aiSummary },
+        14
+      );
+
+      if (historyCheck.isDuplicate) {
+        console.log(`[Content Generator] Anti-Duplicate Guard: "${news.title}" matches published post "${historyCheck.matchedPost?.title}". Skipping.`);
+        await prisma.news.update({
+          where: { id: news.id },
+          data: {
+            isProcessed: true,
+            aiRecommendedAction: 'IGNORE',
+            aiSummary: (news.aiSummary || news.summary || '') + `\n[GEÇMİŞ YAYIN KORUMASI] ${historyCheck.reason}`
+          }
+        });
+        continue;
+      }
+
       generatingIds.add(news.id);
 
       try {
-        console.log(`[Content Generator] Generating content for: ${news.title}`);
+        console.log(`[Content Generator] Generating content for fresh & unique news: ${news.title}`);
         
         const prompt = `
 Lütfen aşağıdaki haber detaylarını kullanarak Bordo Mavi (Trabzonspor) taraftar platformu için dikkat çekici bir Facebook gönderisi taslağı oluştur.
@@ -254,6 +317,19 @@ Kurallar:
         contentType = news.aiRecommendedContentType;
     }
 
+    // Geçmiş yayın kontrolü ve tazelik kontrolü
+    const historyCheck = await checkAgainstPublishedHistory(
+      { id: news.id, title: news.title, summary: news.summary || news.aiSummary },
+      14
+    );
+    const isOld = isNewsTooOld(news.publishedAt, 24);
+    let reasoningNote = '';
+    if (historyCheck.isDuplicate) {
+      reasoningNote = `[MÜKERRER UYARISI] Bu konu son 14 günde yayınlanan "${historyCheck.matchedPost?.title}" ile benzer (%${Math.round(historyCheck.similarity * 100)}).`;
+    } else if (isOld) {
+      reasoningNote = '[BAYAT HABER UYARISI] Haber 24 saatten eski.';
+    }
+
     const created = await prisma.content.create({
       data: {
         title: cleanTitle,
@@ -261,10 +337,11 @@ Kurallar:
         type: contentType as any,
         status: 'DRAFT',
         sourceNewsId: news.id,
+        aiReasoning: reasoningNote || undefined
       }
     });
 
-    return { success: true, data: created };
+    return { success: true, data: created, duplicateWarning: historyCheck.isDuplicate, matchedPost: historyCheck.matchedPost };
 
   } catch (error: any) {
     console.error(`[Content Generator] Error generating for news ${newsId}:`, error);

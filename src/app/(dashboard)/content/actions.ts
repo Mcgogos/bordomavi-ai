@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { FacebookService } from "@/services/facebook.service";
+import { checkAgainstPublishedHistory } from "@/lib/news/news-similarity-engine";
 
 export async function deleteContentAction(id: string) {
   try {
@@ -18,7 +19,7 @@ export async function deleteContentAction(id: string) {
   }
 }
 
-export async function publishContentNowAction(contentId: string) {
+export async function publishContentNowAction(contentId: string, forcePublish: boolean = false) {
   try {
     const content = await prisma.content.findUnique({
       where: { id: contentId },
@@ -27,6 +28,23 @@ export async function publishContentNowAction(contentId: string) {
 
     if (!content) {
       return { success: false, error: "İçerik bulunamadı." };
+    }
+
+    // Mükerrer Gönderi Koruması (Son 7 gün)
+    if (!forcePublish) {
+      const historyCheck = await checkAgainstPublishedHistory(
+        { id: content.sourceNewsId || content.id, title: content.title, summary: content.body },
+        7
+      );
+
+      if (historyCheck.isDuplicate && historyCheck.matchedPost?.id !== contentId) {
+        return {
+          success: false,
+          duplicateWarning: true,
+          matchedPost: historyCheck.matchedPost,
+          error: `DİKKAT (Mükerrer Haber Koruması): Bu konu son 7 gün içinde Facebook'ta zaten yayınlandı! ("${historyCheck.matchedPost?.title}").`
+        };
+      }
     }
 
     // Build clean plain text message without markdown asterisks
