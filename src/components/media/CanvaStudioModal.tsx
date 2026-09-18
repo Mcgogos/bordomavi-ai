@@ -43,6 +43,7 @@ export function CanvaStudioModal({
   
   // Otomatik Üretilen HD Görsel State'i
   const [renderedDataUrl, setRenderedDataUrl] = useState<string>("");
+  const [isPublishingToFb, setIsPublishingToFb] = useState(false);
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -90,8 +91,6 @@ export function CanvaStudioModal({
   }, [title, subtitle, playerName, selectedTemplate, isOpen, logoImage]);
 
   if (!isOpen) return null;
-
-  const [isPublishingToFb, setIsPublishingToFb] = useState(false);
 
   const handlePublishToFacebook = async () => {
     if (!renderedDataUrl) {
