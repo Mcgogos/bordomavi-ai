@@ -61,17 +61,17 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-8">
+    <div className="p-3.5 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5 sm:space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">Genel Bakış</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Genel Bakış</h1>
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
               Canlı Takip
             </span>
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-xs sm:text-sm">
             Yapay Zeka destekli haber otomasyonu ve editoryal içerik performansı
           </p>
         </div>
@@ -84,8 +84,8 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPI Cards (Mobilde 2 Kolon, Masaüstünde 4 Kolon) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (

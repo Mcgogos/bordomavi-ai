@@ -212,7 +212,7 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
       </div>
 
       {/* Canlı Skor & Maç Kontrol Masası */}
-      <div className="grid gap-6 lg:grid-cols-12">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-12">
         
         {/* Skor Kartı & Canlı Skor Paneli */}
         <Card className="lg:col-span-5 bg-gradient-to-br from-[#781324] via-[#1a1c2e] to-[#164E7A] text-white border-0 shadow-xl overflow-hidden relative">
@@ -229,19 +229,19 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
             </div>
           </CardHeader>
 
-          <CardContent className="relative z-10 py-6 space-y-6 text-center">
-            <div className="flex items-center justify-center gap-6">
+          <CardContent className="relative z-10 py-4 sm:py-6 space-y-4 sm:space-y-6 text-center">
+            <div className="flex items-center justify-center gap-3 sm:gap-6">
               {/* Trabzonspor */}
-              <div className="flex flex-col items-center space-y-2">
-                <div className="w-16 h-16 rounded-2xl bg-white/10 border-2 border-white/30 backdrop-blur-md flex items-center justify-center text-xl font-black text-amber-400 shadow-lg">
+              <div className="flex flex-col items-center space-y-1 sm:space-y-2">
+                <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-2xl bg-white/10 border-2 border-white/30 backdrop-blur-md flex items-center justify-center text-lg sm:text-xl font-black text-amber-400 shadow-lg">
                   TS
                 </div>
-                <span className="font-bold text-sm tracking-wide">Trabzonspor</span>
+                <span className="font-bold text-xs sm:text-sm tracking-wide">Trabzonspor</span>
               </div>
 
               {/* Skor Göstergesi */}
               <div className="flex flex-col items-center space-y-1">
-                <div className="flex items-center gap-3 font-mono text-5xl font-black tracking-tighter drop-shadow-lg">
+                <div className="flex items-center gap-2 sm:gap-3 font-mono text-4xl sm:text-5xl font-black tracking-tighter drop-shadow-lg">
                   <span className="text-white">{homeScore}</span>
                   <span className="text-white/40">:</span>
                   <span className="text-white">{awayScore}</span>
@@ -252,16 +252,16 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
               </div>
 
               {/* Rakip */}
-              <div className="flex flex-col items-center space-y-2">
-                <div className="w-16 h-16 rounded-2xl bg-white/10 border-2 border-white/30 backdrop-blur-md flex items-center justify-center text-xl font-black text-white/90 shadow-lg">
+              <div className="flex flex-col items-center space-y-1 sm:space-y-2">
+                <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-2xl bg-white/10 border-2 border-white/30 backdrop-blur-md flex items-center justify-center text-lg sm:text-xl font-black text-white/90 shadow-lg">
                   {opponent.substring(0, 3).toUpperCase()}
                 </div>
-                <span className="font-bold text-sm tracking-wide line-clamp-1 max-w-[100px]">{opponent}</span>
+                <span className="font-bold text-xs sm:text-sm tracking-wide line-clamp-1 max-w-[90px] sm:max-w-[100px]">{opponent}</span>
               </div>
             </div>
 
             {/* Skor Değiştirme Butonları */}
-            <div className="flex items-center justify-center gap-3 pt-2 border-t border-white/10">
+            <div className="flex items-center justify-center gap-2 sm:gap-3 pt-2 border-t border-white/10">
               <Button 
                 size="sm" 
                 variant="secondary"
@@ -269,15 +269,15 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
                   setHomeScore(prev => prev + 1);
                   toast.success("Trabzonspor skoru artırıldı!");
                 }}
-                className="h-8 text-xs font-bold bg-white text-slate-900 hover:bg-slate-100"
+                className="flex-1 sm:flex-initial h-9 sm:h-8 text-xs font-bold bg-white text-slate-900 hover:bg-slate-100"
               >
-                +1 Gol (Trabzonspor)
+                +1 Gol (TS)
               </Button>
               <Button 
                 size="sm" 
                 variant="outline"
                 onClick={() => setAwayScore(prev => prev + 1)}
-                className="h-8 text-xs font-semibold text-white border-white/30 hover:bg-white/10"
+                className="flex-1 sm:flex-initial h-9 sm:h-8 text-xs font-semibold text-white border-white/30 hover:bg-white/10"
               >
                 +1 Gol ({opponent.split(" ")[0]})
               </Button>
@@ -575,11 +575,11 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
             </div>
 
             {/* Yayınlama Butonları */}
-            <div className="flex flex-col sm:flex-row gap-2 pt-1">
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
               <Button
                 onClick={handlePublishNow}
                 disabled={isPublishing}
-                className="flex-1 bg-[#164E7A] hover:bg-[#123E62] text-white font-bold text-xs h-10 shadow-md flex items-center justify-center gap-2"
+                className="w-full sm:flex-1 bg-[#164E7A] hover:bg-[#123E62] text-white font-bold text-xs sm:text-sm h-11 shadow-md flex items-center justify-center gap-2 transition-all"
               >
                 <Send className="w-4 h-4 text-sky-300" />
                 {isPublishing ? "Facebook'a Gönderiliyor..." : "Facebook'ta Canlı Paylaş (1-Tık)"}
@@ -588,7 +588,7 @@ export default function MatchdayClient({ initialNews }: MatchdayClientProps) {
               <Button
                 variant="outline"
                 onClick={() => window.open(generatedPost.ogUrl, '_blank')}
-                className="h-10 text-xs font-semibold border-border/80 px-4"
+                className="w-full sm:w-auto h-11 text-xs sm:text-sm font-semibold border-border/80 px-4"
               >
                 <Eye className="w-3.5 h-3.5 mr-1.5" />
                 HD Görseli Aç

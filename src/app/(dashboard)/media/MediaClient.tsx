@@ -50,49 +50,49 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-3.5 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5 sm:space-y-6">
       {/* Üst Eylem ve Sekme Çubuğu */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="inline-flex h-10 items-center justify-center rounded-xl bg-muted/60 p-1 border border-border/80 text-muted-foreground w-full sm:w-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3.5">
+        <div className="inline-flex h-10 items-center justify-center rounded-xl bg-muted/60 p-1 border border-border/80 text-muted-foreground w-full sm:w-auto shrink-0">
           <button 
             onClick={() => setActiveTab("generated")}
-            className={`inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-1.5 text-xs font-semibold ring-offset-background transition-all focus-visible:outline-none ${activeTab === "generated" ? "bg-background text-foreground shadow-xs" : "hover:text-foreground"}`}
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-semibold ring-offset-background transition-all focus-visible:outline-none ${activeTab === "generated" ? "bg-background text-foreground shadow-xs" : "hover:text-foreground"}`}
           >
-            AI Haber Kartları (Logolu OG)
+            AI Haber Kartları (Logolu)
           </button>
           <button 
             onClick={() => setActiveTab("uploaded")}
-            className={`inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-1.5 text-xs font-semibold ring-offset-background transition-all focus-visible:outline-none ${activeTab === "uploaded" ? "bg-background text-foreground shadow-xs" : "hover:text-foreground"}`}
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-semibold ring-offset-background transition-all focus-visible:outline-none ${activeTab === "uploaded" ? "bg-background text-foreground shadow-xs" : "hover:text-foreground"}`}
           >
             Manuel Yüklenenler
           </button>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
           <Button 
             onClick={() => setCanvaModalOpen(true)}
-            className="bg-[#00C4CC] hover:bg-[#00B4BC] text-white font-bold text-xs h-9 shadow-xs"
+            className="flex-1 sm:flex-initial bg-[#00C4CC] hover:bg-[#00B4BC] text-white font-bold text-xs h-10 shadow-xs px-3.5"
           >
-            <Palette className="mr-1.5 h-4 w-4" /> Canva ile Tasarla
+            <Palette className="mr-1.5 h-4 w-4" /> Canva Tasarla
           </Button>
 
           <Button 
             onClick={() => openReelStudio(generatedImages[0]?.title || "Trabzonspor'da Son Dakika Gelişmesi!")}
-            className="bg-gradient-to-r from-[#781324] to-[#164E7A] text-white hover:opacity-90 font-semibold text-xs h-9 shadow-xs"
+            className="flex-1 sm:flex-initial bg-gradient-to-r from-[#781324] to-[#164E7A] text-white hover:opacity-90 font-semibold text-xs h-10 shadow-xs px-3.5"
           >
-            <Film className="mr-1.5 h-4 w-4" /> AI Reels & Video Stüdyosu
+            <Film className="mr-1.5 h-4 w-4" /> Reels Stüdyosu
           </Button>
 
-          <Button variant="outline" className="font-semibold text-xs h-9 border-border/80">
-            <Upload className="mr-2 h-4 w-4" /> Yeni Görsel
+          <Button variant="outline" className="h-10 text-xs font-semibold border-border/80 px-3">
+            <Upload className="mr-1.5 h-4 w-4" /> Yükle
           </Button>
         </div>
       </div>
 
       {activeTab === "generated" && (
-        <div className="mt-6 space-y-4">
-          {/* Şablon Filtre Pilleri */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+        <div className="mt-4 sm:mt-6 space-y-4">
+          {/* Şablon Filtre Pilleri (Mobilde Yatay Kaydırılabilir) */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 text-xs select-none">
             <span className="text-muted-foreground font-semibold flex items-center gap-1 shrink-0">
               <Filter className="w-3 h-3" /> Şablon:
             </span>

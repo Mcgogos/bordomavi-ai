@@ -190,26 +190,26 @@ export function CanvaStudioModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
       {/* Gizli HD Canvas Çizim Motoru */}
       <canvas ref={canvasRef} className="hidden" />
 
-      <div className="relative w-full max-w-5xl bg-card border border-border/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="relative w-full max-w-5xl bg-card border border-border/80 rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] sm:max-h-[92vh]">
         
         {/* Modal Başlığı */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-border/70 bg-gradient-to-r from-[#781324]/10 via-background to-[#164E7A]/10 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#781324] to-[#164E7A] flex items-center justify-center text-white font-bold shadow-md">
-              <Bot className="w-5 h-5 text-amber-400" />
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-border/70 bg-gradient-to-r from-[#781324]/10 via-background to-[#164E7A]/10 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-[#781324] to-[#164E7A] flex items-center justify-center text-white font-bold shadow-md shrink-0">
+              <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-bold text-foreground">Canva Otonom Tasarım Stüdyosu</h2>
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> %100 Otomatik Tasarım
+                <h2 className="text-xs sm:text-base font-bold text-foreground">Canva Otonom Tasarım Stüdyosu</h2>
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] sm:text-[10px] font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> %100 AI
                 </Badge>
               </div>
-              <p className="text-[11px] sm:text-xs text-muted-foreground line-clamp-1">
+              <p className="text-[10px] sm:text-xs text-muted-foreground line-clamp-1">
                 Yapay zeka bordo-mavi şablonları piksellerine kadar hazır tasarlar.
               </p>
             </div>
@@ -222,11 +222,11 @@ export function CanvaStudioModal({
           </button>
         </div>
 
-        {/* Modal Gövdesi — Mobilde Önizleme Üstte, Editör Altta */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 p-4 sm:p-6 overflow-y-auto flex-1">
+        {/* Modal Gövdesi — Mobilde ve Yatayda Kusursuz Kaydırma */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-5 p-3 sm:p-6 overflow-y-auto flex-1">
           
           {/* Sağ (Mobilde Üst): Otomatik Tasarlanan Bitmiş HD Görsel (5 Kolon) */}
-          <div className="order-first md:order-last md:col-span-5 flex flex-col gap-3">
+          <div className="order-first md:order-last md:col-span-5 flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Tamamlanmış HD Görsel
@@ -236,8 +236,8 @@ export function CanvaStudioModal({
               </span>
             </div>
 
-            {/* Gerçek Render Edilen HD Görsel */}
-            <div className="w-full rounded-2xl overflow-hidden border border-border/80 shadow-xl relative bg-slate-950 aspect-square max-h-[320px] sm:max-h-[380px] md:max-h-none flex items-center justify-center mx-auto">
+            {/* Gerçek Render Edilen HD Görsel — Yatay ve Dikey Mobilde Dinamik Ölçekleme */}
+            <div className="w-full rounded-xl sm:rounded-2xl overflow-hidden border border-border/80 shadow-xl relative bg-slate-950 aspect-video sm:aspect-square max-h-[190px] sm:max-h-[300px] md:max-h-none flex items-center justify-center mx-auto">
               {renderedDataUrl ? (
                 <img 
                   src={renderedDataUrl} 
@@ -251,7 +251,7 @@ export function CanvaStudioModal({
               )}
             </div>
 
-            <div className="p-2.5 rounded-xl bg-muted/60 border border-border/60 text-[11px] text-muted-foreground leading-relaxed">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-muted/60 border border-border/60 text-[10px] sm:text-[11px] text-muted-foreground leading-relaxed hidden sm:block">
               <span className="font-bold text-foreground">Otonom Tasarım:</span> Yapay zeka manşet puntosu, satır bölmeleri, bordo-mavi stadyum ışıkları ve kurumsal logoyu otomatik yerleştirdi.
             </div>
           </div>
@@ -386,8 +386,9 @@ export function CanvaStudioModal({
         </div>
 
         {/* Sabit Alt Eylem Çubuğu — Mobilde ve Masaüstünde Daima Görünür, 1-Tık Yayınla */}
-        <div className="sticky bottom-0 z-30 px-4 sm:px-6 py-3 bg-card/95 backdrop-blur-md border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2.5 shadow-lg shrink-0">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="sticky bottom-0 z-30 p-2.5 sm:px-6 sm:py-3 bg-card/95 backdrop-blur-md border-t border-border flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-2 shadow-lg shrink-0">
+          {/* Birincil Eylemler: Uygula & Kaydet + Facebook'ta Yayınla */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
             {onApplyDesign && (
               <Button
                 onClick={() => {
@@ -403,44 +404,48 @@ export function CanvaStudioModal({
                   });
                 }}
                 disabled={!renderedDataUrl}
-                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 px-5 shadow-md flex items-center justify-center gap-2 transition-all"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 px-4 shadow-md flex items-center justify-center gap-2 transition-all"
               >
-                <CheckCircle2 className="w-4 h-4 text-emerald-200" />
-                Tasarımı Gönderiye Uygula & Kaydet
+                <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
+                <span className="truncate">Tasarımı Gönderiye Uygula & Kaydet</span>
               </Button>
             )}
 
             <Button
               onClick={handlePublishToFacebook}
               disabled={isPublishingToFb || !renderedDataUrl}
-              className="w-full sm:w-auto bg-[#164E7A] hover:bg-[#123E62] text-white font-bold text-xs sm:text-sm h-11 px-6 shadow-md flex items-center justify-center gap-2 transition-all"
+              className="flex-1 bg-[#164E7A] hover:bg-[#123E62] text-white font-bold text-xs sm:text-sm h-11 px-4 shadow-md flex items-center justify-center gap-2 transition-all"
             >
               {isPublishingToFb ? (
-                <Loader2 className="w-4 h-4 animate-spin text-sky-300" />
+                <Loader2 className="w-4 h-4 animate-spin text-sky-300 shrink-0" />
               ) : (
-                <Send className="w-4 h-4 text-sky-300" />
+                <Send className="w-4 h-4 text-sky-300 shrink-0" />
               )}
-              {isPublishingToFb ? "Facebook'ta Yayınlanıyor..." : "Facebook'ta Hemen Yayınla (1-Tık)"}
-            </Button>
-
-            <Button
-              onClick={handleDownloadHD}
-              disabled={!renderedDataUrl}
-              className="bg-[#781324] hover:bg-[#5e0e1c] text-white font-bold text-xs sm:text-sm h-11 px-4 shadow-md flex items-center justify-center gap-1.5 shrink-0"
-            >
-              <Download className="w-4 h-4 text-amber-400" />
-              HD İndir
+              <span className="truncate">
+                {isPublishingToFb ? "Facebook'ta Yayınlanıyor..." : "Facebook'ta Hemen Yayınla (1-Tık)"}
+              </span>
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          {/* İkincil Eylemler: HD İndir + Canva'da Aç + Kopyala */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              onClick={handleDownloadHD}
+              disabled={!renderedDataUrl}
+              className="flex-1 sm:flex-initial bg-[#781324] hover:bg-[#5e0e1c] text-white font-bold text-xs h-10 sm:h-11 px-3.5 shadow-md flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <Download className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>HD İndir</span>
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
               onClick={handleOpenInCanva}
-              className="w-1/2 sm:w-auto text-xs h-9 border-[#00C4CC]/40 text-[#00C4CC] hover:bg-[#00C4CC]/10 flex items-center justify-center gap-1.5"
+              className="flex-1 sm:flex-initial text-xs h-10 sm:h-11 border-[#00C4CC]/40 text-[#00C4CC] hover:bg-[#00C4CC]/10 flex items-center justify-center gap-1.5 px-3"
             >
-              <ExternalLink className="w-3.5 h-3.5" /> Canva'da Aç
+              <ExternalLink className="w-3.5 h-3.5 shrink-0" /> 
+              <span>Canva</span>
             </Button>
 
             <Button
@@ -448,9 +453,10 @@ export function CanvaStudioModal({
               size="sm"
               onClick={handleCopyImage}
               disabled={!renderedDataUrl}
-              className="w-1/2 sm:w-auto text-xs h-9 border-primary/40 text-primary hover:bg-primary/10 flex items-center justify-center gap-1.5"
+              className="flex-1 sm:flex-initial text-xs h-10 sm:h-11 border-primary/40 text-primary hover:bg-primary/10 flex items-center justify-center gap-1.5 px-3"
             >
-              <Copy className="w-3.5 h-3.5" /> Görseli Kopyala
+              <Copy className="w-3.5 h-3.5 shrink-0" /> 
+              <span>Kopyala</span>
             </Button>
           </div>
         </div>

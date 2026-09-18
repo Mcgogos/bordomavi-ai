@@ -173,27 +173,27 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
+    <div className="p-3.5 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Haber Merkezi</h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Haber Merkezi</h1>
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
               RSS Feed
             </span>
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-xs sm:text-sm">
             Trabzonspor gündemine düşen son haberlerin akışı ve AI değerlendirmeleri
           </p>
         </div>
-        <div className="flex flex-wrap gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={handleCollect}
             disabled={isCollecting}
-            className="h-9 px-3.5 border-border/80 hover:bg-muted font-medium shadow-xs"
+            className="flex-1 sm:flex-initial h-10 px-3.5 border-border/80 hover:bg-muted font-medium shadow-xs text-xs"
           >
             {isCollecting ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin text-muted-foreground" />
@@ -206,7 +206,7 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
             size="sm"
             onClick={handleAnalyzeAll}
             disabled={isAnalyzingAll}
-            className="h-9 px-4 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-xs"
+            className="flex-1 sm:flex-initial h-10 px-4 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-xs text-xs"
           >
             {isAnalyzingAll ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -224,7 +224,7 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
       </div>
 
       {/* Stats strip */}
-      <div className="flex flex-wrap gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
         {[
           { label: "Toplam Akış", value: newsData.length, color: "text-foreground", badgeBg: "bg-muted/40" },
           { label: "Analiz Bekleyen", value: pendingCount, color: "text-amber-700 dark:text-amber-400", badgeBg: "bg-amber-500/10 border-amber-500/20" },
@@ -240,21 +240,21 @@ export default function NewsClientPage({ initialNews }: { initialNews: any[] }) 
       {/* Table Card */}
       <div className="bg-card border border-border/80 rounded-xl overflow-hidden shadow-xs">
         {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row gap-3 p-4 border-b border-border/70 bg-muted/20">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex flex-col sm:flex-row gap-3 p-3.5 sm:p-4 border-b border-border/70 bg-muted/20">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               type="text"
               placeholder="Haber başlığı veya kaynak ara..."
-              className="pl-9 h-9 bg-background border-border/80 focus-visible:ring-primary"
+              className="pl-9 h-10 bg-background border-border/80 focus-visible:ring-primary text-xs"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
             <Select value={filterStatus} onValueChange={(val) => setFilterStatus(val || "ALL")}>
-              <SelectTrigger className="w-44 h-9 bg-background border-border/80">
+              <SelectTrigger className="w-full sm:w-44 h-10 bg-background border-border/80 text-xs">
                 <SelectValue placeholder="Durum filtrele" />
               </SelectTrigger>
               <SelectContent>

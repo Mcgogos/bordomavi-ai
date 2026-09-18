@@ -182,12 +182,12 @@ export function ReelStudioModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in">
-      <div className="bg-card border border-border/90 rounded-3xl p-6 shadow-2xl max-w-4xl w-full flex flex-col md:flex-row gap-6 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-background/80 backdrop-blur-md animate-in fade-in overflow-y-auto">
+      <div className="bg-card border border-border/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl max-w-4xl w-full flex flex-col md:flex-row gap-4 sm:gap-6 max-h-[96vh] sm:max-h-[92vh] overflow-y-auto">
         
-        {/* SOL: 9:16 Dikey Video Mockup Ekranı */}
-        <div className="flex flex-col items-center">
-          <div className="relative w-[280px] h-[500px] rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-800 bg-slate-950 flex flex-col justify-between select-none">
+        {/* SOL: 9:16 Dikey Video Mockup Ekranı (Mobilde ve Yatayda Dinamik Boyutlu) */}
+        <div className="flex flex-col items-center shrink-0">
+          <div className="relative w-[230px] sm:w-[270px] h-[380px] sm:h-[480px] max-h-[55vh] md:max-h-none rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-800 bg-slate-950 flex flex-col justify-between select-none">
             
             {/* Arka Plan Görseli & Canlı Stadyum Fallback */}
             <div className="absolute inset-0 overflow-hidden">
@@ -415,11 +415,11 @@ export function ReelStudioModal({
           </div>
 
           {/* Aksiyon Butonları */}
-          <div className="space-y-2 pt-2 border-t border-border/70">
+          <div className="space-y-2.5 pt-2 border-t border-border/70 shrink-0">
             <Button
               onClick={handlePublishReel}
               disabled={isPublishingReel}
-              className="w-full bg-[#164E7A] hover:bg-[#123E62] text-white font-bold text-xs h-10 shadow-md flex items-center justify-center gap-2 transition-all"
+              className="w-full bg-[#164E7A] hover:bg-[#123E62] text-white font-bold text-xs sm:text-sm h-11 shadow-md flex items-center justify-center gap-2 transition-all"
             >
               {isPublishingReel ? (
                 <Loader2 className="w-4 h-4 animate-spin text-sky-300" />
@@ -439,7 +439,7 @@ export function ReelStudioModal({
                   setTimeout(() => setCopied(false), 2000);
                 }}
                 variant="outline"
-                className="flex-1 text-xs font-semibold h-10 border-border/80"
+                className="flex-1 text-xs font-semibold h-10 sm:h-11 border-border/80"
               >
                 {copied ? <Check className="w-4 h-4 mr-1.5 text-emerald-600" /> : <Copy className="w-4 h-4 mr-1.5" />}
                 {copied ? "Kopyalandı!" : "Senaryoyu Kopyala"}
@@ -452,7 +452,7 @@ export function ReelStudioModal({
                   }
                   onClose();
                 }}
-                className="bg-[#781324] hover:bg-[#5e0e1c] text-white text-xs font-semibold h-10 px-6"
+                className="bg-[#781324] hover:bg-[#5e0e1c] text-white text-xs font-semibold h-10 sm:h-11 px-6"
               >
                 Kapat
               </Button>
