@@ -2,9 +2,10 @@ import { AIProvider } from './ai.provider.interface';
 import { GoogleGenAI } from '@google/genai';
 
 const CANDIDATE_MODELS = [
+  'gemini-3.6-flash',
   process.env.AI_MODEL,
-  'gemini-flash-latest',
   'gemini-3.5-flash',
+  'gemini-flash-latest',
   'gemini-flash-lite-latest',
   'gemini-3.5-flash-lite',
   'gemini-3.1-flash-lite'
