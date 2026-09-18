@@ -91,18 +91,49 @@ export class FacebookService {
         }
       }
 
-      // 2. İki adımlı URL tabanlı görsel paylaşım: önce gizli yükle, sonra feed'e iliştir.
+      // 2. Görsel Paylaşımı: Önce sunucuda fetch edip binary multipart olarak göndermeyi dene,
+      // böylece Facebook crawler'ının dış URL'leri indirirken zaman aşımına düşmesi önlenir.
       if (mediaUrl) {
         try {
-          const photoRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: mediaUrl, published: false, access_token: token }),
-            signal: AbortSignal.timeout(30_000),
-          });
+          let photoRes: Response | null = null;
+          try {
+            const imgFetch = await fetch(mediaUrl, { signal: AbortSignal.timeout(15_000) });
+            if (imgFetch.ok) {
+              const contentType = imgFetch.headers.get('content-type') || 'image/png';
+              if (contentType.includes('image')) {
+                const arrayBuf = await imgFetch.arrayBuffer();
+                const blob = new Blob([arrayBuf], { type: contentType });
+                const formData = new FormData();
+                formData.append('source', blob, 'post-visual.png');
+                formData.append('published', 'false');
+                formData.append('access_token', token);
+
+                photoRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
+                  method: 'POST',
+                  body: formData,
+                  signal: AbortSignal.timeout(30_000),
+                });
+              }
+            }
+          } catch (binErr: any) {
+            console.warn('[Facebook] Direct binary fetch failed, falling back to URL upload:', binErr.message);
+          }
+
+          // Fallback: URL ile doğrudan yükleme
+          if (!photoRes) {
+            photoRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: mediaUrl, published: false, access_token: token }),
+              signal: AbortSignal.timeout(30_000),
+            });
+          }
+
           const photoData = await photoRes.json();
           if (!photoData.error && photoData.id) {
             payload.attached_media = [{ media_fbid: photoData.id }];
+          } else if (photoData.error) {
+            console.warn('[Facebook] Photo upload API error:', photoData.error.message);
           }
         } catch (photoErr: any) {
           console.warn('[Facebook] Görsel upload hatası, sadece metin gönderiliyor:', photoErr.message);
@@ -143,13 +174,24 @@ export class FacebookService {
       }
 
       const { token } = await resolvePageToken();
-      const fields = 'shares,reactions.summary(total_count),comments.summary(total_count),insights.metric(post_impressions,post_impressions_unique)';
-      const res = await fetch(`${GRAPH_API_BASE}/${postId}?fields=${encodeURIComponent(fields)}&access_token=${token}`);
-      const data = await res.json();
+      let data: any = null;
 
-      if (data.error) {
-        console.warn(`[Facebook] Error fetching stats for post ${postId}:`, data.error.message);
-        return { reactions: 0, comments: 0, shares: 0, impressions: 0, reach: 0 };
+      // 1. Önce tam metrikleri (insights dahil) dene
+      const fieldsWithInsights = 'shares,reactions.summary(total_count),comments.summary(total_count),insights.metric(post_impressions,post_impressions_unique)';
+      const res = await fetch(`${GRAPH_API_BASE}/${postId}?fields=${encodeURIComponent(fieldsWithInsights)}&access_token=${token}`);
+      data = await res.json();
+
+      // 2. Eğer insights izni/özelliği hata verirse, temel etkileşimleri (beğeni, yorum, paylaşım) doğrudan çek
+      if (data?.error) {
+        const basicFields = 'shares,reactions.summary(total_count),comments.summary(total_count)';
+        const fallbackRes = await fetch(`${GRAPH_API_BASE}/${postId}?fields=${encodeURIComponent(basicFields)}&access_token=${token}`);
+        const fallbackData = await fallbackRes.json();
+        if (!fallbackData.error) {
+          data = fallbackData;
+        } else {
+          console.warn(`[Facebook] Error fetching stats for post ${postId}:`, fallbackData.error.message);
+          return { reactions: 0, comments: 0, shares: 0, impressions: 0, reach: 0 };
+        }
       }
 
       const reactions = data.reactions?.summary?.total_count || 0;

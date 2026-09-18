@@ -71,8 +71,14 @@ export function passesKeywordFilter(title: string, summary: string, sourceType: 
   // 3. KİŞİ İSİMLERİ (Rule 3)
   const persons = [
     'uğurcan çakır', 
-    'şenol güneş', 
-    'abdullah avcı', 
+    'thomas reis',
+    'ertuğrul doğan',
+    'simon banza',
+    'edin vişça',
+    'anthony nwakaeme',
+    'stefan savic',
+    'batista mendy',
+    'muhammed cham',
     'fatih tekke'
   ];
   

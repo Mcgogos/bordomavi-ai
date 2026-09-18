@@ -105,19 +105,41 @@ export async function syncFacebookStatsAction() {
       try {
         const stats = await FacebookService.getPostStats(content.facebookPostId);
         if (stats) {
-          await prisma.analytics.create({
-            data: {
-              contentId: content.id,
-              reach: stats.reach,
-              impressions: stats.impressions,
-              reactions: stats.reactions,
-              comments: stats.comments,
-              shares: stats.shares,
-              engagementRate: stats.impressions > 0 
-                ? Number(((stats.reactions + stats.comments + stats.shares) / stats.impressions * 100).toFixed(2))
-                : 0
-            }
+          const engagementRate = stats.impressions > 0 
+            ? Number(((stats.reactions + stats.comments + stats.shares) / stats.impressions * 100).toFixed(2))
+            : 0;
+
+          const existing = await prisma.analytics.findFirst({
+            where: { contentId: content.id },
+            orderBy: { recordedAt: 'desc' }
           });
+
+          if (existing) {
+            await prisma.analytics.update({
+              where: { id: existing.id },
+              data: {
+                reach: stats.reach,
+                impressions: stats.impressions,
+                reactions: stats.reactions,
+                comments: stats.comments,
+                shares: stats.shares,
+                engagementRate,
+                recordedAt: new Date()
+              }
+            });
+          } else {
+            await prisma.analytics.create({
+              data: {
+                contentId: content.id,
+                reach: stats.reach,
+                impressions: stats.impressions,
+                reactions: stats.reactions,
+                comments: stats.comments,
+                shares: stats.shares,
+                engagementRate
+              }
+            });
+          }
           updatedCount++;
         }
       } catch (err: any) {

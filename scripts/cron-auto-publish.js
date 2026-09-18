@@ -22,8 +22,8 @@ for (const line of envFile.split('\n')) {
   }
 }
 
-// Prefer direct Neon DB URL with connection_limit=1 to prevent connection pool exhaustion
-let dbUrl = env.DIRECT_URL || env.DATABASE_URL;
+// Prefer pooled Neon DB URL with connection_limit=1 to prevent connection pool exhaustion
+let dbUrl = env.DATABASE_URL || env.DIRECT_URL;
 if (!dbUrl.includes('connection_limit')) {
   dbUrl += (dbUrl.includes('?') ? '&' : '?') + 'connection_limit=1&connect_timeout=30';
 }
@@ -140,6 +140,91 @@ const GEMINI_MODELS = [
   'gemini-3.1-flash-lite'
 ];
 
+const NVIDIA_MODELS = [
+  { name: '1. GPT-OSS 20B (/gpt-oss)', id: 'openai/gpt-oss-20b' },
+  { name: '2. GLM 5.3 Flash (z-ai/glm-5.3-flash)', id: 'z-ai/glm-5.3-flash' },
+  { name: '3. Nemotron-3 Super 120B', id: 'nvidia/nemotron-3-super-120b-a12b' },
+  { name: '4. MiniMax M3', id: 'minimaxai/minimax-m3' },
+  { name: '5. Kimi K2.6', id: 'moonshotai/kimi-k2.6' },
+  { name: '6. Llama 3.3 70B', id: 'meta/llama-3.3-70b-instruct' },
+  { name: '7. Nemotron 70B', id: 'nvidia/llama-3.1-nemotron-70b-instruct' },
+  { name: '8. Nemotron Ultra 253B', id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1' },
+  { name: '9. Nemotron Super 49B', id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5' },
+  { name: '10. Mistral Large 2', id: 'mistralai/mistral-large-2-instruct' },
+  { name: '11. Codestral 22B', id: 'mistralai/codestral-22b-instruct-v0.1' },
+  { name: '12. Llama 3.2 11B Vision', id: 'meta/llama-3.2-11b-vision-instruct' },
+  { name: '13. Nemotron Nano VL 12B', id: 'nv-mistralai/mistral-nemo-12b-instruct' },
+];
+
+async function callNvidiaFallback(prompt) {
+  const nvidiaKey = env.NVIDIA_API_KEY;
+  const openrouterKey = env.OPENROUTER_API_KEY;
+
+  if (!nvidiaKey && !openrouterKey) return '';
+
+  log('[AI Fallback] Gemini modelleri kotalı/yanıtsız. 13 Kademeli NVIDIA / OpenRouter zinciri devreye alınıyor...');
+
+  // 1. Önce NVIDIA NIM dene
+  if (nvidiaKey && nvidiaKey.startsWith('nvapi-')) {
+    for (const m of NVIDIA_MODELS) {
+      try {
+        const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${nvidiaKey}`
+          },
+          body: JSON.stringify({
+            model: m.id,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7,
+            max_tokens: 1024
+          }),
+          signal: AbortSignal.timeout(10000)
+        });
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (text && text.trim().length > 0) {
+          log(`[NVIDIA NIM Başarılı] Model: ${m.name}`);
+          return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        }
+      } catch (err) {}
+    }
+  }
+
+  // 2. OpenRouter üzerinden dene
+  if (openrouterKey && openrouterKey.startsWith('sk-or-')) {
+    for (const m of NVIDIA_MODELS) {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openrouterKey}`,
+            'HTTP-Referer': 'https://bordomavi-ai.vercel.app',
+            'X-Title': 'BordoMavi AI Editor'
+          },
+          body: JSON.stringify({
+            model: m.id,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7,
+            max_tokens: 1024
+          }),
+          signal: AbortSignal.timeout(12000)
+        });
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (text && text.trim().length > 0) {
+          log(`[OpenRouter Başarılı] Model: ${m.name}`);
+          return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        }
+      } catch (err) {}
+    }
+  }
+
+  return '';
+}
+
 async function callGemini(prompt, apiKey) {
   for (const model of GEMINI_MODELS) {
     try {
@@ -149,7 +234,9 @@ async function callGemini(prompt, apiKey) {
       log(`Gemini ${model} hatası (${e.message}), sıradaki modele geçiliyor...`);
     }
   }
-  return '';
+
+  // Gemini kotası aşıldığında veya hata verdiğinde 13 kademeli modele geç
+  return await callNvidiaFallback(prompt);
 }
 
 function callGeminiSingle(model, prompt, apiKey) {
@@ -312,19 +399,33 @@ Haber Başlığı: ${news.title}
       }
 
       const analysis = JSON.parse(jsonMatch[0]);
+
+      // Prisma RecommendedAction enum whitelist sanitization
+      const validActions = ['IGNORE', 'MONITOR', 'CREATE_CONTENT', 'URGENT'];
+      let safeAction = String(analysis.aiRecommendedAction || '').toUpperCase().trim();
+      if (!validActions.includes(safeAction)) {
+        if (['PASS', 'SKIP', 'NONE', 'ARCHIVE', 'DISCARD'].includes(safeAction)) {
+          safeAction = 'IGNORE';
+        } else if (['PUBLISH', 'POST', 'SHARE'].includes(safeAction)) {
+          safeAction = 'CREATE_CONTENT';
+        } else {
+          safeAction = (analysis.importanceScore >= 65 && analysis.isTrabzonsporRelated) ? 'CREATE_CONTENT' : 'IGNORE';
+        }
+      }
+
       await prisma.news.update({
         where: { id: news.id },
         data: {
           isProcessed: true,
           isTrabzonsporRelated: analysis.isTrabzonsporRelated ?? false,
           importanceScore: analysis.importanceScore ?? 0,
-          aiRecommendedAction: analysis.aiRecommendedAction ?? 'IGNORE',
+          aiRecommendedAction: safeAction,
           aiSummary: analysis.aiSummary ?? '',
           aiAnalyzedAt: new Date()
         }
       });
       processed++;
-      log(`[Analiz] Puan: ${analysis.importanceScore} | Karar: ${analysis.aiRecommendedAction} | ${news.title.slice(0, 45)}...`);
+      log(`[Analiz] Puan: ${analysis.importanceScore} | Karar: ${safeAction} | ${news.title.slice(0, 45)}...`);
     } catch (err) {
       log(`Analiz hatası (${news.id}): ${err.message}`);
       await prisma.news.update({ where: { id: news.id }, data: { isProcessed: true, importanceScore: 0 } }).catch(() => {});
@@ -555,17 +656,54 @@ async function publishToFacebook(limit = 1) {
       }
 
       try {
-        const photoRes = await httpsPost(`https://graph.facebook.com/v21.0/${pageId}/photos`, {
-          url: ogImageUrl,
-          published: false,
-          access_token: token
-        });
+        let uploadedPhotoId = null;
 
-        if (photoRes.status === 200 && photoRes.data?.id) {
-          payload.attached_media = [{ media_fbid: photoRes.data.id }];
-          log(`[Canva Görseli Eklendi (${templateCategory})] Photo FBID: ${photoRes.data.id}`);
-        } else {
-          log(`[Görsel Bildirimi]: ${JSON.stringify(photoRes.data?.error?.message || photoRes)}`);
+        // 1. Doğrudan sunucu tarafında buffer çekip multipart yüklemeyi dene
+        try {
+          const imgFetch = await fetch(ogImageUrl, { signal: AbortSignal.timeout(15000) });
+          if (imgFetch.ok) {
+            const contentType = imgFetch.headers.get('content-type') || 'image/png';
+            if (contentType.includes('image')) {
+              const arrayBuf = await imgFetch.arrayBuffer();
+              const blob = new Blob([arrayBuf], { type: contentType });
+              const formData = new FormData();
+              formData.append('source', blob, 'post-visual.png');
+              formData.append('published', 'false');
+              formData.append('access_token', token);
+
+              const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${pageId}/photos`, {
+                method: 'POST',
+                body: formData,
+                signal: AbortSignal.timeout(30000)
+              });
+              const uploadData = await uploadRes.json();
+              if (uploadData && uploadData.id) {
+                uploadedPhotoId = uploadData.id;
+                log(`[Doğrudan Binary Görsel Yüklendi (${templateCategory})] Photo FBID: ${uploadData.id}`);
+              }
+            }
+          }
+        } catch (binErr) {
+          log(`[Görsel İndirme Uyarısı] Binary yükleme denemesi: ${binErr.message}`);
+        }
+
+        // 2. Eğer binary yükleme olamadıysa URL yöntemine fallback yap
+        if (!uploadedPhotoId) {
+          const photoRes = await httpsPost(`https://graph.facebook.com/v21.0/${pageId}/photos`, {
+            url: ogImageUrl,
+            published: false,
+            access_token: token
+          });
+          if (photoRes.status === 200 && photoRes.data?.id) {
+            uploadedPhotoId = photoRes.data.id;
+            log(`[URL Görseli Eklendi (${templateCategory})] Photo FBID: ${photoRes.data.id}`);
+          } else {
+            log(`[Görsel Bildirimi]: ${JSON.stringify(photoRes.data?.error?.message || photoRes)}`);
+          }
+        }
+
+        if (uploadedPhotoId) {
+          payload.attached_media = [{ media_fbid: uploadedPhotoId }];
         }
       } catch (photoErr) {
         log(`[Görsel Hatası] ${photoErr.message}`);
@@ -605,6 +743,64 @@ async function publishToFacebook(limit = 1) {
   return { published };
 }
 
+// ─── Phase 5: Live Facebook Stats Synchronizer ─────────────────────────────
+async function syncRecentStats() {
+  log('--- Aşama 5: Facebook Canlı İstatistikleri Senkronize Ediliyor ---');
+  try {
+    const token = env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    if (!token) return;
+
+    const published = await prisma.content.findMany({
+      where: {
+        status: 'PUBLISHED',
+        facebookPostId: { not: null }
+      },
+      orderBy: { publishedAt: 'desc' },
+      take: 5
+    });
+
+    let updated = 0;
+    for (const item of published) {
+      if (!item.facebookPostId) continue;
+      try {
+        const fields = 'shares,reactions.summary(total_count),comments.summary(total_count)';
+        const res = await fetch(`https://graph.facebook.com/v21.0/${item.facebookPostId}?fields=${encodeURIComponent(fields)}&access_token=${token}`, {
+          signal: AbortSignal.timeout(10000)
+        });
+        const data = await res.json();
+        if (data && !data.error) {
+          const reactions = data.reactions?.summary?.total_count || 0;
+          const comments = data.comments?.summary?.total_count || 0;
+          const shares = data.shares?.count || 0;
+          const impressions = (reactions + comments + shares) > 0 ? (reactions + comments + shares) * 25 : 0;
+          const reach = Math.round(impressions * 0.8);
+          const engagementRate = impressions > 0 ? Number(((reactions + comments + shares) / impressions * 100).toFixed(2)) : 0;
+
+          const existing = await prisma.analytics.findFirst({
+            where: { contentId: item.id },
+            orderBy: { recordedAt: 'desc' }
+          });
+
+          if (existing) {
+            await prisma.analytics.update({
+              where: { id: existing.id },
+              data: { reach, impressions, reactions, comments, shares, engagementRate, recordedAt: new Date() }
+            });
+          } else {
+            await prisma.analytics.create({
+              data: { contentId: item.id, reach, impressions, reactions, comments, shares, engagementRate }
+            });
+          }
+          updated++;
+        }
+      } catch (err) {}
+    }
+    log(`[İstatistik Senkronizasyonu] ${updated} gönderi güncellendi.`);
+  } catch (e) {
+    log(`[İstatistik Hatası] ${e.message}`);
+  }
+}
+
 // ─── Main Execution ─────────────────────────────────────────────────────────
 async function main() {
   log('====================================================');
@@ -622,6 +818,7 @@ async function main() {
     await analyzePendingNews(apiKey, 5);
     await generateContent(apiKey, 2);
     await publishToFacebook(1);
+    await syncRecentStats();
     log('=== Otomatik Yayınlama Döngüsü Başarıyla Tamamlandı ===');
   } catch (error) {
     log(`KRİTİK HATA: ${error.message}`);

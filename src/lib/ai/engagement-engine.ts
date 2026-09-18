@@ -4,6 +4,8 @@
  * A/B başlık varyasyonları ve itibar/risk denetimi sağlar.
  */
 
+import { OFFICIAL_MANAGER } from "@/lib/squad/squad-service";
+
 export interface ABHeadlineVariant {
   type: "VIRAL" | "CORPORATE" | "FAN";
   label: string;
@@ -36,7 +38,7 @@ export class EngagementEngine {
       return transferCTAs[Math.floor(Math.random() * transferCTAs.length)];
     }
 
-    if (textLower.includes("şenol güneş") || textLower.includes("hoca") || textLower.includes("teknik direktör") || textLower.includes("taktik")) {
+    if (textLower.includes(OFFICIAL_MANAGER.name.toLowerCase()) || textLower.includes("reis") || textLower.includes("hoca") || textLower.includes("teknik direktör") || textLower.includes("taktik")) {
       const coachCTAs = [
         "Hocamızın bu kararını nasıl değerlendiriyorsunuz? Sizce doğru 11 sahada mı? Yorumlarınızı yazın! 👇",
         "Takımın taktiksel gelişimini nasıl buluyorsunuz? Fikirlerinizi bizimle paylaşın! 🔴🔵"

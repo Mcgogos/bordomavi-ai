@@ -3,7 +3,7 @@ import { runNewsCollector } from '@/lib/news/news-collector';
 import { analyzePendingNews } from '@/lib/news/news-ai-analyzer';
 import { generateAutomatedContent } from '@/lib/content/content-generator';
 import { checkContentQuality } from '@/lib/content/content-quality-checker';
-import { publishReadyContent } from '@/lib/content/content-publisher';
+import { publishReadyContent, syncPublishedPostsStats } from '@/lib/content/content-publisher';
 import { SmartPublisher } from '@/lib/content/smart-publisher';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -48,6 +48,10 @@ export async function GET(request: Request) {
       console.log(`[CRON] Phase 5: ${quotaInfo.reason}`);
     }
 
+    // 6. Canlı Facebook İstatistiklerini Senkronize Et (Son 5 Gönderi)
+    console.log("[CRON] Phase 6: Syncing live Facebook statistics for recent posts...");
+    const statsResult = await syncPublishedPostsStats(5);
+
     console.log("[CRON] Workflow completed successfully.");
 
     return NextResponse.json({
@@ -64,7 +68,8 @@ export async function GET(request: Request) {
         failed: generateResult.failed
       },
       qualityCheck: qualityResult,
-      publish: publishResult
+      publish: publishResult,
+      statsSync: statsResult
     }, { status: 200 });
 
   } catch (error: any) {

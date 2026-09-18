@@ -301,26 +301,30 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                   )}
 
                   {/* Facebook Canlı İstatistikleri (Yayınlandıysa) */}
-                  {content.status === "PUBLISHED" && (
-                    <div className="p-2 rounded-lg bg-muted/40 border border-border/60 flex items-center justify-around text-[10px] text-muted-foreground">
-                      <span className="flex items-center gap-1 font-semibold text-foreground" title="Tahmini / Organik Görüntülenme">
-                        <BarChart2 className="w-3 h-3 text-sky-500" />
-                        {latestAnalytics?.reach || latestAnalytics?.impressions || 1240}
-                      </span>
-                      <span className="flex items-center gap-1 font-semibold text-foreground" title="Beğeni / Reaksiyon">
-                        <ThumbsUp className="w-3 h-3 text-emerald-500" />
-                        {latestAnalytics?.reactions || 46}
-                      </span>
-                      <span className="flex items-center gap-1 font-semibold text-foreground" title="Yorumlar">
-                        <MessageSquare className="w-3 h-3 text-amber-500" />
-                        {latestAnalytics?.comments || 12}
-                      </span>
-                      <span className="flex items-center gap-1 font-semibold text-foreground" title="Paylaşımlar">
-                        <Share2 className="w-3 h-3 text-purple-500" />
-                        {latestAnalytics?.shares || 7}
-                      </span>
-                    </div>
-                  )}
+                    {latestAnalytics ? (
+                      <div className="p-2 rounded-lg bg-muted/40 border border-border/60 flex items-center justify-around text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-1 font-semibold text-foreground" title="Erişim / Görüntülenme">
+                          <BarChart2 className="w-3 h-3 text-sky-500" />
+                          {latestAnalytics.reach || latestAnalytics.impressions || 0}
+                        </span>
+                        <span className="flex items-center gap-1 font-semibold text-foreground" title="Beğeni / Reaksiyon">
+                          <ThumbsUp className="w-3 h-3 text-emerald-500" />
+                          {latestAnalytics.reactions ?? 0}
+                        </span>
+                        <span className="flex items-center gap-1 font-semibold text-foreground" title="Yorumlar">
+                          <MessageSquare className="w-3 h-3 text-amber-500" />
+                          {latestAnalytics.comments ?? 0}
+                        </span>
+                        <span className="flex items-center gap-1 font-semibold text-foreground" title="Paylaşımlar">
+                          <Share2 className="w-3 h-3 text-purple-500" />
+                          {latestAnalytics.shares ?? 0}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-1.5 rounded-lg bg-muted/30 border border-border/40 text-center text-[10px] text-muted-foreground">
+                        ⏳ İstatistikler canlı ölçülüyor...
+                      </div>
+                    )}
 
                   {/* Mobil Aksiyon Butonları — Asla Kesilmez, Tam Dokunmatik */}
                   <div className="grid grid-cols-3 gap-2 pt-1">
@@ -412,20 +416,24 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                       {/* Facebook İstatistikleri Sütunu */}
                       <TableCell className="text-center py-3.5 whitespace-nowrap">
                         {content.status === "PUBLISHED" ? (
-                          <div className="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
-                            <span className="flex items-center gap-0.5 text-foreground font-semibold" title="Görüntülenme">
-                              <BarChart2 className="w-3 h-3 text-sky-500" />
-                              {latestAnalytics?.reach || latestAnalytics?.impressions || 1240}
-                            </span>
-                            <span className="flex items-center gap-0.5 text-foreground font-semibold" title="Beğeni">
-                              <ThumbsUp className="w-3 h-3 text-emerald-500" />
-                              {latestAnalytics?.reactions || 46}
-                            </span>
-                            <span className="flex items-center gap-0.5 text-foreground font-semibold" title="Yorum">
-                              <MessageSquare className="w-3 h-3 text-amber-500" />
-                              {latestAnalytics?.comments || 12}
-                            </span>
-                          </div>
+                          latestAnalytics ? (
+                            <div className="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
+                              <span className="flex items-center gap-0.5 text-foreground font-semibold" title="Görüntülenme / Erişim">
+                                <BarChart2 className="w-3 h-3 text-sky-500" />
+                                {latestAnalytics.reach || latestAnalytics.impressions || 0}
+                              </span>
+                              <span className="flex items-center gap-0.5 text-foreground font-semibold" title="Beğeni">
+                                <ThumbsUp className="w-3 h-3 text-emerald-500" />
+                                {latestAnalytics.reactions ?? 0}
+                              </span>
+                              <span className="flex items-center gap-0.5 text-foreground font-semibold" title="Yorum">
+                                <MessageSquare className="w-3 h-3 text-amber-500" />
+                                {latestAnalytics.comments ?? 0}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground italic">Ölçülüyor...</span>
+                          )
                         ) : (
                           <span className="text-muted-foreground text-xs">—</span>
                         )}

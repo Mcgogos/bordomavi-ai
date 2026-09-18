@@ -157,3 +157,72 @@ export async function publishReadyContent(limit: number = 1) {
     return result;
   }
 }
+
+/**
+ * Son yayınlanan Facebook gönderilerinin canlı istatistiklerini otonom senkronize eder.
+ */
+export async function syncPublishedPostsStats(limit: number = 5) {
+  const result = { success: true, processed: 0, failed: 0 };
+  try {
+    const publishedContents = await prisma.content.findMany({
+      where: {
+        status: 'PUBLISHED',
+        facebookPostId: { not: null }
+      },
+      orderBy: { publishedAt: 'desc' },
+      take: limit
+    });
+
+    for (const item of publishedContents) {
+      if (!item.facebookPostId) continue;
+      try {
+        const stats = await FacebookService.getPostStats(item.facebookPostId);
+        if (stats) {
+          const engagementRate = stats.impressions > 0 
+            ? Number(((stats.reactions + stats.comments + stats.shares) / stats.impressions * 100).toFixed(2))
+            : 0;
+
+          const existing = await prisma.analytics.findFirst({
+            where: { contentId: item.id },
+            orderBy: { recordedAt: 'desc' }
+          });
+
+          if (existing) {
+            await prisma.analytics.update({
+              where: { id: existing.id },
+              data: {
+                reach: stats.reach,
+                impressions: stats.impressions,
+                reactions: stats.reactions,
+                comments: stats.comments,
+                shares: stats.shares,
+                engagementRate,
+                recordedAt: new Date()
+              }
+            });
+          } else {
+            await prisma.analytics.create({
+              data: {
+                contentId: item.id,
+                reach: stats.reach,
+                impressions: stats.impressions,
+                reactions: stats.reactions,
+                comments: stats.comments,
+                shares: stats.shares,
+                engagementRate
+              }
+            });
+          }
+          result.processed++;
+        }
+      } catch (postErr: any) {
+        result.failed++;
+        console.warn(`[Content Publisher] Stats sync error for ${item.facebookPostId}:`, postErr.message);
+      }
+    }
+  } catch (err: any) {
+    console.error("[Content Publisher] syncPublishedPostsStats error:", err.message);
+    result.success = false;
+  }
+  return result;
+}
