@@ -59,24 +59,31 @@ export default function EditorClient({ initialContents }: { initialContents: any
     return 'BREAKING';
   };
 
-  const handleApplyCanvaDesign = async (data: { dataUrl: string; templateCategory: string; title: string; subtitle: string }) => {
+  const handleApplyCanvaDesign = async (data: { dataUrl: string; templateCategory: string; title: string; subtitle: string; body?: string }) => {
     if (!selectedId) return;
 
     setCustomVisuals(prev => ({ ...prev, [selectedId]: data.dataUrl }));
     if (data.title) setLocalTitle(data.title);
-    if (data.subtitle) setLocalBody(data.subtitle);
+    if (data.body) {
+      setLocalBody(data.body);
+    } else if (data.subtitle && !localBody) {
+      setLocalBody(data.subtitle);
+    }
+
+    const targetTitle = data.title || localTitle;
+    const targetBody = data.body || localBody || data.subtitle;
 
     setIsSaving(true);
     try {
       const res = await saveContentAction(selectedId, {
-        title: data.title || localTitle,
-        body: data.subtitle || localBody,
+        title: targetTitle,
+        body: targetBody,
       });
       if (res.success) {
         toast.success("🎉 Canva tasarımı başarıyla bu gönderiye uygulandı ve kaydedildi!");
         setContents(contents.map(c => 
           c.id === selectedId 
-            ? { ...c, title: data.title || localTitle, body: data.subtitle || localBody }
+            ? { ...c, title: targetTitle, body: targetBody }
             : c
         ));
       }
@@ -764,6 +771,7 @@ export default function EditorClient({ initialContents }: { initialContents: any
         onClose={() => setShowCanvaModal(false)}
         initialTitle={localTitle}
         initialSubtitle={localBody ? localBody.slice(0, 120) : "Trabzonspor flaş gündem"}
+        initialBody={localBody}
         initialCategory={detectCategory(localTitle, localBody) as any}
         onApplyDesign={handleApplyCanvaDesign}
       />

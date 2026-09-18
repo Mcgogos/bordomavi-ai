@@ -14,15 +14,17 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
   
   // Canva Studio Modal State
   const [canvaModalOpen, setCanvaModalOpen] = useState(false);
-  const [activeCanvaContent, setActiveCanvaContent] = useState<{ title: string; subtitle?: string }>({
+  const [activeCanvaContent, setActiveCanvaContent] = useState<{ title: string; subtitle?: string; body?: string }>({
     title: "TRABZONSPOR'DA FLAŞ GELİŞME!",
-    subtitle: "Bordo-mavili kulüpten taraftarı heyecanlandıran önemli adım."
+    subtitle: "Bordo-mavili kulüpten taraftarı heyecanlandıran önemli adım.",
+    body: "",
   });
 
-  const openCanvaStudio = (title: string, subtitle?: string) => {
+  const openCanvaStudio = (title: string, bodyOrSubtitle?: string) => {
     setActiveCanvaContent({
       title,
-      subtitle: subtitle || "Bordo-mavili kulüpten taraftarı heyecanlandıran önemli adım."
+      subtitle: bodyOrSubtitle ? bodyOrSubtitle.slice(0, 120) : "Bordo-mavili kulüpten taraftarı heyecanlandıran önemli adım.",
+      body: bodyOrSubtitle || "",
     });
     setCanvaModalOpen(true);
   };
@@ -283,6 +285,7 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
         onClose={() => setCanvaModalOpen(false)}
         initialTitle={activeCanvaContent.title}
         initialSubtitle={activeCanvaContent.subtitle}
+        initialBody={activeCanvaContent.body}
       />
     </div>
   );

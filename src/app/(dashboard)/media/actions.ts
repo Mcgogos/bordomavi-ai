@@ -7,6 +7,7 @@ import { FacebookService } from "@/services/facebook.service";
 export async function publishCanvaDesignAction(params: {
   title: string;
   subtitle?: string;
+  body?: string;
   category: string;
   dataUrl?: string;
 }) {
@@ -21,7 +22,22 @@ export async function publishCanvaDesignAction(params: {
       .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3")
       .trim();
 
-    const postMessage = `${cleanTitle}\n\n${cleanSubtitle}\n\n#Trabzonspor #BordoMavi #CanvaTasarım`;
+    const cleanBody = (params.body || "")
+      .replace(/\*\*/g, "")
+      .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3")
+      .trim();
+
+    // Facebook Gönderi Metni: Başlık + Tam Haber Metni + Hashtag'ler
+    let postMessage = cleanTitle;
+    if (cleanBody && cleanBody !== cleanTitle) {
+      postMessage += `\n\n${cleanBody}`;
+    } else if (cleanSubtitle && cleanSubtitle !== cleanTitle) {
+      postMessage += `\n\n${cleanSubtitle}`;
+    }
+
+    if (!postMessage.includes('#Trabzonspor')) {
+      postMessage += '\n\n#Trabzonspor #BordoMavi #Fırtına';
+    }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || "https://bordomavi-ai.vercel.app";
     const mediaUrl = params.dataUrl || `${baseUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&template=${encodeURIComponent(params.category)}`;
@@ -33,7 +49,7 @@ export async function publishCanvaDesignAction(params: {
         await prisma.content.create({
           data: {
             title: cleanTitle,
-            body: cleanSubtitle || cleanTitle,
+            body: cleanBody || cleanSubtitle || cleanTitle,
             type: (params.category === "MATCH_DAY" ? "MATCH_PREVIEW" : params.category === "TRANSFER" ? "TRANSFER" : "NEWS") as any,
             status: "PUBLISHED",
             facebookPostId: result.postId,

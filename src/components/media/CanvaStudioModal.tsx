@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { X, ExternalLink, Copy, Check, Sparkles, Palette, Layers, Download, Bot, CheckCircle2, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { TRABZONSPOR_CANVA_TEMPLATES, CanvaTemplate, CanvaTemplateCategory, CanvaService } from "@/lib/canva/canva-service";
 import { CanvaAutoDesigner } from "@/lib/canva/canva-auto-designer";
@@ -17,8 +18,9 @@ interface CanvaStudioModalProps {
   onClose: () => void;
   initialTitle?: string;
   initialSubtitle?: string;
+  initialBody?: string;
   initialCategory?: CanvaTemplateCategory;
-  onApplyDesign?: (data: { dataUrl: string; templateCategory: string; title: string; subtitle: string }) => void;
+  onApplyDesign?: (data: { dataUrl: string; templateCategory: string; title: string; subtitle: string; body?: string }) => void;
 }
 
 export function CanvaStudioModal({
@@ -26,6 +28,7 @@ export function CanvaStudioModal({
   onClose,
   initialTitle = "TRABZONSPOR'DA FLAŞ GELİŞME!",
   initialSubtitle = "Bordo-mavili kulüpten taraftarı heyecanlandıran önemli adım.",
+  initialBody = "",
   initialCategory,
   onApplyDesign,
 }: CanvaStudioModalProps) {
@@ -38,6 +41,7 @@ export function CanvaStudioModal({
   });
   const [title, setTitle] = useState(initialTitle);
   const [subtitle, setSubtitle] = useState(initialSubtitle);
+  const [body, setBody] = useState(initialBody);
   const [playerName, setPlayerName] = useState("");
   const [copied, setCopied] = useState(false);
   
@@ -61,7 +65,8 @@ export function CanvaStudioModal({
   useEffect(() => {
     setTitle((initialTitle || "").replace(/\*\*/g, "").replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3"));
     setSubtitle((initialSubtitle || "").replace(/\*\*/g, "").replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3"));
-  }, [initialTitle, initialSubtitle]);
+    setBody((initialBody || "").replace(/\*\*/g, "").replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3"));
+  }, [initialTitle, initialSubtitle, initialBody]);
 
   // Otomatik Tasarım Motoru: Her parametre değişiminde anında render eder
   useEffect(() => {
@@ -115,6 +120,7 @@ export function CanvaStudioModal({
       const res = await publishCanvaDesignAction({
         title,
         subtitle,
+        body,
         category: selectedTemplate.category,
         dataUrl: uploadPayload,
       });
@@ -393,6 +399,30 @@ export function CanvaStudioModal({
                   </button>
                 </div>
               </div>
+
+              {/* Facebook Gönderi / Haber Metni (Facebook'ta görselle birlikte yayınlanacak tam metin) */}
+              <div className="pt-2 border-t border-border/70">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <span>Facebook Haber Metni (Gönderi Açıklaması)</span>
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-sky-500/10 text-sky-400 border-sky-500/30">
+                      Görselle Paylaşılır
+                    </Badge>
+                  </label>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {body.length} karakter
+                  </span>
+                </div>
+                <Textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  className="text-xs min-h-[110px] max-h-[220px] font-normal leading-relaxed resize-y bg-background/50"
+                  placeholder="Facebook'ta görsel ile birlikte paylaşılacak tam haber metni..."
+                />
+                <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                  <span>ℹ️</span> 'Facebook'ta Hemen Yayınla' dendiğinde bu metin görselin açıklaması olarak Facebook'a iletilir.
+                </p>
+              </div>
             </div>
 
           </div>
@@ -414,7 +444,8 @@ export function CanvaStudioModal({
                     dataUrl: renderedDataUrl,
                     templateCategory: selectedTemplate.category,
                     title,
-                    subtitle
+                    subtitle,
+                    body,
                   });
                 }}
                 disabled={!renderedDataUrl}
