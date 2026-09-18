@@ -1,20 +1,15 @@
-/**
- * Canva Autonomous Design Engine (CanvaAutoDesigner)
- * Automatically designs pixel-perfect, high-resolution (1080x1080 / 1080x1350)
- * Trabzonspor graphics with zero manual design work.
- */
+import { CanvaTemplateCategory } from './canva-service';
+import { BORDOMAVI_BRAND_LOGO_DATA_URI } from './brand-logo-data';
 
 export interface AutoDesignOptions {
   title: string;
   subtitle?: string;
   playerName?: string;
-  category: "TRANSFER" | "MATCH_DAY" | "GOAL" | "REELS" | "OFFICIAL";
+  category: CanvaTemplateCategory;
   width?: number;
   height?: number;
   logoImage?: CanvasImageSource | null;
 }
-
-import { BORDOMAVI_BRAND_LOGO_DATA_URI } from './brand-logo-data';
 
 // Client-side logo cache for the user's authentic uploaded logo
 let cachedUserLogo: HTMLImageElement | null = null;
@@ -27,83 +22,6 @@ if (typeof window !== "undefined") {
 }
 
 export class CanvaAutoDesigner {
-  /**
-   * Helper to draw a stylized Trabzonspor vector crest on the canvas.
-   */
-  private static drawCrest(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
-    ctx.save();
-    ctx.translate(x, y);
-
-    // 1. Şampiyonluk Yıldızı (Üstte Altın Yıldız)
-    ctx.fillStyle = "#F59E0B";
-    const starY = -size * 0.58;
-    const starR = size * 0.13;
-    ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-      const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
-      const sx = Math.cos(angle) * starR;
-      const sy = starY + Math.sin(angle) * starR;
-      if (i === 0) ctx.moveTo(sx, sy);
-      else ctx.lineTo(sx, sy);
-    }
-    ctx.closePath();
-    ctx.fill();
-
-    // 2. Kalkan Dış Çizgisi (Kalkan Şekli)
-    const w = size * 0.44;
-    const h = size * 0.5;
-    
-    // Sol Yarı (Bordo)
-    ctx.beginPath();
-    ctx.moveTo(0, -h);
-    ctx.lineTo(-w, -h);
-    ctx.lineTo(-w, 0);
-    ctx.quadraticCurveTo(-w, h * 0.6, 0, h);
-    ctx.lineTo(0, -h);
-    ctx.closePath();
-    ctx.fillStyle = "#781324";
-    ctx.fill();
-
-    // Sağ Yarı (Karadeniz Mavisi)
-    ctx.beginPath();
-    ctx.moveTo(0, -h);
-    ctx.lineTo(w, -h);
-    ctx.lineTo(w, 0);
-    ctx.quadraticCurveTo(w, h * 0.6, 0, h);
-    ctx.lineTo(0, -h);
-    ctx.closePath();
-    ctx.fillStyle = "#164E7A";
-    ctx.fill();
-
-    // 3. Altın Kalkan Çerçevesi
-    ctx.beginPath();
-    ctx.moveTo(-w, -h);
-    ctx.lineTo(w, -h);
-    ctx.lineTo(w, 0);
-    ctx.quadraticCurveTo(w, h * 0.6, 0, h);
-    ctx.quadraticCurveTo(-w, h * 0.6, -w, 0);
-    ctx.closePath();
-    ctx.strokeStyle = "#F59E0B";
-    ctx.lineWidth = 4;
-    ctx.stroke();
-
-    // 4. TS Harf Monogramı (Ortada Altın Sarısı)
-    ctx.fillStyle = "#FBBF24";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `900 ${Math.round(size * 0.4)}px serif`;
-    ctx.shadowColor = "rgba(0,0,0,0.8)";
-    ctx.shadowBlur = 6;
-    ctx.fillText("TS", 0, -h * 0.05);
-
-    // 5. 1967 Kuruluş Yılı (Kalkan Altında)
-    ctx.font = `bold ${Math.round(size * 0.15)}px sans-serif`;
-    ctx.fillStyle = "#FFFFFF";
-    ctx.shadowBlur = 4;
-    ctx.fillText("1967", 0, h + size * 0.18);
-
-    ctx.restore();
-  }
 
   /**
    * Automatically draws a complete Canva-grade graphic onto an HTML5 canvas.
@@ -118,22 +36,47 @@ export class CanvaAutoDesigner {
     canvas.width = width;
     canvas.height = height;
 
-    // 1. DİNAMİK ARKA PLAN (Bordo - Karadeniz Laciverti Gradyan)
+    // 1. DİNAMİK ARKA PLAN (10 Kategoriye Özel Gradyan)
     const bgGradient = ctx.createLinearGradient(0, 0, width, height);
-    if (options.category === "TRANSFER") {
+    if (options.category === "BREAKING") {
+      bgGradient.addColorStop(0, "#7F1D1D"); // Canlı Bordo-Kırmızı
+      bgGradient.addColorStop(0.5, "#0B1120"); // Gece Laciverti
+      bgGradient.addColorStop(1, "#5A0A16"); // Koyu Bordo
+    } else if (options.category === "TRANSFER") {
       bgGradient.addColorStop(0, "#5A0A16"); // Koyu Bordo
       bgGradient.addColorStop(0.5, "#0B1120"); // Gece Laciverti
       bgGradient.addColorStop(1, "#854D0E"); // Altın Parıltısı
-    } else if (options.category === "GOAL") {
-      bgGradient.addColorStop(0, "#7F1D1D"); // Canlı Kırmızı
-      bgGradient.addColorStop(0.6, "#0F172A");
-      bgGradient.addColorStop(1, "#1E3A8A"); // Derin Mavi
     } else if (options.category === "MATCH_DAY") {
       bgGradient.addColorStop(0, "#164E7A"); // Karadeniz Mavisi
       bgGradient.addColorStop(0.5, "#0F172A");
       bgGradient.addColorStop(1, "#781324"); // Bordo
+    } else if (options.category === "LINEUP") {
+      bgGradient.addColorStop(0, "#064E3B"); // Zümrüt Taktik Saha Yeşili
+      bgGradient.addColorStop(0.5, "#0F172A"); // Karadeniz Laciverti
+      bgGradient.addColorStop(1, "#164E7A");
+    } else if (options.category === "GOAL") {
+      bgGradient.addColorStop(0, "#DC2626"); // Canlı Kırmızı
+      bgGradient.addColorStop(0.6, "#0F172A");
+      bgGradient.addColorStop(1, "#1E3A8A"); // Derin Mavi
+    } else if (options.category === "PENALTY_CARD") {
+      bgGradient.addColorStop(0, "#7F1D1D"); // Uyarı Kırmızısı
+      bgGradient.addColorStop(0.6, "#18181B"); // Antrasit
+      bgGradient.addColorStop(1, "#92400E"); // Amber Gold
+    } else if (options.category === "RESULT") {
+      bgGradient.addColorStop(0, "#781324"); // Şampiyon Bordosu
+      bgGradient.addColorStop(0.5, "#0F172A");
+      bgGradient.addColorStop(1, "#D97706"); // Zafer Altını
+    } else if (options.category === "QUOTE") {
+      bgGradient.addColorStop(0, "#0F172A"); // Ciddi Lacivert
+      bgGradient.addColorStop(0.6, "#1E293B");
+      bgGradient.addColorStop(1, "#164E7A"); // Karadeniz Mavisi
+    } else if (options.category === "REELS") {
+      bgGradient.addColorStop(0, "#0A0F1D"); // Dikey Gece
+      bgGradient.addColorStop(0.4, "#1E1B4B");
+      bgGradient.addColorStop(1, "#781324");
     } else {
-      bgGradient.addColorStop(0, "#781324");
+      // OFFICIAL
+      bgGradient.addColorStop(0, "#500712"); // Kurumsal Koyu Bordo
       bgGradient.addColorStop(0.7, "#0F172A");
       bgGradient.addColorStop(1, "#164E7A");
     }
@@ -141,24 +84,39 @@ export class CanvaAutoDesigner {
     ctx.fillStyle = bgGradient;
     ctx.fillRect(0, 0, width, height);
 
-    // 2. STADYUM IŞIKLARI & GEOMETRİK PARILTILAR
+    // 2. IŞIK HÜZMELERİ, STADYUM PARILTILARI VEYA KATEGORİ DESENLERİ
     ctx.save();
     ctx.globalAlpha = 0.15;
     ctx.fillStyle = "#FFFFFF";
 
-    // Çapraz ışık hüzmeleri
-    ctx.beginPath();
-    ctx.moveTo(width * 0.1, 0);
-    ctx.lineTo(width * 0.4, 0);
-    ctx.lineTo(width * 0.8, height);
-    ctx.lineTo(width * 0.5, height);
-    ctx.closePath();
-    ctx.fill();
+    if (options.category === "QUOTE") {
+      // Tırnak işareti filigranı
+      ctx.font = "bold 260px Georgia, serif";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+      ctx.fillText("“", 60, 320);
+    } else if (options.category === "LINEUP") {
+      // Taktik saha çizgileri
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(60, 60, width - 120, height - 120);
+      ctx.beginPath();
+      ctx.arc(width / 2, height / 2, width * 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // Çapraz ışık hüzmeleri
+      ctx.beginPath();
+      ctx.moveTo(width * 0.1, 0);
+      ctx.lineTo(width * 0.4, 0);
+      ctx.lineTo(width * 0.8, height);
+      ctx.lineTo(width * 0.5, height);
+      ctx.closePath();
+      ctx.fill();
+    }
 
     // Sağ üst parıltı çemberi
     const radialGlow = ctx.createRadialGradient(width * 0.85, height * 0.15, 10, width * 0.85, height * 0.15, 400);
-    radialGlow.addColorStop(0, "rgba(255, 255, 255, 0.4)");
-    radialGlow.addColorStop(0.5, "rgba(217, 119, 6, 0.2)");
+    radialGlow.addColorStop(0, "rgba(255, 255, 255, 0.35)");
+    radialGlow.addColorStop(0.5, options.category === "TRANSFER" ? "rgba(217, 119, 6, 0.25)" : "rgba(56, 189, 248, 0.2)");
     radialGlow.addColorStop(1, "transparent");
     ctx.fillStyle = radialGlow;
     ctx.fillRect(0, 0, width, height);
@@ -170,8 +128,13 @@ export class CanvaAutoDesigner {
     ctx.lineWidth = 4;
     ctx.strokeRect(36, 36, width - 72, height - 72);
 
-    // Köşe vurgu çizgileri (Gold / Cyan)
-    ctx.strokeStyle = options.category === "TRANSFER" ? "#F59E0B" : "#38BDF8";
+    // Köşe vurgu çizgileri (Gold / Cyan / Crimson)
+    let cornerColor = "#38BDF8";
+    if (options.category === "TRANSFER" || options.category === "RESULT") cornerColor = "#F59E0B";
+    if (options.category === "BREAKING" || options.category === "GOAL" || options.category === "PENALTY_CARD") cornerColor = "#EF4444";
+    if (options.category === "LINEUP") cornerColor = "#10B981";
+
+    ctx.strokeStyle = cornerColor;
     ctx.lineWidth = 8;
     // Sol üst
     ctx.beginPath();
@@ -187,21 +150,51 @@ export class CanvaAutoDesigner {
     ctx.stroke();
     ctx.restore();
 
-    // 4. ÜST ROZET (Kategori Rozeti)
-    let badgeText = "ÖZEL HABER";
-    let badgeBg = "#164E7A";
-    if (options.category === "TRANSFER") {
-      badgeText = "🔥 FLAŞ TRANSFER BOMBASI";
-      badgeBg = "#D97706";
-    } else if (options.category === "GOAL") {
-      badgeText = "⚽ CANLI GOL ANONS KARTI";
-      badgeBg = "#DC2626";
-    } else if (options.category === "MATCH_DAY") {
-      badgeText = "🏟️ MAÇ GÜNÜ & STADYUM";
-      badgeBg = "#0284C7";
-    } else if (options.category === "OFFICIAL") {
-      badgeText = "🏛️ RESMİ KULÜP AÇIKLAMASI";
-      badgeBg = "#781324";
+    // 4. ÜST ROZET (10 Kategori Rozeti)
+    let badgeText = "🚨 SON DAKİKA";
+    let badgeBg = "#DC2626";
+
+    switch (options.category) {
+      case "BREAKING":
+        badgeText = "🚨 SON DAKİKA / FLAŞ";
+        badgeBg = "#DC2626";
+        break;
+      case "TRANSFER":
+        badgeText = "🔥 FLAŞ TRANSFER BOMBASI";
+        badgeBg = "#D97706";
+        break;
+      case "MATCH_DAY":
+        badgeText = "🏟️ MAÇ GÜNÜ & STADYUM";
+        badgeBg = "#0284C7";
+        break;
+      case "LINEUP":
+        badgeText = "📋 İLK 11 KADROMUZ";
+        badgeBg = "#059669";
+        break;
+      case "GOAL":
+        badgeText = "⚽ CANLI GOL ANONS KARTI";
+        badgeBg = "#DC2626";
+        break;
+      case "PENALTY_CARD":
+        badgeText = "⚠️ KRİTİK MAÇ KARARI";
+        badgeBg = "#991B1B";
+        break;
+      case "RESULT":
+        badgeText = "🏁 MAÇ SONUCU & ZAFER";
+        badgeBg = "#781324";
+        break;
+      case "QUOTE":
+        badgeText = "🎙️ BASIN TOPLANTISI & DEMEÇ";
+        badgeBg = "#0284C7";
+        break;
+      case "REELS":
+        badgeText = "📱 9:16 REELS & STORY";
+        badgeBg = "#7C3AED";
+        break;
+      case "OFFICIAL":
+        badgeText = "🏛️ RESMİ KULÜP AÇIKLAMASI";
+        badgeBg = "#781324";
+        break;
     }
 
     ctx.save();
@@ -221,40 +214,54 @@ export class CanvaAutoDesigner {
     ctx.fillStyle = "#FFFFFF";
     ctx.textBaseline = "middle";
     ctx.fillText(badgeText, badgeX + 24, badgeY + badgeHeight / 2);
+    ctx.restore();
 
-    // Sağ Üst: Kullanıcının Yüklediği Orijinal BordoMavi Logosu (Garantili)
-    const logoBoxSize = Math.min(width, height) * 0.14;
+    // 5. SAĞ ÜST: KULLANICININ YÜKLEDİĞİ ORİJİNAL BORDOMAVİ LOGOSU (KESİN & GARANTİLİ)
+    const logoBoxSize = Math.min(width, height) * 0.15;
     const logoX = width - logoBoxSize - 60;
     const logoY = 50;
 
-    // Şık beyaz/şeffaf cam zemin rozeti
     ctx.save();
-    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-    ctx.shadowBlur = 18;
+    // Beyaz cam rozet zemin
+    ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+    ctx.shadowBlur = 20;
     ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 4;
+    ctx.shadowOffsetY = 6;
     ctx.beginPath();
-    ctx.roundRect(logoX - 8, logoY - 8, logoBoxSize + 16, logoBoxSize + 16, 16);
+    ctx.arc(logoX + logoBoxSize / 2, logoY + logoBoxSize / 2, logoBoxSize / 2 + 6, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = "#F59E0B";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
 
     const logoToDraw = options.logoImage || cachedUserLogo;
     if (logoToDraw && (logoToDraw as HTMLImageElement).complete && (logoToDraw as HTMLImageElement).naturalWidth > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(logoX + logoBoxSize / 2, logoY + logoBoxSize / 2, logoBoxSize / 2, 0, Math.PI * 2);
+      ctx.clip();
       ctx.drawImage(logoToDraw, logoX, logoY, logoBoxSize, logoBoxSize);
+      ctx.restore();
     } else {
       try {
         const directLogo = new Image();
         directLogo.src = BORDOMAVI_BRAND_LOGO_DATA_URI;
-        ctx.drawImage(directLogo, logoX, logoY, logoBoxSize, logoBoxSize);
-      } catch {
-        this.drawCrest(ctx, width - 110, 110, logoBoxSize);
-      }
+        if (directLogo.complete && directLogo.naturalWidth > 0) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(logoX + logoBoxSize / 2, logoY + logoBoxSize / 2, logoBoxSize / 2, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(directLogo, logoX, logoY, logoBoxSize, logoBoxSize);
+          ctx.restore();
+        }
+      } catch {}
     }
     ctx.restore();
 
-    // 5. OYUNCU / ÖZNE ETİKETİ (Varsa)
+    // 6. OYUNCU / ÖZNE ETİKETİ (Varsa ve doluysa)
     let currentY = 240;
-    if (options.playerName) {
+    if (options.playerName && options.playerName.trim()) {
       ctx.save();
       ctx.font = "bold 32px sans-serif";
       ctx.fillStyle = "#FBBF24"; // Altın sarısı
@@ -263,7 +270,7 @@ export class CanvaAutoDesigner {
       ctx.restore();
     }
 
-    // 6. ANA MANŞET (Metin Temizleme: ** ve * kaldırılır, Otomatik Kelime Bölme & Boyutlandırma)
+    // 7. ANA MANŞET (Metin Temizleme: ** ve * tamamen arındırılır, Otomatik Boyutlandırma)
     const cleanTitle = (options.title || "")
       .replace(/\*\*/g, "")
       .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3")
@@ -308,7 +315,7 @@ export class CanvaAutoDesigner {
     }
     ctx.restore();
 
-    // 7. ALT METİN / SPOT AÇIKLAMA (** ve * temizliği yapılmış)
+    // 8. ALT METİN / SPOT AÇIKLAMA (** ve * temizliği yapılmış)
     currentY += 20;
     const rawSubtitle = options.subtitle || "Trabzonspor kulübünden taraftarı heyecanlandıran önemli adım.";
     const subText = rawSubtitle
@@ -319,7 +326,7 @@ export class CanvaAutoDesigner {
     ctx.save();
     ctx.font = "500 28px -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.fillStyle = "#E2E8F0";
-    ctx.globalAlpha = 0.85;
+    ctx.globalAlpha = 0.88;
 
     const subWords = subText.split(" ");
     let subLine = "";
@@ -341,7 +348,7 @@ export class CanvaAutoDesigner {
     }
     ctx.restore();
 
-    // 8. ALT BİLGİ BANDI (Sadece 'BORDO MAVİ' & Kulüp Etiketi)
+    // 9. ALT BİLGİ BANDI (SADECE 'BordoMavi' — PAPARA PARK ÖZEL YAYINI VE BENZERİ KALDIRILDI)
     ctx.save();
     const footerY = height - 90;
     ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
@@ -351,10 +358,10 @@ export class CanvaAutoDesigner {
     ctx.lineTo(width - 72, footerY - 20);
     ctx.stroke();
 
-    ctx.font = "bold 26px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.font = "900 30px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
     ctx.fillStyle = "#FFFFFF";
     ctx.textBaseline = "middle";
-    ctx.fillText("BORDO MAVİ", 72, footerY + 10);
+    ctx.fillText("BordoMavi", 72, footerY + 10);
 
     ctx.textAlign = "right";
     ctx.font = "bold 20px sans-serif";

@@ -6,10 +6,22 @@
  * 3. Curated Trabzonspor design templates (Transfer, Maç Günü, Canlı Gol, Reels)
  */
 
+export type CanvaTemplateCategory = 
+  | 'BREAKING'
+  | 'TRANSFER'
+  | 'MATCH_DAY'
+  | 'LINEUP'
+  | 'GOAL'
+  | 'PENALTY_CARD'
+  | 'RESULT'
+  | 'QUOTE'
+  | 'REELS'
+  | 'OFFICIAL';
+
 export interface CanvaTemplate {
   id: string;
   name: string;
-  category: 'TRANSFER' | 'MATCH_DAY' | 'GOAL' | 'REELS' | 'OFFICIAL';
+  category: CanvaTemplateCategory;
   width: number;
   height: number;
   description: string;
@@ -23,32 +35,60 @@ export interface CanvaTemplate {
 
 export const TRABZONSPOR_CANVA_TEMPLATES: CanvaTemplate[] = [
   {
+    id: 'ts-breaking',
+    name: 'Son Dakika / Flaş Haber',
+    category: 'BREAKING',
+    width: 1080,
+    height: 1080,
+    description: 'Kırmızı-bordo agresif zemin, flaş gelişmeler ve acil duyurular.',
+    badgeText: '🚨 SON DAKİKA',
+    primaryColor: '#DC2626',
+    accentColor: '#781324',
+    aspectRatio: '1:1',
+    defaultTitle: "TRABZONSPOR'DA SON DAKİKA GELİŞMESİ!",
+    defaultSubtitle: "Bordo-mavili kulüpte sıcak saatler yaşanıyor."
+  },
+  {
     id: 'ts-transfer-bomb',
-    name: 'Transfer Bombası & İmza Afişi',
+    name: 'Transfer Bombası & İmza',
     category: 'TRANSFER',
     width: 1080,
     height: 1080,
-    description: 'Bordo-mavi zemin, altın sarısı imza rozeti ve futbolcu odaklı kare afiş.',
-    badgeText: 'FLAŞ TRANSFER',
+    description: 'Bordo-altın zemin, altın sarısı imza rozeti ve transfer afişi.',
+    badgeText: '🔥 FLAŞ TRANSFER',
     primaryColor: '#781324',
     accentColor: '#D97706',
     aspectRatio: '1:1',
-    defaultTitle: 'TRABZONSPOR\'DA FLAŞ TRANSFER ANLAŞMASI!',
-    defaultSubtitle: 'Yıldız futbolcu bordo-mavili renklere bağlanıyor.'
+    defaultTitle: "TRABZONSPOR'DA FLAŞ TRANSFER ANLAŞMASI!",
+    defaultSubtitle: "Yıldız futbolcu bordo-mavili renklere bağlanıyor."
   },
   {
     id: 'ts-matchday-hero',
-    name: 'Maç Günü Stadyum Afişi',
+    name: 'Maç Günü Afişi',
     category: 'MATCH_DAY',
     width: 1080,
     height: 1350,
     description: 'Papara Park atmosferi, derbi ve lig maçları için yüksek etkileşimli dikey format.',
-    badgeText: 'MAÇ GÜNÜ',
+    badgeText: '🏟️ MAÇ GÜNÜ',
     primaryColor: '#164E7A',
     accentColor: '#781324',
     aspectRatio: '4:5',
-    defaultTitle: 'BUGÜN GÜNLERDEN TRABZONSPOR!',
-    defaultSubtitle: 'Süper Lig • Papara Park • 20:00'
+    defaultTitle: "BUGÜN GÜNLERDEN TRABZONSPOR!",
+    defaultSubtitle: "Süper Lig Zafer Yolculuğu Devam Ediyor."
+  },
+  {
+    id: 'ts-starting-xi',
+    name: 'İlk 11 & Kadro Tanıtımı',
+    category: 'LINEUP',
+    width: 1080,
+    height: 1080,
+    description: 'Taktik diziliş, mevki dağılımı ve resmi maç kadrosu.',
+    badgeText: '📋 İLK 11 KADROMUZ',
+    primaryColor: '#0F172A',
+    accentColor: '#164E7A',
+    aspectRatio: '1:1',
+    defaultTitle: "İŞTE TRABZONSPOR'UN SAHAYA ÇIKACAK 11'İ!",
+    defaultSubtitle: "Teknik Direktör Thomas Reis'in belirlediği kadro açıklandı."
   },
   {
     id: 'ts-live-goal',
@@ -56,13 +96,55 @@ export const TRABZONSPOR_CANVA_TEMPLATES: CanvaTemplate[] = [
     category: 'GOAL',
     width: 1080,
     height: 1080,
-    description: 'Maç anında anlık gol sevinci ve skor güncelleme kartı.',
-    badgeText: 'GOOOLL!',
+    description: 'Maç anında anlık gol sevinci, dakika ve skor güncelleme kartı.',
+    badgeText: '⚽ GOOOLLL!',
     primaryColor: '#E11D48',
     accentColor: '#164E7A',
     aspectRatio: '1:1',
-    defaultTitle: 'GOOOLLL! DAKİKA 61!',
-    defaultSubtitle: 'Trabzonspor öne geçiyor!'
+    defaultTitle: "GOOOLLL! DAKİKA 61!",
+    defaultSubtitle: "Trabzonspor muazzam golle öne geçiyor!"
+  },
+  {
+    id: 'ts-card-penalty',
+    name: 'Kırmızı Kart & Penaltı Kararı',
+    category: 'PENALTY_CARD',
+    width: 1080,
+    height: 1080,
+    description: 'VAR kararları, penaltı pozisyonları ve kırmızı kart anonsları.',
+    badgeText: '⚠️ KRİTİK MAÇ KARARI',
+    primaryColor: '#991B1B',
+    accentColor: '#F59E0B',
+    aspectRatio: '1:1',
+    defaultTitle: "HAKEMDEN KRİTİK DÜDÜK VE MAÇ KARARI!",
+    defaultSubtitle: "Müsabakada tansiyonun yükseldiği anlar."
+  },
+  {
+    id: 'ts-match-result',
+    name: 'Maç Sonu Skoru & Zafer',
+    category: 'RESULT',
+    width: 1080,
+    height: 1080,
+    description: 'Maç bitiş düdüğü, galibiyet coşkusu ve puan durumu kartı.',
+    badgeText: '🏁 MAÇ SONUCU',
+    primaryColor: '#781324',
+    accentColor: '#38BDF8',
+    aspectRatio: '1:1',
+    defaultTitle: "MAÇ SONA ERDİ: 3 PUAN TRABZONSPOR'UN!",
+    defaultSubtitle: "Fırtına haftayı galibiyet ve 3 puanla kapatıyor."
+  },
+  {
+    id: 'ts-coach-quote',
+    name: 'Teknik Direktör & Oyuncu Demeci',
+    category: 'QUOTE',
+    width: 1080,
+    height: 1080,
+    description: 'Tırnak içi vurucu alıntılar, demeçler ve basın açıklamaları.',
+    badgeText: '🎙️ BASIN TOPLANTISI',
+    primaryColor: '#0F172A',
+    accentColor: '#0284C7',
+    aspectRatio: '1:1',
+    defaultTitle: "THOMAS REIS'TEN ÇOK ÇARPICI AÇIKLAMALAR",
+    defaultSubtitle: "Mücadele sonrası teknik heyetten net mesajlar."
   },
   {
     id: 'ts-reels-story',
@@ -71,12 +153,12 @@ export const TRABZONSPOR_CANVA_TEMPLATES: CanvaTemplate[] = [
     width: 1080,
     height: 1920,
     description: 'Instagram ve TikTok için tam ekran dikey video kapağı ve animasyon afişi.',
-    badgeText: 'ÖZEL HABER',
-    primaryColor: '#0F172A',
+    badgeText: '📱 REELS & STORY',
+    primaryColor: '#0A0F1D',
     accentColor: '#781324',
     aspectRatio: '9:16',
-    defaultTitle: 'TRABZONSPOR GÜNDEMİNDE SICAK SAATLER',
-    defaultSubtitle: 'Detaylar ve perde arkası gelişmeleri'
+    defaultTitle: "TRABZONSPOR GÜNDEMİNDE SICAK SAATLER",
+    defaultSubtitle: "Özel görüntüler ve anlık kulüp haberleri."
   },
   {
     id: 'ts-official-press',
@@ -84,13 +166,13 @@ export const TRABZONSPOR_CANVA_TEMPLATES: CanvaTemplate[] = [
     category: 'OFFICIAL',
     width: 1200,
     height: 630,
-    description: 'Yatay Facebook ve Web kapak formatında resmi duyuru şablonu.',
-    badgeText: 'KAMUOYU DUYURUSU',
+    description: 'Yatay Facebook ve Web kapak formatında kurumsal duyuru şablonu.',
+    badgeText: '🏛️ RESMİ AÇIKLAMA',
     primaryColor: '#781324',
     accentColor: '#FFFFFF',
     aspectRatio: '1.91:1',
-    defaultTitle: 'TRABZONSPOR KULÜBÜ RESMİ BİLGİLENDİRME',
-    defaultSubtitle: 'Yönetim kurulundan kamuoyuna saygıyla duyurulur.'
+    defaultTitle: "TRABZONSPOR KULÜBÜ RESMİ BİLGİLENDİRME",
+    defaultSubtitle: "Yönetim kurulundan kamuoyuna saygıyla duyurulur."
   }
 ];
 

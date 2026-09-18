@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/select";
 
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { deleteContentAction, publishContentNowAction, syncFacebookStatsAction } from "./actions";
 
 interface ContentClientProps {
@@ -39,7 +41,12 @@ interface ContentClientProps {
 }
 
 export default function ContentClient({ initialContents, metrics }: ContentClientProps) {
+  const router = useRouter();
   const [contents, setContents] = useState(initialContents);
+
+  useEffect(() => {
+    setContents(initialContents);
+  }, [initialContents]);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
   const [previewContent, setPreviewContent] = useState<any | null>(null);
@@ -87,6 +94,7 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
       const res = await syncFacebookStatsAction();
       if (res.success) {
         toast.success(`✅ Facebook istatistikleri güncellendi (${res.updatedCount} gönderi senkronize edildi).`);
+        router.refresh();
       } else {
         toast.error(res.error || "İstatistikler güncellenemedi.");
       }

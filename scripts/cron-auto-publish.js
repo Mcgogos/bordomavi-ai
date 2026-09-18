@@ -526,25 +526,49 @@ async function publishToFacebook(limit = 1) {
     try {
       let payload = { message: cleanText(item.body), access_token: token };
 
-      // Görsel varsa önce gizli yükle, sonra feed'e iliştir (URL GÖRÜNMEZ!)
-      if (item.sourceNews?.imageUrl) {
-        try {
-          const ogImageUrl = `${appUrl}/api/og?title=${encodeURIComponent(item.title)}&imageUrl=${encodeURIComponent(item.sourceNews.imageUrl)}`;
-          const photoRes = await httpsPost(`https://graph.facebook.com/v21.0/${pageId}/photos`, {
-            url: ogImageUrl,
-            published: false,
-            access_token: token
-          });
+      // 100% Canva Görseli Garanti: Haber kategorisine uygun 10 şablondan birini seç
+      const combinedText = `${item.title} ${item.body}`.toLowerCase();
+      let templateCategory = 'BREAKING';
+      if (item.type === 'TRANSFER' || combinedText.includes('transfer') || combinedText.includes('imza') || combinedText.includes('anlaşma')) {
+        templateCategory = 'TRANSFER';
+      } else if (item.type === 'MATCH_PREVIEW' || combinedText.includes('maç günü') || combinedText.includes('derbi')) {
+        templateCategory = 'MATCH_DAY';
+      } else if (combinedText.includes('ilk 11') || combinedText.includes('kadro')) {
+        templateCategory = 'LINEUP';
+      } else if (combinedText.includes('gol') || combinedText.includes('skor') || combinedText.includes('goool')) {
+        templateCategory = 'GOAL';
+      } else if (combinedText.includes('kırmızı kart') || combinedText.includes('penaltı') || combinedText.includes('hakem')) {
+        templateCategory = 'PENALTY_CARD';
+      } else if (combinedText.includes('maç sonucu') || combinedText.includes('galibiyet') || combinedText.includes('3 puan')) {
+        templateCategory = 'RESULT';
+      } else if (combinedText.includes('açıklama') && (combinedText.includes('thomas reis') || combinedText.includes('reis') || combinedText.includes('teknik direktör'))) {
+        templateCategory = 'QUOTE';
+      } else if (item.type === 'REELS_SCRIPT' || combinedText.includes('reels')) {
+        templateCategory = 'REELS';
+      } else if (combinedText.includes('kamuoyu') || combinedText.includes('resmi açıklama') || combinedText.includes('kulübümüz')) {
+        templateCategory = 'OFFICIAL';
+      }
 
-          if (photoRes.status === 200 && photoRes.data?.id) {
-            payload.attached_media = [{ media_fbid: photoRes.data.id }];
-            log(`[Görsel Yüklendi] Photo FBID: ${photoRes.data.id}`);
-          } else {
-            log(`[Görsel Bildirimi] Sadece metin paylaşılacak: ${JSON.stringify(photoRes.data?.error?.message || photoRes)}`);
-          }
-        } catch (photoErr) {
-          log(`[Görsel Hatası] ${photoErr.message}`);
+      let ogImageUrl = `${appUrl}/api/og?title=${encodeURIComponent(item.title)}&template=${encodeURIComponent(templateCategory)}`;
+      if (item.sourceNews?.imageUrl) {
+        ogImageUrl += `&imageUrl=${encodeURIComponent(item.sourceNews.imageUrl)}`;
+      }
+
+      try {
+        const photoRes = await httpsPost(`https://graph.facebook.com/v21.0/${pageId}/photos`, {
+          url: ogImageUrl,
+          published: false,
+          access_token: token
+        });
+
+        if (photoRes.status === 200 && photoRes.data?.id) {
+          payload.attached_media = [{ media_fbid: photoRes.data.id }];
+          log(`[Canva Görseli Eklendi (${templateCategory})] Photo FBID: ${photoRes.data.id}`);
+        } else {
+          log(`[Görsel Bildirimi]: ${JSON.stringify(photoRes.data?.error?.message || photoRes)}`);
         }
+      } catch (photoErr) {
+        log(`[Görsel Hatası] ${photoErr.message}`);
       }
 
       const feedRes = await httpsPost(`https://graph.facebook.com/v21.0/${pageId}/feed`, payload);

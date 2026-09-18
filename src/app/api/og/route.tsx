@@ -31,23 +31,32 @@ export async function GET(request: NextRequest) {
     if (requestedTemplate === 'GOAL') {
       badgeText = '⚽ CANLI GOL ANONS KARTI';
       badgeColor = '#DC2626';
-    } else if (requestedTemplate === 'RED_CARD') {
-      badgeText = '🟥 KIRMIZI KART';
+    } else if (requestedTemplate === 'PENALTY_CARD' || requestedTemplate === 'RED_CARD') {
+      badgeText = '⚠️ KRİTİK MAÇ KARARI';
       badgeColor = '#B91C1C';
-    } else if (requestedTemplate === 'FULL_TIME') {
-      badgeText = '🏁 MAÇ SONUCU';
-      badgeColor = '#164E7A';
+    } else if (requestedTemplate === 'RESULT' || requestedTemplate === 'FULL_TIME') {
+      badgeText = '🏁 MAÇ SONUCU & ZAFER';
+      badgeColor = '#781324';
     } else if (requestedTemplate === 'TRANSFER' || template === VisualTemplateType.TRANSFER) {
-      badgeText = '🔥 TRANSFER BOMBASI';
+      badgeText = '🔥 FLAŞ TRANSFER BOMBASI';
       badgeColor = '#F59E0B';
     } else if (requestedTemplate === 'MATCH_DAY' || template === VisualTemplateType.PRE_MATCH) {
-      badgeText = '🏟️ MAÇ GÜNÜ';
+      badgeText = '🏟️ MAÇ GÜNÜ & STADYUM';
       badgeColor = '#0284C7';
+    } else if (requestedTemplate === 'LINEUP') {
+      badgeText = '📋 İLK 11 KADROMUZ';
+      badgeColor = '#059669';
+    } else if (requestedTemplate === 'QUOTE') {
+      badgeText = '🎙️ BASIN TOPLANTISI & DEMEÇ';
+      badgeColor = '#0284C7';
+    } else if (requestedTemplate === 'REELS') {
+      badgeText = '📱 9:16 REELS & STORY';
+      badgeColor = '#7C3AED';
     } else if (requestedTemplate === 'OFFICIAL') {
       badgeText = '🏛️ KULÜPTEN RESMİ AÇIKLAMA';
       badgeColor = '#781324';
-    } else if (template === VisualTemplateType.BREAKING) {
-      badgeText = '🚨 SON DAKİKA';
+    } else {
+      badgeText = '🚨 SON DAKİKA / FLAŞ';
       badgeColor = '#E30A17';
     }
 
@@ -261,6 +270,24 @@ export async function GET(request: NextRequest) {
                 {summary}
               </p>
             )}
+
+            {/* BRANDING FOOTER (Strictly BordoMavi) */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              marginTop: 'auto',
+              paddingTop: '20px',
+              borderTop: '2px solid rgba(255,255,255,0.15)'
+            }}>
+              <span style={{ fontSize: '28px', fontWeight: '900', color: '#FFFFFF', letterSpacing: '1px' }}>
+                BordoMavi
+              </span>
+              <span style={{ fontSize: '20px', fontWeight: '700', color: '#38BDF8' }}>
+                #Trabzonspor #BordoMavi
+              </span>
+            </div>
           </div>
 
           {/* BRANDING ENGINE (Bottom Right Logo) */}

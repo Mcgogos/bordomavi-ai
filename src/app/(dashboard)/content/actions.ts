@@ -36,9 +36,34 @@ export async function publishContentNowAction(contentId: string) {
     if (content.hashtags) message += "\n\n" + content.hashtags.trim();
     message = message.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
 
-    // Build the og image URL for the news title
+    // Build the og image URL for the news title with matched template
+    const combinedText = `${cleanTitle} ${cleanBody}`.toLowerCase();
+    let templateCategory = 'BREAKING';
+    if (content.type === 'TRANSFER' || combinedText.includes('transfer') || combinedText.includes('imza') || combinedText.includes('anlaşma')) {
+      templateCategory = 'TRANSFER';
+    } else if (content.type === 'MATCH_PREVIEW' || combinedText.includes('maç günü') || combinedText.includes('derbi')) {
+      templateCategory = 'MATCH_DAY';
+    } else if (combinedText.includes('ilk 11') || combinedText.includes('kadro')) {
+      templateCategory = 'LINEUP';
+    } else if (combinedText.includes('gol') || combinedText.includes('skor') || combinedText.includes('goool')) {
+      templateCategory = 'GOAL';
+    } else if (combinedText.includes('kırmızı kart') || combinedText.includes('penaltı') || combinedText.includes('hakem')) {
+      templateCategory = 'PENALTY_CARD';
+    } else if (combinedText.includes('maç sonucu') || combinedText.includes('galibiyet') || combinedText.includes('3 puan')) {
+      templateCategory = 'RESULT';
+    } else if (combinedText.includes('açıklama') && (combinedText.includes('thomas reis') || combinedText.includes('reis') || combinedText.includes('teknik direktör'))) {
+      templateCategory = 'QUOTE';
+    } else if (content.type === 'REELS_SCRIPT' || combinedText.includes('reels')) {
+      templateCategory = 'REELS';
+    } else if (combinedText.includes('kamuoyu') || combinedText.includes('resmi açıklama') || combinedText.includes('kulübümüz')) {
+      templateCategory = 'OFFICIAL';
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || "https://bordomavi-ai.vercel.app";
-    const mediaUrl = `${baseUrl}/api/og?title=${encodeURIComponent(cleanTitle)}`;
+    let mediaUrl = `${baseUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&template=${encodeURIComponent(templateCategory)}`;
+    if (content.sourceNews?.imageUrl) {
+      mediaUrl += `&imageUrl=${encodeURIComponent(content.sourceNews.imageUrl)}`;
+    }
 
     const result = await FacebookService.publishPost(message, mediaUrl, contentId);
 

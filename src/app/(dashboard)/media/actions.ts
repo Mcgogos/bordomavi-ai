@@ -24,7 +24,7 @@ export async function publishCanvaDesignAction(params: {
     const postMessage = `${cleanTitle}\n\n${cleanSubtitle}\n\n#Trabzonspor #BordoMavi #CanvaTasarım`;
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || "https://bordomavi-ai.vercel.app";
-    const mediaUrl = `${baseUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&template=${encodeURIComponent(params.category)}`;
+    const mediaUrl = params.dataUrl || `${baseUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&template=${encodeURIComponent(params.category)}`;
 
     const result = await FacebookService.publishPost(postMessage, mediaUrl);
 

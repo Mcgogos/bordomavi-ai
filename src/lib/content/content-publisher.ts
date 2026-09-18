@@ -61,10 +61,32 @@ export async function publishReadyContent(limit: number = 1) {
         }
         messageBody = messageBody.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
 
-        // Dinamik görsel (OG Image) URL'sini oluştur.
-        // Orijinal haberdeki fotoğrafı arka plan olarak kullanmak için imageUrl ekle
+        // Dinamik görsel (Canva/OG Image) URL'sini 10 şablondan içerik türüne göre belirle.
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai.vercel.app';
-        let mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(cleanTitle)}`;
+        
+        const combinedText = `${cleanTitle} ${cleanBody}`.toLowerCase();
+        let templateCategory = 'BREAKING';
+        if (content.type === 'TRANSFER' || combinedText.includes('transfer') || combinedText.includes('imza') || combinedText.includes('anlaşma')) {
+          templateCategory = 'TRANSFER';
+        } else if (content.type === 'MATCH_PREVIEW' || combinedText.includes('maç günü') || combinedText.includes('derbi')) {
+          templateCategory = 'MATCH_DAY';
+        } else if (combinedText.includes('ilk 11') || combinedText.includes('kadro')) {
+          templateCategory = 'LINEUP';
+        } else if (combinedText.includes('gol') || combinedText.includes('skor') || combinedText.includes('goool')) {
+          templateCategory = 'GOAL';
+        } else if (combinedText.includes('kırmızı kart') || combinedText.includes('penaltı') || combinedText.includes('hakem')) {
+          templateCategory = 'PENALTY_CARD';
+        } else if (combinedText.includes('maç sonucu') || combinedText.includes('galibiyet') || combinedText.includes('3 puan')) {
+          templateCategory = 'RESULT';
+        } else if (combinedText.includes('açıklama') && (combinedText.includes('thomas reis') || combinedText.includes('reis') || combinedText.includes('teknik direktör'))) {
+          templateCategory = 'QUOTE';
+        } else if (content.type === 'REELS_SCRIPT' || combinedText.includes('reels')) {
+          templateCategory = 'REELS';
+        } else if (combinedText.includes('kamuoyu') || combinedText.includes('resmi açıklama') || combinedText.includes('kulübümüz')) {
+          templateCategory = 'OFFICIAL';
+        }
+
+        let mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&template=${encodeURIComponent(templateCategory)}`;
         
         if (content.sourceNews?.imageUrl) {
           mediaUrl += `&imageUrl=${encodeURIComponent(content.sourceNews.imageUrl)}`;

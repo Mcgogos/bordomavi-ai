@@ -63,8 +63,35 @@ export class FacebookService {
         .trim();
       let payload: any = { message: sanitizedMessage, access_token: token };
 
-      // İki adımlı görsel paylaşım: önce gizli yükle, sonra feed'e ekle.
-      // Bu yöntemde Facebook paylaşımının altında URL görünmez.
+      // 1. Doğrudan Base64 Data URL paylaşımı (Canva Studio görselini kayıpsız ve doğrudan yükler)
+      if (mediaUrl && mediaUrl.startsWith('data:image')) {
+        try {
+          const base64Data = mediaUrl.replace(/^data:image\/\w+;base64,/, '');
+          const buffer = Buffer.from(base64Data, 'base64');
+          const blob = new Blob([buffer], { type: 'image/png' });
+          const formData = new FormData();
+          formData.append('source', blob, 'canva-design.png');
+          formData.append('caption', sanitizedMessage);
+          formData.append('access_token', token);
+
+          const photoRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
+            method: 'POST',
+            body: formData,
+            signal: AbortSignal.timeout(30_000),
+          });
+          const photoData = await photoRes.json();
+          if (photoData.error) {
+            const safeError = maskToken(JSON.stringify(photoData.error), token);
+            throw new Error(safeError);
+          }
+          return { success: true, postId: photoData.post_id || photoData.id, mockMode: false };
+        } catch (dataErr: any) {
+          console.warn('[Facebook] Direct DataURL upload error:', dataErr.message);
+          throw dataErr;
+        }
+      }
+
+      // 2. İki adımlı URL tabanlı görsel paylaşım: önce gizli yükle, sonra feed'e iliştir.
       if (mediaUrl) {
         try {
           const photoRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {

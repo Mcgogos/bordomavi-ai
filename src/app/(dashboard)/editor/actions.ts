@@ -57,10 +57,33 @@ export async function publishContentDirectlyAction(id: string, updates: { title?
       }
     });
 
-    // 2. Facebook yayını için hazırlık
+    // 2. Facebook yayını için hazırlık (10 Canva şablonundan uygun olanı seç)
     const messageBody = (updatedContent.body || '').replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai.vercel.app';
-    const mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent((updatedContent.title || '').replace(/\*\*/g, '').trim())}`;
+    
+    const combinedText = `${updatedContent.title || ''} ${messageBody}`.toLowerCase();
+    let templateCategory = 'BREAKING';
+    if (updatedContent.type === 'TRANSFER' || combinedText.includes('transfer') || combinedText.includes('imza') || combinedText.includes('anlaşma')) {
+      templateCategory = 'TRANSFER';
+    } else if (updatedContent.type === 'MATCH_PREVIEW' || combinedText.includes('maç günü') || combinedText.includes('derbi')) {
+      templateCategory = 'MATCH_DAY';
+    } else if (combinedText.includes('ilk 11') || combinedText.includes('kadro')) {
+      templateCategory = 'LINEUP';
+    } else if (combinedText.includes('gol') || combinedText.includes('skor') || combinedText.includes('goool')) {
+      templateCategory = 'GOAL';
+    } else if (combinedText.includes('kırmızı kart') || combinedText.includes('penaltı') || combinedText.includes('hakem')) {
+      templateCategory = 'PENALTY_CARD';
+    } else if (combinedText.includes('maç sonucu') || combinedText.includes('galibiyet') || combinedText.includes('3 puan')) {
+      templateCategory = 'RESULT';
+    } else if (combinedText.includes('açıklama') && (combinedText.includes('thomas reis') || combinedText.includes('reis') || combinedText.includes('teknik direktör'))) {
+      templateCategory = 'QUOTE';
+    } else if (updatedContent.type === 'REELS_SCRIPT' || combinedText.includes('reels')) {
+      templateCategory = 'REELS';
+    } else if (combinedText.includes('kamuoyu') || combinedText.includes('resmi açıklama') || combinedText.includes('kulübümüz')) {
+      templateCategory = 'OFFICIAL';
+    }
+
+    const mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent((updatedContent.title || '').replace(/\*\*/g, '').trim())}&template=${encodeURIComponent(templateCategory)}`;
 
     // 3. Facebook'a gönder — content ID'yi lockKey olarak geçirerek aynı anda iki kez basılmasını engelle
     const publishResponse = await FacebookService.publishPost(messageBody, mediaUrl, id);
