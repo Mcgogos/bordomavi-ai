@@ -26,18 +26,18 @@ export interface FallbackModelDef {
 }
 
 export const NVIDIA_FALLBACK_MODELS: FallbackModelDef[] = [
-  { name: '1. GPT-OSS 120B (/gpt-oss)', candidateIds: ['/gpt-oss', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'gpt-oss'] },
-  { name: '2. GLM 5.2 (z-ai/glm-5.2)', candidateIds: ['z-ai/glm-5.2', 'z-ai/glm-5.3', 'z-ai/glm-5.3-flash'] },
+  { name: '1. GPT-OSS 120B (/gpt-oss)', candidateIds: ['openai/gpt-oss-20b', '/gpt-oss', 'openai/gpt-oss-120b', 'gpt-oss'] },
+  { name: '2. GLM 5.2 (z-ai/glm-5.2)', candidateIds: ['z-ai/glm-5.3-flash', 'z-ai/glm-5.3', 'z-ai/glm-5.2'] },
   { name: '3. Nemotron-3 Super 120B', candidateIds: ['nvidia/nemotron-3-super-120b-a12b'] },
   { name: '4. MiniMax M3', candidateIds: ['minimaxai/minimax-m3'] },
   { name: '5. Kimi K2.6', candidateIds: ['moonshotai/kimi-k2.6', 'moonshotai/kimi-k3'] },
   { name: '6. Llama 3.3 70B (/llama)', candidateIds: ['/llama', 'meta/llama-3.3-70b-instruct', 'nvidia/llama-3.1-nemotron-70b-instruct', 'meta/llama2-70b'] },
   { name: '7. Nemotron 70B (/nemotron70b)', candidateIds: ['/nemotron70b', 'nvidia/llama-3.1-nemotron-70b-instruct', 'nemotron-4-340b-instruct'] },
   { name: '8. Nemotron Ultra 253B', candidateIds: ['nvidia/llama-3.1-nemotron-ultra-253b-v1'] },
-  { name: '9. Nemotron Super 49B v1.5', candidateIds: ['nvidia/llama-3.3-nemotron-super-49b-v1.5', 'nvidia/nemotron-3-super-120b-a12b'] },
+  { name: '9. Nemotron Super 49B v1.5', candidateIds: ['nvidia/nemotron-3-super-120b-a12b', 'nvidia/llama-3.3-nemotron-super-49b-v1.5'] },
   { name: '10. Mistral Large 2 (/mistral)', candidateIds: ['/mistral', 'mistralai/mistral-large-2-instruct', 'mistralai/mistral-large', 'mistralai/mistral-7b-instruct-v0.3'] },
   { name: '11. Codestral 22B (/codestral)', candidateIds: ['/codestral', 'mistralai/codestral-22b-instruct-v0.1'] },
-  { name: '12. Llama 3.2 90B Vision (/llama-vision)', candidateIds: ['/llama-vision', 'meta/llama-3.2-90b-vision-instruct', 'meta/llama-3.2-11b-vision-instruct'] },
+  { name: '12. Llama 3.2 90B Vision (/llama-vision)', candidateIds: ['meta/llama-3.2-11b-vision-instruct', '/llama-vision', 'meta/llama-3.2-90b-vision-instruct'] },
   { name: '13. Nemotron Nano VL 12B', candidateIds: ['nvidia/nemotron-nano-12b-v2-vl', 'nv-mistralai/mistral-nemo-12b-instruct', 'nvidia/nemotron-nano-3-30b-a3b'] },
 ];
 
