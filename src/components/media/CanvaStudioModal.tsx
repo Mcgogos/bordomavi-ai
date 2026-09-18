@@ -99,11 +99,24 @@ export function CanvaStudioModal({
     }
     setIsPublishingToFb(true);
     try {
+      // Çok hızlı ve hafif iletim için yüksek kaliteli JPEG verisini al (~200KB vs ~3MB PNG)
+      let uploadPayload = renderedDataUrl;
+      if (canvasRef.current) {
+        try {
+          const optJpeg = canvasRef.current.toDataURL("image/jpeg", 0.92);
+          if (optJpeg && optJpeg.length > 500) {
+            uploadPayload = optJpeg;
+          }
+        } catch {
+          // Varsayılan ile devam et
+        }
+      }
+
       const res = await publishCanvaDesignAction({
         title,
         subtitle,
         category: selectedTemplate.category,
-        dataUrl: renderedDataUrl,
+        dataUrl: uploadPayload,
       });
       if (res.success) {
         toast.success(`🎉 Canva tasarımı Facebook'ta başarıyla yayınlandı! (ID: ${res.postId})`);
@@ -111,7 +124,8 @@ export function CanvaStudioModal({
         toast.error(res.error || "Facebook yayını başarısız oldu.");
       }
     } catch (e: any) {
-      toast.error("Facebook yayını sırasında bir hata oluştu.");
+      console.error("Facebook publish error in modal:", e);
+      toast.error("Facebook yayını sırasında bir hata oluştu: " + (e.message || "Bilinmeyen hata"));
     } finally {
       setIsPublishingToFb(false);
     }

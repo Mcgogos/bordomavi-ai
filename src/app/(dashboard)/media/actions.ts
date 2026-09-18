@@ -29,21 +29,30 @@ export async function publishCanvaDesignAction(params: {
     const result = await FacebookService.publishPost(postMessage, mediaUrl);
 
     if (result.success && result.postId) {
-      await prisma.content.create({
-        data: {
-          title: cleanTitle,
-          body: cleanSubtitle || cleanTitle,
-          type: (params.category === "MATCH_DAY" ? "MATCH_PREVIEW" : params.category === "TRANSFER" ? "TRANSFER" : "NEWS") as any,
-          status: "PUBLISHED",
-          facebookPostId: result.postId,
-          publishedAt: new Date(),
-          qualityScore: 92,
-          viralScore: 88,
-        },
-      });
+      try {
+        await prisma.content.create({
+          data: {
+            title: cleanTitle,
+            body: cleanSubtitle || cleanTitle,
+            type: (params.category === "MATCH_DAY" ? "MATCH_PREVIEW" : params.category === "TRANSFER" ? "TRANSFER" : "NEWS") as any,
+            status: "PUBLISHED",
+            facebookPostId: result.postId,
+            publishedAt: new Date(),
+            qualityScore: 92,
+            viralScore: 88,
+          },
+        });
+      } catch (dbErr: any) {
+        console.warn("[Media Actions] DB save warning after FB publish:", dbErr.message);
+      }
 
-      revalidatePath("/media");
-      revalidatePath("/content");
+      try {
+        revalidatePath("/media");
+        revalidatePath("/content");
+      } catch (revErr: any) {
+        console.warn("[Media Actions] Revalidate warning:", revErr.message);
+      }
+
       return { success: true, postId: result.postId };
     }
 

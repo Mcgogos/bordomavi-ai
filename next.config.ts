@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "graph.facebook.com" },
     ],
   },
+
+  // Server Actions payload limitini 10MB'a çıkar (Canva ve HD görsel yüklemeleri için zorunlu)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
 };
 
 export default nextConfig;

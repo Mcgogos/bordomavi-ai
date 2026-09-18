@@ -66,11 +66,16 @@ export class FacebookService {
       // 1. Doğrudan Base64 Data URL paylaşımı (Canva Studio görselini kayıpsız ve doğrudan yükler)
       if (mediaUrl && mediaUrl.startsWith('data:image')) {
         try {
-          const base64Data = mediaUrl.replace(/^data:image\/\w+;base64,/, '');
+          const mimeMatch = mediaUrl.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,/);
+          const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+          const ext = mimeType.includes('jpeg') || mimeType.includes('jpg') ? 'jpg' : 'png';
+
+          const base64Data = mediaUrl.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
           const buffer = Buffer.from(base64Data, 'base64');
-          const blob = new Blob([buffer], { type: 'image/png' });
+          const blob = new Blob([buffer], { type: mimeType });
           const formData = new FormData();
-          formData.append('source', blob, 'canva-design.png');
+          formData.append('source', blob, `canva-design.${ext}`);
+          formData.append('message', sanitizedMessage);
           formData.append('caption', sanitizedMessage);
           formData.append('access_token', token);
 
@@ -82,6 +87,7 @@ export class FacebookService {
           const photoData = await photoRes.json();
           if (photoData.error) {
             const safeError = maskToken(JSON.stringify(photoData.error), token);
+            console.error('[Facebook] Photo upload API error:', safeError);
             throw new Error(safeError);
           }
           return { success: true, postId: photoData.post_id || photoData.id, mockMode: false };
