@@ -61,3 +61,49 @@ export async function publishContentNowAction(contentId: string) {
     return { success: false, error: error.message || "Yayınlama sırasında hata oluştu." };
   }
 }
+
+export async function syncFacebookStatsAction() {
+  try {
+    const publishedContents = await prisma.content.findMany({
+      where: {
+        status: "PUBLISHED",
+        facebookPostId: { not: null }
+      },
+      orderBy: { publishedAt: "desc" },
+      take: 20
+    });
+
+    let updatedCount = 0;
+
+    for (const content of publishedContents) {
+      if (!content.facebookPostId) continue;
+      try {
+        const stats = await FacebookService.getPostStats(content.facebookPostId);
+        if (stats) {
+          await prisma.analytics.create({
+            data: {
+              contentId: content.id,
+              reach: stats.reach,
+              impressions: stats.impressions,
+              reactions: stats.reactions,
+              comments: stats.comments,
+              shares: stats.shares,
+              engagementRate: stats.impressions > 0 
+                ? Number(((stats.reactions + stats.comments + stats.shares) / stats.impressions * 100).toFixed(2))
+                : 0
+            }
+          });
+          updatedCount++;
+        }
+      } catch (err: any) {
+        console.warn(`Error syncing stats for post ${content.facebookPostId}:`, err.message);
+      }
+    }
+
+    revalidatePath("/content");
+    return { success: true, updatedCount };
+  } catch (error: any) {
+    console.error("syncFacebookStatsAction Error:", error);
+    return { success: false, error: error.message || "İstatistikler güncellenirken hata oluştu." };
+  }
+}

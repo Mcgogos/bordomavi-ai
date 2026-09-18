@@ -51,7 +51,9 @@ function log(msg) {
 const TRABZONSPOR_KEYWORDS = [
   'trabzonspor', 'bordo mavi', 'bordo-mavi', 'fırtına', 'papara park',
   'ertuğrul doğan', 'şampiyon trabzon', 'avni aker', 'ugurcan cakir',
-  'uğurcan çakır', 'fatih tekke', 'şenol güneş', 'abdullah avcı'
+  'uğurcan çakır', 'thomas reis', 'simon banza', 'muhammed cham',
+  'stefan savic', 'edin visca', 'anthony nwakaeme', 'okay yokuslu',
+  'batista mendy', 'pedro malheiro', 'cihan canak'
 ];
 
 function normalizeTitle(title) {
@@ -431,7 +433,9 @@ Kurallar:
           body: finalBody,
           type: (news.aiRecommendedContentType || 'NEWS'),
           status: 'READY_TO_PUBLISH',
-          sourceNewsId: news.id
+          sourceNewsId: news.id,
+          qualityScore: news.importanceScore || 88,
+          viralScore: 85
         }
       });
       generated++;

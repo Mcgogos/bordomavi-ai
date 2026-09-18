@@ -14,20 +14,15 @@ export interface AutoDesignOptions {
   logoImage?: CanvasImageSource | null;
 }
 
+import { BORDOMAVI_BRAND_LOGO_DATA_URI } from './brand-logo-data';
+
 // Client-side logo cache for the user's authentic uploaded logo
 let cachedUserLogo: HTMLImageElement | null = null;
 if (typeof window !== "undefined") {
   try {
     const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = "/assets/brand/bordomavi-logo.png";
-    img.onload = () => { cachedUserLogo = img; };
-    img.onerror = () => {
-      const fallback = new Image();
-      fallback.crossOrigin = "anonymous";
-      fallback.src = "/logo.png";
-      fallback.onload = () => { cachedUserLogo = fallback; };
-    };
+    img.src = BORDOMAVI_BRAND_LOGO_DATA_URI;
+    cachedUserLogo = img;
   } catch {}
 }
 
@@ -227,30 +222,33 @@ export class CanvaAutoDesigner {
     ctx.textBaseline = "middle";
     ctx.fillText(badgeText, badgeX + 24, badgeY + badgeHeight / 2);
 
-    // Sağ Üst: Kullanıcının Yüklediği Orijinal Logo veya Vektörel Arma
+    // Sağ Üst: Kullanıcının Yüklediği Orijinal BordoMavi Logosu (Garantili)
+    const logoBoxSize = Math.min(width, height) * 0.14;
+    const logoX = width - logoBoxSize - 60;
+    const logoY = 50;
+
+    // Şık beyaz/şeffaf cam zemin rozeti
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+    ctx.beginPath();
+    ctx.roundRect(logoX - 8, logoY - 8, logoBoxSize + 16, logoBoxSize + 16, 16);
+    ctx.fill();
+
     const logoToDraw = options.logoImage || cachedUserLogo;
-    if (logoToDraw) {
-      const logoBoxSize = Math.min(width, height) * 0.14;
-      const logoX = width - logoBoxSize - 60;
-      const logoY = 50;
-
-      // Şık beyaz/şeffaf cam zemin rozeti
-      ctx.save();
-      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-      ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-      ctx.shadowBlur = 18;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 4;
-      ctx.beginPath();
-      ctx.roundRect(logoX - 8, logoY - 8, logoBoxSize + 16, logoBoxSize + 16, 16);
-      ctx.fill();
-
-      // Logoyu çiz
+    if (logoToDraw && (logoToDraw as HTMLImageElement).complete && (logoToDraw as HTMLImageElement).naturalWidth > 0) {
       ctx.drawImage(logoToDraw, logoX, logoY, logoBoxSize, logoBoxSize);
-      ctx.restore();
     } else {
-      const crestSize = Math.min(width, height) * 0.14;
-      this.drawCrest(ctx, width - 110, 110, crestSize);
+      try {
+        const directLogo = new Image();
+        directLogo.src = BORDOMAVI_BRAND_LOGO_DATA_URI;
+        ctx.drawImage(directLogo, logoX, logoY, logoBoxSize, logoBoxSize);
+      } catch {
+        this.drawCrest(ctx, width - 110, 110, logoBoxSize);
+      }
     }
     ctx.restore();
 

@@ -192,37 +192,39 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
                       <h3 className="font-semibold text-xs text-foreground line-clamp-2 leading-snug" title={img.title}>
                         {img.title}
                       </h3>
-                      <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between text-[11px] text-muted-foreground">
+                      {/* Mobilde ve masaüstünde her zaman dokunulabilen 1-Tık Butonlar */}
+                      <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-border/60">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openCanvaStudio(img.title, img.body)}
+                          className="h-8 text-[11px] font-semibold text-[#00898F] dark:text-[#00C4CC] border-[#00C4CC]/30 hover:bg-[#00C4CC]/10 flex items-center justify-center gap-1"
+                        >
+                          <Palette className="w-3.5 h-3.5 text-[#00C4CC]" />
+                          Canva Tasarla
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openReelStudio(img.title, undefined, img.body)}
+                          className="h-8 text-[11px] font-semibold text-[#781324] dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10 flex items-center justify-center gap-1"
+                        >
+                          <Play className="w-3.5 h-3.5 text-rose-500" />
+                          Reels Üret
+                        </Button>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
                         <span>{formatDate(img.createdAt)}</span>
-                        <div className="flex items-center gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground" 
-                            title="Canva ile Otomatik Tasarla" 
-                            onClick={() => openCanvaStudio(img.title, img.body)}
-                          >
-                            <Palette className="h-3.5 w-3.5 text-[#00C4CC]" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground" 
-                            title="Reels / 9:16 Video Stüdyosunu Aç" 
-                            onClick={() => openReelStudio(img.title, undefined, img.body)}
-                          >
-                            <Film className="h-3.5 w-3.5 text-rose-500" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground" 
-                            title="Büyük Görseli Aç" 
-                            onClick={() => window.open(ogUrl, '_blank')}
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground" 
+                          onClick={() => window.open(ogUrl, '_blank')}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          HD Önizle
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>

@@ -1,12 +1,13 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { 
   X, Play, Pause, RotateCcw, Sparkles, Film, 
-  Volume2, VolumeX, Download, Check, Copy, Share2, Newspaper
+  Volume2, VolumeX, Download, Check, Copy, Share2, Newspaper, Send, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { publishReelAction } from "@/app/(dashboard)/media/actions";
 import { toast } from "sonner";
 
 interface ReelStudioModalProps {
@@ -35,9 +36,31 @@ export function ReelStudioModal({
   const [isMuted, setIsMuted] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isPublishingReel, setIsPublishingReel] = useState(false);
 
   const lastSpokenSceneRef = useRef<number>(-1);
   const totalDuration = 15;
+
+  const handlePublishReel = async () => {
+    setIsPublishingReel(true);
+    try {
+      const scriptText = `🎬 SAHNE 1 (0-3s): "Trabzonspor'da yer yerinden oynuyor!"\\n⚡ SAHNE 2 (3-8s): ${title}\\n🔥 SAHNE 3 (8-12s): ${summary}\\n📢 SAHNE 4 (12-15s): Sizce bu karar doğru mu? Yorumlarda buluşalım!\\n\\n#Trabzonspor #BordoMavi #Reels #Shorts`;
+      const res = await publishReelAction({
+        title,
+        summary: summary || "Trabzonspor sıcak gelişmeleri.",
+        scriptText,
+      });
+      if (res.success) {
+        toast.success(`🎉 Reels Facebook'ta başarıyla yayınlandı! (ID: ${res.postId})`);
+      } else {
+        toast.error(res.error || "Reels yayınlanamadı.");
+      }
+    } catch (e: any) {
+      toast.error("Reels yayınlama sırasında bir hata oluştu.");
+    } finally {
+      setIsPublishingReel(false);
+    }
+  };
 
   // Sync initial props when opened
   useEffect(() => {
@@ -392,33 +415,48 @@ export function ReelStudioModal({
           </div>
 
           {/* Aksiyon Butonları */}
-          <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-border/70">
+          <div className="space-y-2 pt-2 border-t border-border/70">
             <Button
-              onClick={() => {
-                const fullText = `🎬 SAHNE 1 (0-3s): "Trabzonspor'da yer yerinden oynuyor!"\n⚡ SAHNE 2 (3-8s): ${title}\n🔥 SAHNE 3 (8-12s): ${summary}\n📢 SAHNE 4 (12-15s): Sizce bu karar doğru mu? Yorumlarda buluşalım!\n\n#Trabzonspor #BordoMavi #Reels`;
-                navigator.clipboard.writeText(fullText);
-                setCopied(true);
-                toast.success("Reels senaryosu panoya kopyalandı!");
-                setTimeout(() => setCopied(false), 2000);
-              }}
-              variant="outline"
-              className="flex-1 text-xs font-semibold h-10 border-border/80"
+              onClick={handlePublishReel}
+              disabled={isPublishingReel}
+              className="w-full bg-[#164E7A] hover:bg-[#123E62] text-white font-bold text-xs h-10 shadow-md flex items-center justify-center gap-2 transition-all"
             >
-              {copied ? <Check className="w-4 h-4 mr-1.5 text-emerald-600" /> : <Copy className="w-4 h-4 mr-1.5" />}
-              {copied ? "Kopyalandı!" : "Senaryoyu Kopyala"}
+              {isPublishingReel ? (
+                <Loader2 className="w-4 h-4 animate-spin text-sky-300" />
+              ) : (
+                <Send className="w-4 h-4 text-sky-300" />
+              )}
+              {isPublishingReel ? "Reels Facebook'a Gönderiliyor..." : "Facebook Reels Olarak Yayınla (1-Tık)"}
             </Button>
 
-            <Button
-              onClick={() => {
-                if (typeof window !== "undefined" && "speechSynthesis" in window) {
-                  window.speechSynthesis.cancel();
-                }
-                onClose();
-              }}
-              className="bg-[#781324] hover:bg-[#5e0e1c] text-white text-xs font-semibold h-10 px-6"
-            >
-              Kapat
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={() => {
+                  const fullText = `🎬 SAHNE 1 (0-3s): "Trabzonspor'da yer yerinden oynuyor!"\n⚡ SAHNE 2 (3-8s): ${title}\n🔥 SAHNE 3 (8-12s): ${summary}\n📢 SAHNE 4 (12-15s): Sizce bu karar doğru mu? Yorumlarda buluşalım!\n\n#Trabzonspor #BordoMavi #Reels`;
+                  navigator.clipboard.writeText(fullText);
+                  setCopied(true);
+                  toast.success("Reels senaryosu panoya kopyalandı!");
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                variant="outline"
+                className="flex-1 text-xs font-semibold h-10 border-border/80"
+              >
+                {copied ? <Check className="w-4 h-4 mr-1.5 text-emerald-600" /> : <Copy className="w-4 h-4 mr-1.5" />}
+                {copied ? "Kopyalandı!" : "Senaryoyu Kopyala"}
+              </Button>
+
+              <Button
+                onClick={() => {
+                  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                    window.speechSynthesis.cancel();
+                  }
+                  onClose();
+                }}
+                className="bg-[#781324] hover:bg-[#5e0e1c] text-white text-xs font-semibold h-10 px-6"
+              >
+                Kapat
+              </Button>
+            </div>
           </div>
 
         </div>

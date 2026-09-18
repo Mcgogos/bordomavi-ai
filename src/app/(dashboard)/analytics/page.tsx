@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { SquadService } from "@/lib/squad/squad-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -55,40 +56,9 @@ export default async function AnalyticsPage() {
     take: 200
   });
 
-  const trackedPlayers = [
-    { name: "Paul Onuachu", count: 0, tag: "Santrfor", color: "bg-amber-500", key: "onuachu" },
-    { name: "André Onana", count: 0, tag: "1. Kaleci", color: "bg-emerald-600", key: "onana" },
-    { name: "Ernest Muçi", count: 0, tag: "Ofansif Orta Saha", color: "bg-purple-500", key: "muci" },
-    { name: "Anthony Nwakaeme", count: 0, tag: "Lider & Forvet", color: "bg-sky-500", key: "nwakaeme" },
-    { name: "Edin Vişça", count: 0, tag: "Kanat & Asist", color: "bg-blue-500", key: "visca" },
-    { name: "Muhammed Cham", count: 0, tag: "10 Numara", color: "bg-violet-500", key: "cham" },
-    { name: "Denis Drăguș", count: 0, tag: "Hücum & Forvet", color: "bg-rose-500", key: "dragus" },
-    { name: "Stefan Savić", count: 0, tag: "Savunma Lideri", color: "bg-indigo-500", key: "savic" },
-    { name: "Okay Yokuşlu", count: 0, tag: "Milli Ön Libero", color: "bg-emerald-500", key: "yokuslu" },
-    { name: "Ozan Tufan", count: 0, tag: "Merkez Orta Saha", color: "bg-teal-500", key: "ozan" },
-    { name: "Oleksandr Zubkov", count: 0, tag: "Kanat Forvet", color: "bg-cyan-500", key: "zubkov" },
-    { name: "Cihan Çanak", count: 0, tag: "Genç Yetenek", color: "bg-orange-500", key: "canak" },
-    { name: "Umut Nayir", count: 0, tag: "Santrfor", color: "bg-amber-600", key: "nayir" },
-    { name: "Şenol Güneş", count: 0, tag: "Teknik Direktör", color: "bg-rose-600", key: "senol" },
-  ];
-
-  recentNews.forEach(news => {
-    const titleLower = news.title.toLowerCase();
-    trackedPlayers.forEach(p => {
-      if (titleLower.includes(p.key) || titleLower.includes(p.name.toLowerCase())) {
-        p.count++;
-      }
-    });
-    // Özel durumlar (Türkçe karakter varyasyonları)
-    if (titleLower.includes("muçi") || titleLower.includes("muci")) trackedPlayers[2].count++;
-    if (titleLower.includes("vişça") || titleLower.includes("visca")) trackedPlayers[4].count++;
-    if (titleLower.includes("draguş") || titleLower.includes("dragus")) trackedPlayers[6].count++;
-    if (titleLower.includes("savic") || titleLower.includes("saviç")) trackedPlayers[7].count++;
-    if (titleLower.includes("yokuşlu") || titleLower.includes("yokuslu")) trackedPlayers[8].count++;
-    if (titleLower.includes("çanak") || titleLower.includes("canak")) trackedPlayers[11].count++;
-    if (titleLower.includes("şenol") || titleLower.includes("senol")) trackedPlayers[13].count++;
-  });
-
+  // 4. Popüler Oyuncu / Figür İlgi İndeksi (2026/2027 Trabzonspor Kadrosu & Thomas Reis)
+  const trackedPlayers = SquadService.getTrackedPlayerRadar(recentNews);
+  const trendingHashtags = SquadService.getTrendingTags(recentNews);
   const maxPlayerCount = Math.max(...trackedPlayers.map(p => p.count), 1);
 
   return (
@@ -292,18 +262,7 @@ export default async function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-            {[
-              { tag: "#Trabzonspor", volume: "198.5K", trend: "+29%", status: "Zirve" },
-              { tag: "#TSvGS", volume: "142.3K", trend: "+85%", status: "Dev Derbi" },
-              { tag: "#PaulOnuachu", volume: "86.1K", trend: "+52%", status: "Golcü" },
-              { tag: "#AndreOnana", volume: "74.8K", trend: "+64%", status: "1. Kaleci" },
-              { tag: "#ErnestMuci", volume: "62.4K", trend: "+48%", status: "10 Numara" },
-              { tag: "#MuhammedCham", volume: "58.2K", trend: "+36%", status: "Orta Saha" },
-              { tag: "#PaparaPark", volume: "54.9K", trend: "+41%", status: "Stadyum" },
-              { tag: "#ŞenolGüneş", volume: "49.0K", trend: "+30%", status: "Teknik Direktör" },
-              { tag: "#BordoMavi", volume: "44.6K", trend: "+15%", status: "Kulüp" },
-              { tag: "#Fırtına", volume: "39.4K", trend: "+22%", status: "Motivasyon" },
-            ].map((item) => (
+            {trendingHashtags.map((item) => (
               <div key={item.tag} className="p-3 rounded-xl bg-muted/40 border border-border/70 flex flex-col justify-between hover:bg-muted/70 transition-colors">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-bold text-xs text-primary">{item.tag}</span>

@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, ExternalLink, Copy, Check, Sparkles, Palette, Layers, Download, Bot, CheckCircle2 } from "lucide-react";
+import { X, ExternalLink, Copy, Check, Sparkles, Palette, Layers, Download, Bot, CheckCircle2, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { TRABZONSPOR_CANVA_TEMPLATES, CanvaTemplate, CanvaService } from "@/lib/canva/canva-service";
 import { CanvaAutoDesigner } from "@/lib/canva/canva-auto-designer";
+import { SquadService } from "@/lib/squad/squad-service";
+import { publishCanvaDesignAction } from "@/app/(dashboard)/media/actions";
 import { toast } from "sonner";
 
 interface CanvaStudioModalProps {
@@ -82,21 +84,33 @@ export function CanvaStudioModal({
 
   if (!isOpen) return null;
 
-  const SQUAD_PRESETS = [
-    "Paul Onuachu",
-    "André Onana",
-    "Ernest Muçi",
-    "Anthony Nwakaeme",
-    "Edin Vişça",
-    "Muhammed Cham",
-    "Denis Drăguș",
-    "Stefan Savić",
-    "Okay Yokuşlu",
-    "Ozan Tufan",
-    "Oleksandr Zubkov",
-    "Umut Nayir",
-    "Şenol Güneş"
-  ];
+  const [isPublishingToFb, setIsPublishingToFb] = useState(false);
+  const SQUAD_PRESETS = SquadService.getCurrentSquad().map((p) => p.name);
+
+  const handlePublishToFacebook = async () => {
+    if (!renderedDataUrl) {
+      toast.error("Görsel henüz oluşturulmadı.");
+      return;
+    }
+    setIsPublishingToFb(true);
+    try {
+      const res = await publishCanvaDesignAction({
+        title,
+        subtitle,
+        category: selectedTemplate.category,
+        dataUrl: renderedDataUrl,
+      });
+      if (res.success) {
+        toast.success(`🎉 Canva tasarımı Facebook'ta başarıyla yayınlandı! (ID: ${res.postId})`);
+      } else {
+        toast.error(res.error || "Facebook yayını başarısız oldu.");
+      }
+    } catch (e: any) {
+      toast.error("Facebook yayını sırasında bir hata oluştu.");
+    } finally {
+      setIsPublishingToFb(false);
+    }
+  };
 
   const handleOpenInCanva = () => {
     const url = CanvaService.generateDirectEditorUrl(selectedTemplate, title);
@@ -319,6 +333,19 @@ export function CanvaStudioModal({
 
             {/* Eylem Butonları */}
             <div className="space-y-2 pt-1">
+              <Button
+                onClick={handlePublishToFacebook}
+                disabled={isPublishingToFb}
+                className="w-full bg-[#164E7A] hover:bg-[#123E62] text-white font-bold text-xs h-10 shadow-md flex items-center justify-center gap-2 transition-all"
+              >
+                {isPublishingToFb ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-sky-300" />
+                ) : (
+                  <Send className="w-4 h-4 text-sky-300" />
+                )}
+                {isPublishingToFb ? "Facebook'ta Yayınlanıyor..." : "Facebook'ta Hemen Yayınla (1-Tık)"}
+              </Button>
+
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   onClick={handleDownloadHD}

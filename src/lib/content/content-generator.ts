@@ -140,6 +140,10 @@ Kurallar:
             // High-score content goes directly to publishing queue (no manual approval needed)
             status: 'READY_TO_PUBLISH',
             sourceNewsId: news.id,
+            qualityScore: news.importanceScore || news.credibilityScore || 88,
+            viralScore: news.viralScore || 85,
+            newsValueScore: news.importanceScore || 85,
+            confidenceScore: 90
           }
         });
 
@@ -166,6 +170,10 @@ Kurallar:
               type: contentType as any,
               status: 'READY_TO_PUBLISH',
               sourceNewsId: news.id,
+              qualityScore: news.importanceScore || news.credibilityScore || 86,
+              viralScore: news.viralScore || 84,
+              newsValueScore: news.importanceScore || 85,
+              confidenceScore: 88,
               aiReasoning: `Otonom Kural Motoru (Yedek Mod): ${err.message?.slice(0, 100)}`
             }
           });

@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { prisma } from "@/lib/db";
 import ContentClient from "./ContentClient";
 
@@ -11,7 +11,11 @@ export default async function ContentPage() {
     },
     include: {
       sourceNews: {
-        select: { title: true }
+        select: { title: true, importanceScore: true, viralScore: true }
+      },
+      analytics: {
+        orderBy: { recordedAt: 'desc' },
+        take: 1
       }
     },
     orderBy: { createdAt: "desc" },
