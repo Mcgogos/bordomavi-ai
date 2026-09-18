@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { TRABZONSPOR_CANVA_TEMPLATES, CanvaTemplate, CanvaService } from "@/lib/canva/canva-service";
 import { CanvaAutoDesigner } from "@/lib/canva/canva-auto-designer";
 import { BORDOMAVI_BRAND_LOGO_DATA_URI } from "@/lib/canva/brand-logo-data";
+import { SquadService } from "@/lib/squad/squad-service";
 import { publishCanvaDesignAction } from "@/app/(dashboard)/media/actions";
 import { toast } from "sonner";
 
@@ -300,6 +301,54 @@ export function CanvaStudioModal({
                   className="text-xs h-9"
                   placeholder="Açıklama veya detay..."
                 />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-foreground">Futbolcu / Özne (Hızlı Seçim — Güncel 2026/2027 Kadrosu)</label>
+                  {playerName && (
+                    <button
+                      type="button"
+                      onClick={() => setPlayerName("")}
+                      className="text-[10px] text-rose-500 hover:text-rose-400 font-bold transition-colors"
+                    >
+                      Temizle
+                    </button>
+                  )}
+                </div>
+                <Input
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  className="text-xs h-9 mb-1.5"
+                  placeholder="Örn: Simon Banza, Anthony Nwakaeme, Edin Vişça, Thomas Reis..."
+                />
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+                  {SquadService.getCurrentSquad().map((player) => (
+                    <button
+                      key={player.name}
+                      type="button"
+                      onClick={() => setPlayerName(player.name)}
+                      className={`text-[10px] px-2 py-0.5 rounded-md border transition-all ${
+                        playerName === player.name
+                          ? "bg-amber-500/20 border-amber-500/40 text-amber-400 font-bold"
+                          : "bg-muted/40 border-border/60 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {player.name}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPlayerName(SquadService.getManager().name)}
+                    className={`text-[10px] px-2 py-0.5 rounded-md border transition-all ${
+                      playerName === SquadService.getManager().name
+                        ? "bg-amber-500/20 border-amber-500/40 text-amber-400 font-bold"
+                        : "bg-muted/40 border-border/60 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {SquadService.getManager().name} (TD)
+                  </button>
+                </div>
               </div>
             </div>
 
