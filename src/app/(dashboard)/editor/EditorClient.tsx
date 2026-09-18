@@ -30,6 +30,7 @@ export default function EditorClient({ initialContents }: { initialContents: any
   const [showAbModal, setShowAbModal] = useState(false);
   const [showReelModal, setShowReelModal] = useState(false);
   const [showCanvaModal, setShowCanvaModal] = useState(false);
+  const [customVisuals, setCustomVisuals] = useState<Record<string, string>>({});
 
   const selectedContent = contents.find(c => c.id === selectedId);
 
@@ -39,6 +40,50 @@ export default function EditorClient({ initialContents }: { initialContents: any
 
   // Risk & Sentiment analysis
   const riskAnalysis = EngagementEngine.analyzeRiskAndReputation(localTitle, localBody);
+
+  const detectCategory = (title: string, body: string) => {
+    const text = `${title} ${body}`.toLowerCase();
+    if (text.includes('transfer') || text.includes('imza') || text.includes('anlaşma')) return 'TRANSFER';
+    if (text.includes('maç günü') || text.includes('derbi') || text.includes('stadyum')) return 'MATCH_DAY';
+    if (text.includes('ilk 11') || text.includes('kadro')) return 'LINEUP';
+    if (text.includes('gol') || text.includes('skor') || text.includes('goool')) return 'GOAL';
+    if (text.includes('kırmızı kart') || text.includes('penaltı')) return 'PENALTY_CARD';
+    if (text.includes('maç sonucu') || text.includes('galibiyet') || text.includes('3 puan')) return 'RESULT';
+    if (text.includes('açıklama') || text.includes('thomas reis') || text.includes('reis')) return 'QUOTE';
+    if (text.includes('reels') || text.includes('story')) return 'REELS';
+    if (text.includes('kamuoyu') || text.includes('resmi açıklama')) return 'OFFICIAL';
+    return 'BREAKING';
+  };
+
+  const handleApplyCanvaDesign = async (data: { dataUrl: string; templateCategory: string; title: string; subtitle: string }) => {
+    if (!selectedId) return;
+
+    setCustomVisuals(prev => ({ ...prev, [selectedId]: data.dataUrl }));
+    if (data.title) setLocalTitle(data.title);
+    if (data.subtitle) setLocalBody(data.subtitle);
+
+    setIsSaving(true);
+    try {
+      const res = await saveContentAction(selectedId, {
+        title: data.title || localTitle,
+        body: data.subtitle || localBody,
+      });
+      if (res.success) {
+        toast.success("🎉 Canva tasarımı başarıyla bu gönderiye uygulandı ve kaydedildi!");
+        setContents(contents.map(c => 
+          c.id === selectedId 
+            ? { ...c, title: data.title || localTitle, body: data.subtitle || localBody }
+            : c
+        ));
+      }
+    } catch (e) {
+      console.error("Design save error:", e);
+    } finally {
+      setIsSaving(false);
+    }
+
+    setShowCanvaModal(false);
+  };
 
   // Sync local state when selected content changes
   useEffect(() => {
@@ -93,7 +138,8 @@ export default function EditorClient({ initialContents }: { initialContents: any
     try {
       const res = await publishContentDirectlyAction(selectedContent.id, {
         title: selectedContent.title,
-        body: selectedContent.body
+        body: selectedContent.body,
+        customImageUrl: selectedId ? customVisuals[selectedId] : undefined
       });
       
       if (res.success) {
@@ -417,13 +463,28 @@ export default function EditorClient({ initialContents }: { initialContents: any
                   {localBody || <span className="text-muted-foreground italic text-xs">Gönderi metni buraya gelecektir...</span>}
                 </div>
 
-                {/* Dynamic OG Image Preview */}
-                <div className="w-full aspect-video bg-muted border-y border-border/60 overflow-hidden relative">
-                   <img
-                      src={`/api/og?title=${encodeURIComponent(localTitle)}`}
-                      alt="Preview"
-                      className="object-cover w-full h-full"
-                    />
+                {/* Dynamic Visual Preview */}
+                <div className="w-full aspect-video bg-muted border-y border-border/60 overflow-hidden relative group">
+                   {selectedId && customVisuals[selectedId] ? (
+                     <>
+                       <img
+                          src={customVisuals[selectedId]}
+                          alt="AI Canva Design Preview"
+                          className="object-contain w-full h-full bg-slate-950"
+                        />
+                        <div className="absolute top-2 left-2 z-10">
+                          <span className="text-[10px] font-bold bg-emerald-600/95 text-white px-2.5 py-1 rounded-md shadow-md flex items-center gap-1.5 border border-emerald-400/30 backdrop-blur-xs">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-200" /> %100 AI Canva Tasarımı Aktif
+                          </span>
+                        </div>
+                     </>
+                   ) : (
+                     <img
+                        src={`/api/og?title=${encodeURIComponent(localTitle)}&template=${detectCategory(localTitle, localBody)}`}
+                        alt="Preview"
+                        className="object-cover w-full h-full"
+                      />
+                   )}
                 </div>
 
                 <div className="px-3.5 py-2 border-b border-border/60 flex justify-between items-center text-muted-foreground text-[11px]">
@@ -593,7 +654,9 @@ export default function EditorClient({ initialContents }: { initialContents: any
         isOpen={showCanvaModal}
         onClose={() => setShowCanvaModal(false)}
         initialTitle={localTitle}
-        initialSubtitle={localBody ? localBody.slice(0, 100) : "Trabzonspor flaş gündem"}
+        initialSubtitle={localBody ? localBody.slice(0, 120) : "Trabzonspor flaş gündem"}
+        initialCategory={detectCategory(localTitle, localBody) as any}
+        onApplyDesign={handleApplyCanvaDesign}
       />
     </div>
   );

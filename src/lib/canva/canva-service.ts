@@ -181,16 +181,7 @@ export class CanvaService {
    * Returns valid, working Canva create endpoints based on canvas dimensions and category
    */
   static getValidCanvaUrl(width: number, height: number, category?: string): string {
-    if (category === 'REELS' || (width === 1080 && height === 1920)) {
-      return 'https://www.canva.com/create/instagram-reels/';
-    }
-    if (category === 'MATCH_DAY' || height > width) {
-      return 'https://www.canva.com/create/posters/';
-    }
-    if (category === 'OFFICIAL' || (width === 1200 && height === 630)) {
-      return 'https://www.canva.com/create/facebook-posts/';
-    }
-    return 'https://www.canva.com/create/instagram-posts/';
+    return 'https://www.canva.com/';
   }
 
   /**

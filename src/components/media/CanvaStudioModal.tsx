@@ -5,7 +5,7 @@ import { X, ExternalLink, Copy, Check, Sparkles, Palette, Layers, Download, Bot,
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { TRABZONSPOR_CANVA_TEMPLATES, CanvaTemplate, CanvaService } from "@/lib/canva/canva-service";
+import { TRABZONSPOR_CANVA_TEMPLATES, CanvaTemplate, CanvaTemplateCategory, CanvaService } from "@/lib/canva/canva-service";
 import { CanvaAutoDesigner } from "@/lib/canva/canva-auto-designer";
 import { BORDOMAVI_BRAND_LOGO_DATA_URI } from "@/lib/canva/brand-logo-data";
 import { SquadService } from "@/lib/squad/squad-service";
@@ -17,15 +17,25 @@ interface CanvaStudioModalProps {
   onClose: () => void;
   initialTitle?: string;
   initialSubtitle?: string;
+  initialCategory?: CanvaTemplateCategory;
+  onApplyDesign?: (data: { dataUrl: string; templateCategory: string; title: string; subtitle: string }) => void;
 }
 
 export function CanvaStudioModal({
   isOpen,
   onClose,
   initialTitle = "TRABZONSPOR'DA FLAŞ GELİŞME!",
-  initialSubtitle = "Bordo-mavili kulüpten taraftarı heyecanlandıran önemli adım."
+  initialSubtitle = "Bordo-mavili kulüpten taraftarı heyecanlandıran önemli adım.",
+  initialCategory,
+  onApplyDesign,
 }: CanvaStudioModalProps) {
-  const [selectedTemplate, setSelectedTemplate] = useState<CanvaTemplate>(TRABZONSPOR_CANVA_TEMPLATES[0]);
+  const [selectedTemplate, setSelectedTemplate] = useState<CanvaTemplate>(() => {
+    if (initialCategory) {
+      const match = TRABZONSPOR_CANVA_TEMPLATES.find(t => t.category === initialCategory);
+      if (match) return match;
+    }
+    return TRABZONSPOR_CANVA_TEMPLATES[0];
+  });
   const [title, setTitle] = useState(initialTitle);
   const [subtitle, setSubtitle] = useState(initialSubtitle);
   const [playerName, setPlayerName] = useState("");
@@ -379,6 +389,28 @@ export function CanvaStudioModal({
         {/* Sabit Alt Eylem Çubuğu — Mobilde ve Masaüstünde Daima Görünür, 1-Tık Yayınla */}
         <div className="sticky bottom-0 z-30 px-4 sm:px-6 py-3 bg-card/95 backdrop-blur-md border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2.5 shadow-lg shrink-0">
           <div className="flex items-center gap-2 w-full sm:w-auto">
+            {onApplyDesign && (
+              <Button
+                onClick={() => {
+                  if (!renderedDataUrl) {
+                    toast.error("Görsel henüz oluşturulmadı.");
+                    return;
+                  }
+                  onApplyDesign({
+                    dataUrl: renderedDataUrl,
+                    templateCategory: selectedTemplate.category,
+                    title,
+                    subtitle
+                  });
+                }}
+                disabled={!renderedDataUrl}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 px-5 shadow-md flex items-center justify-center gap-2 transition-all"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                Tasarımı Gönderiye Uygula & Kaydet
+              </Button>
+            )}
+
             <Button
               onClick={handlePublishToFacebook}
               disabled={isPublishingToFb || !renderedDataUrl}

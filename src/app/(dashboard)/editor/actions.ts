@@ -37,7 +37,7 @@ export async function deleteContentAction(id: string) {
   }
 }
 
-export async function publishContentDirectlyAction(id: string, updates: { title?: string, body?: string }) {
+export async function publishContentDirectlyAction(id: string, updates: { title?: string, body?: string, customImageUrl?: string }) {
   try {
     const { FacebookService } = await import("@/services/facebook.service");
     
@@ -83,7 +83,7 @@ export async function publishContentDirectlyAction(id: string, updates: { title?
       templateCategory = 'OFFICIAL';
     }
 
-    const mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent((updatedContent.title || '').replace(/\*\*/g, '').trim())}&template=${encodeURIComponent(templateCategory)}`;
+    const mediaUrl = updates.customImageUrl || `${appUrl}/api/og?title=${encodeURIComponent((updatedContent.title || '').replace(/\*\*/g, '').trim())}&template=${encodeURIComponent(templateCategory)}`;
 
     // 3. Facebook'a gönder — content ID'yi lockKey olarak geçirerek aynı anda iki kez basılmasını engelle
     const publishResponse = await FacebookService.publishPost(messageBody, mediaUrl, id);
