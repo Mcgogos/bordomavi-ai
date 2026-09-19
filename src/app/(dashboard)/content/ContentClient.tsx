@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { 
   FileText, CheckCircle2, CalendarClock, Radio, Eye, Send, 
-  Trash, Filter, Search, Loader2, RefreshCw, ThumbsUp, MessageSquare, Share2, BarChart2
+  Trash, Filter, Search, Loader2, RefreshCw, ThumbsUp, MessageSquare, Share2, BarChart2, Users
 } from "lucide-react";
+import { FacebookGroupShareModal } from "@/components/social/FacebookGroupShareModal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,7 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
   const [isPublishing, setIsPublishing] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isSyncingStats, setIsSyncingStats] = useState(false);
+  const [groupSharePost, setGroupSharePost] = useState<any | null>(null);
 
   const handlePublishNow = async (id: string) => {
     setIsPublishing(id);
@@ -367,9 +369,14 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                         Hemen Yayınla
                       </Button>
                     ) : (
-                      <div className="col-span-2 flex items-center justify-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Yayında
-                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => setGroupSharePost(content)}
+                        className="col-span-2 h-8 text-xs font-bold bg-[#1877F2] hover:bg-[#166fe5] text-white shadow-xs flex items-center justify-center gap-1.5"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        Gruplarda Paylaş
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -474,7 +481,17 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                             Önizle
                           </Button>
 
-                          {content.status !== "PUBLISHED" && (
+                          {content.status === "PUBLISHED" ? (
+                            <Button
+                              size="sm"
+                              className="h-8 px-2.5 text-xs font-semibold bg-[#1877F2] text-white hover:bg-[#166fe5] shadow-xs flex items-center gap-1.5"
+                              onClick={() => setGroupSharePost(content)}
+                              title="Facebook Gruplarında Toplu Paylaş"
+                            >
+                              <Users className="w-3.5 h-3.5" />
+                              Gruplarda Paylaş
+                            </Button>
+                          ) : (
                             <Button
                               size="sm"
                               className="h-8 px-3 text-xs font-semibold bg-[#164E7A] text-white hover:bg-[#123E62] shadow-xs"
@@ -546,7 +563,19 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                 <Button variant="outline" onClick={() => setPreviewContent(null)} className="h-9 text-xs">
                   Kapat
                 </Button>
-                {previewContent?.status !== "PUBLISHED" && (
+                {previewContent?.status === "PUBLISHED" ? (
+                  <Button
+                    onClick={() => {
+                      const postToShare = previewContent;
+                      setPreviewContent(null);
+                      setGroupSharePost(postToShare);
+                    }}
+                    className="h-9 text-xs font-semibold bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center gap-1.5"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    Gruplarda Paylaş
+                  </Button>
+                ) : (
                   <Button
                     onClick={() => {
                       handlePublishNow(previewContent.id);
@@ -563,6 +592,13 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
           </div>
         </div>
       )}
+
+      {/* Facebook Gruplarında Toplu Paylaşım Asistanı Modalı */}
+      <FacebookGroupShareModal
+        isOpen={!!groupSharePost}
+        onClose={() => setGroupSharePost(null)}
+        post={groupSharePost}
+      />
     </div>
   );
 }

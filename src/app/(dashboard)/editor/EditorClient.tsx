@@ -6,7 +6,7 @@ import {
   LayoutTemplate, Globe, MoreHorizontal, ThumbsUp, MessageCircle, Share2, 
   Loader2, CheckCircle, Search, ExternalLink, ChevronRight,
   ShieldCheck, SplitSquareVertical, Film, Copy, X, Palette,
-  FileText, Edit
+  FileText, Edit, Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,10 +17,12 @@ import { toast } from "sonner";
 import { saveContentAction, deleteContentAction, publishContentDirectlyAction } from "./actions";
 import { EngagementEngine, ABHeadlineVariant } from "@/lib/ai/engagement-engine";
 import { CanvaStudioModal } from "@/components/media/CanvaStudioModal";
+import { FacebookGroupShareModal } from "@/components/social/FacebookGroupShareModal";
 
 export default function EditorClient({ initialContents }: { initialContents: any[] }) {
   const [contents, setContents] = useState(initialContents);
   const [selectedId, setSelectedId] = useState<string | null>(initialContents.length > 0 ? initialContents[0].id : null);
+  const [groupSharePost, setGroupSharePost] = useState<any | null>(null);
   
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -173,6 +175,13 @@ export default function EditorClient({ initialContents }: { initialContents: any
 
       if (res.success) {
         toast.success(`İçerik anında Facebook'ta yayınlandı! ${res.mockMode ? '(Mock Mode)' : ''}`);
+        const publishedPost = {
+          id: selectedContent.id,
+          title: selectedContent.title,
+          body: selectedContent.body,
+          facebookPostId: (res as any).data?.facebookPostId || (res as any).postId,
+        };
+        setGroupSharePost(publishedPost);
         setContents(contents.filter(c => c.id !== selectedContent.id));
         if (contents.length > 1) {
           const next = contents.find(c => c.id !== selectedContent.id);
@@ -774,6 +783,13 @@ export default function EditorClient({ initialContents }: { initialContents: any
         initialBody={localBody}
         initialCategory={detectCategory(localTitle, localBody) as any}
         onApplyDesign={handleApplyCanvaDesign}
+      />
+
+      {/* Facebook Gruplarında Toplu Paylaşım Asistanı Modalı */}
+      <FacebookGroupShareModal
+        isOpen={!!groupSharePost}
+        onClose={() => setGroupSharePost(null)}
+        post={groupSharePost}
       />
     </div>
   );
