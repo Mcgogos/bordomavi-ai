@@ -97,53 +97,85 @@ export class FacebookService {
         }
       }
 
-      // 2. Görsel Paylaşımı: Önce sunucuda fetch edip binary multipart olarak göndermeyi dene,
-      // böylece Facebook crawler'ının dış URL'leri indirirken zaman aşımına düşmesi önlenir.
-      if (mediaUrl) {
-        try {
-          let photoRes: Response | null = null;
-          try {
-            const imgFetch = await fetch(mediaUrl, { signal: AbortSignal.timeout(15_000) });
-            if (imgFetch.ok) {
-              const contentType = imgFetch.headers.get('content-type') || 'image/png';
-              if (contentType.includes('image')) {
-                const arrayBuf = await imgFetch.arrayBuffer();
-                const blob = new Blob([arrayBuf], { type: contentType });
-                const formData = new FormData();
-                formData.append('source', blob, 'post-visual.png');
-                formData.append('published', 'false');
-                formData.append('access_token', token);
+      // 2. Görsel Paylaşımı: Postta her zaman görsel olmasını garanti et.
+      // Eksikse veya remote URL çökerse, yerel kurumsal şablonla yedekle.
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://bordomavi-ai.vercel.app');
+      let effectiveMediaUrl = mediaUrl;
+      if (!effectiveMediaUrl) {
+        const firstLine = sanitizedMessage.split('\n')[0].replace(/[*#]/g, '').slice(0, 90).trim() || 'Trabzonspor Haber';
+        effectiveMediaUrl = `${baseUrl}/api/og?title=${encodeURIComponent(firstLine)}&template=BREAKING`;
+      } else if (effectiveMediaUrl.startsWith('/')) {
+        effectiveMediaUrl = `${baseUrl}${effectiveMediaUrl}`;
+      }
 
-                photoRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
-                  method: 'POST',
-                  body: formData,
-                  signal: AbortSignal.timeout(30_000),
-                });
-              }
-            }
-          } catch (binErr: any) {
-            console.warn('[Facebook] Direct binary fetch failed, falling back to URL upload:', binErr.message);
+      try {
+        let photoRes: Response | null = null;
+        try {
+          let imgFetch = await fetch(effectiveMediaUrl, { signal: AbortSignal.timeout(15_000) });
+          
+          // Eğer dış haber görseli hatası (403, 500, timeout vb.) dönerse ve URL'de imageUrl= varsa,
+          // dış görseli çıkarıp temiz kurumsal şablonu çağır.
+          if (!imgFetch.ok && /[?&]imageUrl=/.test(effectiveMediaUrl)) {
+            console.warn('[Facebook] Dış haber görseli yanıt vermedi, kurumsal BordoMavi şablonuna geçiliyor...');
+            const fallbackCleanUrl = effectiveMediaUrl
+              .replace(/([?&])imageUrl=[^&]*(&|$)/, '$1')
+              .replace(/[?&]$/, '');
+            imgFetch = await fetch(fallbackCleanUrl, { signal: AbortSignal.timeout(15_000) });
           }
 
-          // Fallback: URL ile doğrudan yükleme
-          if (!photoRes) {
-            photoRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
+          if (imgFetch.ok) {
+            const contentType = imgFetch.headers.get('content-type') || 'image/png';
+            if (contentType.includes('image')) {
+              const arrayBuf = await imgFetch.arrayBuffer();
+              const blob = new Blob([arrayBuf], { type: contentType });
+              const formData = new FormData();
+              formData.append('source', blob, 'post-visual.png');
+              formData.append('published', 'false');
+              formData.append('access_token', token);
+
+              photoRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
+                method: 'POST',
+                body: formData,
+                signal: AbortSignal.timeout(30_000),
+              });
+            }
+          }
+        } catch (binErr: any) {
+          console.warn('[Facebook] Direct binary fetch failed, trying URL upload fallback:', binErr.message);
+        }
+
+        // Fallback: URL ile doğrudan yükleme
+        if (!photoRes) {
+          photoRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: effectiveMediaUrl, published: false, access_token: token }),
+            signal: AbortSignal.timeout(30_000),
+          });
+        }
+
+        const photoData = await photoRes.json();
+        if (!photoData.error && photoData.id) {
+          payload.attached_media = [{ media_fbid: photoData.id }];
+        } else if (photoData.error) {
+          console.warn('[Facebook] Photo upload API error:', photoData.error.message);
+          // İkinci şans: Harici URL reddedildiyse doğrudan temiz şablon URL'si ile yüklemeyi dene
+          if (/[?&]imageUrl=/.test(effectiveMediaUrl)) {
+            const cleanUrl = effectiveMediaUrl.replace(/([?&])imageUrl=[^&]*(&|$)/, '$1').replace(/[?&]$/, '');
+            const retryRes = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: mediaUrl, published: false, access_token: token }),
-              signal: AbortSignal.timeout(30_000),
+              body: JSON.stringify({ url: cleanUrl, published: false, access_token: token }),
+              signal: AbortSignal.timeout(20_000),
             });
+            const retryData = await retryRes.json();
+            if (!retryData.error && retryData.id) {
+              payload.attached_media = [{ media_fbid: retryData.id }];
+            }
           }
-
-          const photoData = await photoRes.json();
-          if (!photoData.error && photoData.id) {
-            payload.attached_media = [{ media_fbid: photoData.id }];
-          } else if (photoData.error) {
-            console.warn('[Facebook] Photo upload API error:', photoData.error.message);
-          }
-        } catch (photoErr: any) {
-          console.warn('[Facebook] Görsel upload hatası, sadece metin gönderiliyor:', photoErr.message);
         }
+      } catch (photoErr: any) {
+        console.warn('[Facebook] Görsel yükleme işlemi başarısız:', photoErr.message);
       }
 
       const url = `${GRAPH_API_BASE}/${pageId}/feed`;

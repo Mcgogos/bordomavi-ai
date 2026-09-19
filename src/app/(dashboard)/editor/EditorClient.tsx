@@ -18,6 +18,7 @@ import { saveContentAction, deleteContentAction, publishContentDirectlyAction } 
 import { EngagementEngine, ABHeadlineVariant } from "@/lib/ai/engagement-engine";
 import { CanvaStudioModal } from "@/components/media/CanvaStudioModal";
 import { FacebookGroupShareModal } from "@/components/social/FacebookGroupShareModal";
+import { BORDOMAVI_BRAND_LOGO_DATA_URI } from "@/lib/canva/brand-logo-data";
 
 export default function EditorClient({ initialContents }: { initialContents: any[] }) {
   const [contents, setContents] = useState(initialContents);
@@ -562,10 +563,8 @@ export default function EditorClient({ initialContents }: { initialContents: any
                 <div className="bg-card border border-border/80 rounded-xl shadow-sm w-full overflow-hidden text-left">
                   <div className="p-3 sm:p-3.5 flex items-center justify-between border-b border-border/40">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary to-[#164E7A] p-0.5 flex items-center justify-center shadow-xs">
-                        <div className="w-full h-full rounded-full bg-primary flex items-center justify-center font-bold text-white text-xs">
-                          BM
-                        </div>
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-amber-500/40 p-0.5 flex items-center justify-center shadow-xs overflow-hidden bg-white">
+                        <img src={BORDOMAVI_BRAND_LOGO_DATA_URI} alt="BordoMavi" className="w-full h-full object-contain rounded-full" />
                       </div>
                       <div>
                         <div className="flex items-center gap-1">
@@ -602,11 +601,18 @@ export default function EditorClient({ initialContents }: { initialContents: any
                         </div>
                       </>
                     ) : (
-                      <img
-                        src={`/api/og?title=${encodeURIComponent(localTitle)}&template=${detectCategory(localTitle, localBody)}`}
-                        alt="Preview"
-                        className="object-cover w-full h-full"
-                      />
+                      <>
+                        <img
+                          src={`/api/og?title=${encodeURIComponent(localTitle)}&template=${detectCategory(localTitle, localBody)}${selectedContent?.sourceNews?.imageUrl ? `&imageUrl=${encodeURIComponent(selectedContent.sourceNews.imageUrl)}` : ''}`}
+                          alt="Preview"
+                          className="object-cover w-full h-full"
+                        />
+                        <div className="absolute top-2 right-2 z-10">
+                          <span className="text-[10px] font-bold bg-black/75 text-amber-300 px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 border border-amber-500/40 backdrop-blur-xs">
+                            <span>★</span> Orijinal Logo Aktif
+                          </span>
+                        </div>
+                      </>
                     )}
                   </div>
 

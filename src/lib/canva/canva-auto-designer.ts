@@ -170,6 +170,7 @@ export class CanvaAutoDesigner {
     ctx.stroke();
 
     const logoToDraw = options.logoImage || cachedUserLogo;
+    let logoDrawn = false;
     if (logoToDraw && (logoToDraw as HTMLImageElement).complete && (logoToDraw as HTMLImageElement).naturalWidth > 0) {
       ctx.save();
       ctx.beginPath();
@@ -177,19 +178,44 @@ export class CanvaAutoDesigner {
       ctx.clip();
       ctx.drawImage(logoToDraw, logoX, logoY, logoBoxSize, logoBoxSize);
       ctx.restore();
-    } else {
-      try {
-        const directLogo = new Image();
-        directLogo.src = BORDOMAVI_BRAND_LOGO_DATA_URI;
-        if (directLogo.complete && directLogo.naturalWidth > 0) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(logoX + logoBoxSize / 2, logoY + logoBoxSize / 2, logoBoxSize / 2, 0, Math.PI * 2);
-          ctx.clip();
-          ctx.drawImage(directLogo, logoX, logoY, logoBoxSize, logoBoxSize);
-          ctx.restore();
-        }
-      } catch {}
+      logoDrawn = true;
+    }
+
+    if (!logoDrawn) {
+      // Fail-safe kurumsal arma: Görsel decode edilene kadar asla boş kalmaz
+      const cx = logoX + logoBoxSize / 2;
+      const cy = logoY + logoBoxSize / 2;
+      const r = logoBoxSize / 2;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.clip();
+
+      // Sol yarı: Bordo (#7B0F1C)
+      ctx.fillStyle = "#7B0F1C";
+      ctx.beginPath();
+      ctx.rect(logoX, logoY, logoBoxSize / 2, logoBoxSize);
+      ctx.fill();
+
+      // Sağ yarı: Karadeniz Mavisi (#2E8BC9)
+      ctx.fillStyle = "#2E8BC9";
+      ctx.beginPath();
+      ctx.rect(cx, logoY, logoBoxSize / 2, logoBoxSize);
+      ctx.fill();
+
+      // Merkezde Altın Yıldız ve BordoMavi Yazısı
+      ctx.fillStyle = "#F59E0B";
+      ctx.font = `bold ${Math.round(logoBoxSize * 0.22)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("★", cx, cy - logoBoxSize * 0.16);
+
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = `900 ${Math.round(logoBoxSize * 0.16)}px sans-serif`;
+      ctx.fillText("BORDO", cx, cy + logoBoxSize * 0.05);
+      ctx.fillText("MAVİ", cx, cy + logoBoxSize * 0.22);
+      ctx.restore();
     }
     ctx.restore();
 

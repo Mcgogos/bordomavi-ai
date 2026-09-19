@@ -4,9 +4,16 @@ $LogFile = "$ProjectDir\sync-news-cron.log"
 $EnvFile = "$ProjectDir\.env"
 
 if (Test-Path $LockFile) {
-    $msg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WARN] Another instance is already running. Exiting."
-    Add-Content -Path $LogFile -Value $msg
-    exit
+    $lockAge = (Get-Date) - (Get-Item $LockFile).LastWriteTime
+    if ($lockAge.TotalMinutes -gt 15) {
+        $msgStale = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WARN] Stale lock file detected (age: $([math]::Round($lockAge.TotalMinutes, 1)) mins). Auto-removing lock."
+        Add-Content -Path $LogFile -Value $msgStale
+        Remove-Item -Path $LockFile -Force
+    } else {
+        $msg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WARN] Another instance is already running (started $([math]::Round($lockAge.TotalMinutes, 1)) mins ago). Exiting."
+        Add-Content -Path $LogFile -Value $msg
+        exit
+    }
 }
 
 New-Item -Path $LockFile -ItemType File -Force | Out-Null

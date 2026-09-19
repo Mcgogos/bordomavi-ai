@@ -2,8 +2,7 @@ import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
 import { CorporateVisualEngine } from '@/services/visual/CorporateVisualEngine';
 import { TemplateSelector, VisualTemplateType } from '@/services/visual/TemplateSelector';
-import fs from 'fs';
-import path from 'path';
+import { BORDOMAVI_BRAND_LOGO_DATA_URI } from '@/lib/canva/brand-logo-data';
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,17 +26,35 @@ export async function GET(request: NextRequest) {
     const canvasWidth = 1200;
     const canvasHeight = 630;
     
-    // 3. Setup Architecture Tools
-    const logoConfig = CorporateVisualEngine.getLogoConfig(canvasWidth, canvasHeight);
-    
-    // Logo'yu Node.js fs ile okuyalim (ArrayBuffer Satori tarafindan desteklenir)
-    const logoPath = path.join(process.cwd(), 'public/assets/brand/bordomavi-logo.png');
-    let logoDataUrl = '';
-    try {
-      const logoBuffer = fs.readFileSync(logoPath);
-      logoDataUrl = `data:image/png;base64,${logoBuffer.toString('base64')}`;
-    } catch (e) {
-      console.error("Logo okunamadi:", e);
+    // 3. Kullanıcının Orijinal BordoMavi Logosu (Bellek içi Base64 - Sıfır fs / Sıfır Vercel hatası)
+    const logoDataUrl = BORDOMAVI_BRAND_LOGO_DATA_URI;
+
+    // 4. Harici Haber Görselini Güvenli İndirme (WebP / 403 / Timeout Koruması)
+    let safeExternalImageDataUrl: string | null = null;
+    if (externalImageUrl) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const imgRes = await fetch(externalImageUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/jpeg,image/png,image/*;q=0.8'
+          },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (imgRes.ok) {
+          const contentType = (imgRes.headers.get('content-type') || '').toLowerCase();
+          // Satori data-uri olarak JPEG ve PNG'yi kusursuz işler
+          if (contentType.includes('jpeg') || contentType.includes('jpg') || contentType.includes('png')) {
+            const arrayBuffer = await imgRes.arrayBuffer();
+            const mime = contentType.includes('png') ? 'image/png' : 'image/jpeg';
+            safeExternalImageDataUrl = `data:${mime};base64,${Buffer.from(arrayBuffer).toString('base64')}`;
+          }
+        }
+      } catch (e) {
+        console.warn("[OG Route] Harici görsel indirilemedi, kurumsal dinamik zemin kullanılıyor:", e);
+      }
     }
 
     return new ImageResponse(
@@ -54,11 +71,11 @@ export async function GET(request: NextRequest) {
             fontFamily: 'sans-serif'
           }}
         >
-          {/* EXTERNAL IMAGE BACKGROUND (If Available) */}
-          {externalImageUrl ? (
+          {/* EXTERNAL IMAGE BACKGROUND (If Available & Verified Safe) */}
+          {safeExternalImageDataUrl ? (
             <>
               <img 
-                src={externalImageUrl} 
+                src={safeExternalImageDataUrl} 
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -239,26 +256,31 @@ export async function GET(request: NextRequest) {
             </div>
           </div>
 
-          {/* BRANDING ENGINE (Bottom Right Logo) */}
+          {/* BRANDING ENGINE (Sağ Alt: Kullanıcının Orijinal Dairesel BordoMavi Logosu) */}
           {logoDataUrl && (
             <div style={{
               position: 'absolute',
-              bottom: '32px',
-              right: '40px',
+              bottom: '36px',
+              right: '48px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: 'rgba(255,255,255,0.92)',
-              borderRadius: '16px',
-              padding: '10px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-              zIndex: 10
+              backgroundColor: '#FFFFFF',
+              borderRadius: '9999px',
+              border: '3px solid #F59E0B',
+              padding: '8px',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.7)',
+              zIndex: 15
             }}>
               <img
                 src={logoDataUrl}
-                width={150}
-                height={150}
-                style={{ display: 'block' }}
+                width={136}
+                height={136}
+                style={{ 
+                  display: 'block',
+                  borderRadius: '9999px',
+                  objectFit: 'contain'
+                }}
               />
             </div>
           )}
@@ -282,7 +304,45 @@ export async function GET(request: NextRequest) {
       }
     );
   } catch (error) {
-    console.error('OG Image Generation Error:', error);
-    return new Response('Failed to generate image', { status: 500 });
+    console.error('OG Image Generation Error (Failsafe activated):', error);
+    // Asla 500 dönme! Facebook'un ve uygulamanın görselsiz kalmaması için garantili kurumsal görsel üret.
+    return new ImageResponse(
+      (
+        <div style={{
+          height: '100%',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          background: 'linear-gradient(135deg, #7B0F1C 0%, #121E35 60%, #2E8BC9 100%)',
+          color: '#FFFFFF',
+          padding: '60px',
+          fontFamily: 'sans-serif',
+          position: 'relative'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '9999px',
+            border: '4px solid #F59E0B',
+            padding: '12px',
+            marginBottom: '30px',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.6)'
+          }}>
+            <img src={BORDOMAVI_BRAND_LOGO_DATA_URI} width={130} height={130} style={{ borderRadius: '9999px' }} />
+          </div>
+          <h1 style={{ fontSize: '48px', fontWeight: '900', textAlign: 'center', margin: '0 0 20px 0' }}>
+            BordoMavi Özel Haber
+          </h1>
+          <p style={{ fontSize: '24px', fontWeight: '700', color: '#38BDF8', margin: 0 }}>
+            #Trabzonspor #BordoMavi
+          </p>
+        </div>
+      ),
+      { width: 1200, height: 630 }
+    );
   }
 }

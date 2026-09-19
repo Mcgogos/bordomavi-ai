@@ -304,17 +304,34 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                     </span>
                   </div>
 
-                  {/* Başlık */}
-                  <h3 className="font-bold text-xs text-foreground leading-snug">
-                    {titleClean}
-                  </h3>
-
-                  {/* Kaynak */}
-                  {content.sourceNews?.title && (
-                    <p className="text-[11px] text-muted-foreground line-clamp-1 italic">
-                      Kaynak: {cleanText(content.sourceNews.title)}
-                    </p>
-                  )}
+                  {/* Başlık ve Görsel Thumbnail */}
+                  <div className="flex gap-3 items-start">
+                    <div
+                      onClick={() => setPreviewContent(content)}
+                      className="w-16 h-12 rounded-lg shrink-0 overflow-hidden border border-border/80 bg-muted cursor-pointer relative group"
+                      title="Görseli önizle"
+                    >
+                      <img
+                        src={`/api/og?title=${encodeURIComponent(titleClean)}&summary=${encodeURIComponent((content.body || '').slice(0, 100))}${content.sourceNews?.imageUrl ? `&imageUrl=${encodeURIComponent(content.sourceNews.imageUrl)}` : ''}`}
+                        alt={titleClean}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Eye className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-xs text-foreground leading-snug line-clamp-2">
+                        {titleClean}
+                      </h3>
+                      {content.sourceNews?.title && (
+                        <p className="text-[11px] text-muted-foreground line-clamp-1 italic mt-0.5">
+                          Kaynak: {cleanText(content.sourceNews.title)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
                   {/* Facebook Canlı İstatistikleri (Yayınlandıysa) */}
                     {latestAnalytics ? (
@@ -390,6 +407,7 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
           <Table className="w-full">
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/80">
+                <TableHead className="w-16 font-bold text-xs uppercase tracking-wider text-muted-foreground py-3 pl-4">Görsel</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground py-3">İçerik Başlığı</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Kaynak</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Durum</TableHead>
@@ -402,7 +420,7 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
             <TableBody>
               {filteredContent.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-xs text-muted-foreground">
+                  <TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground">
                     Görüntülenecek içerik bulunamadı.
                   </TableCell>
                 </TableRow>
@@ -414,6 +432,23 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
 
                   return (
                     <TableRow key={content.id} className="hover:bg-muted/20 transition-colors border-b border-border/60">
+                      <TableCell className="w-16 py-3.5 pl-4 pr-0">
+                        <div 
+                          onClick={() => setPreviewContent(content)}
+                          className="w-14 h-9 rounded-md overflow-hidden border border-border/80 bg-muted cursor-pointer hover:opacity-85 transition-opacity relative group"
+                          title="Görseli ve logoyu büyüt"
+                        >
+                          <img
+                            src={`/api/og?title=${encodeURIComponent(titleClean)}&summary=${encodeURIComponent((content.body || '').slice(0, 100))}${content.sourceNews?.imageUrl ? `&imageUrl=${encodeURIComponent(content.sourceNews.imageUrl)}` : ''}`}
+                            alt={titleClean}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <Eye className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell className="max-w-[320px] py-3.5">
                         <span className="text-xs font-semibold text-foreground block line-clamp-2 leading-relaxed">
                           {titleClean}
@@ -551,6 +586,18 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
               </button>
             </div>
             <div className="space-y-4 pt-1">
+              {/* Yayınlanacak Kart ve Logo Önizlemesi */}
+              <div className="relative rounded-xl overflow-hidden border border-border/80 bg-black/40 aspect-video flex items-center justify-center shadow-md group">
+                <img
+                  src={`/api/og?title=${encodeURIComponent(cleanText(previewContent?.title))}&summary=${encodeURIComponent((cleanText(previewContent?.body) || '').slice(0, 150))}${previewContent?.sourceNews?.imageUrl ? `&imageUrl=${encodeURIComponent(previewContent.sourceNews.imageUrl)}` : ''}`}
+                  alt={cleanText(previewContent?.title)}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-3 right-3 bg-black/75 backdrop-blur-md px-3 py-1 rounded-full text-[11px] text-amber-400 font-bold border border-amber-500/50 flex items-center gap-1.5 shadow-lg">
+                  <span className="text-amber-300">★</span> Orijinal BordoMavi Logolu
+                </div>
+              </div>
+
               <div className="p-4 rounded-xl bg-muted/40 border border-border/80 text-xs leading-relaxed whitespace-pre-line text-foreground">
                 {cleanText(previewContent?.body)}
               </div>
