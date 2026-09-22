@@ -6,22 +6,24 @@ import { Button } from "@/components/ui/button";
 import { testProviderAction } from "./actions";
 
 export default function AiProvidersSettings() {
-  const [testingGemini, setTestingGemini] = useState(false);
-  const [geminiResult, setGeminiResult] = useState<string | null>(null);
+  const [testingNvidia, setTestingNvidia] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
-  const handleTest = async (provider: "gemini") => {
-    setTestingGemini(true);
-    setGeminiResult(null);
+  const handleTest = async () => {
+    setTestingNvidia(true);
+    setTestResult(null);
 
     try {
-      const res = await testProviderAction(provider);
-      if (provider === "gemini") {
-        setGeminiResult(res.success ? `SUCCESS Gemini API baglantisi basarili\nResponse time: ${res.time}ms` : `ERROR Gemini API baglantisi basarisiz\nHata: ${res.error}`);
-      }
+      const res = await testProviderAction();
+      setTestResult(
+        res.success 
+          ? `✅ BAŞARILI: NVIDIA NIM / Açık Kaynak AI motoru devrede!\nModel Yanıtı: "${res.result}"\nYanıt Süresi: ${res.time}ms` 
+          : `❌ HATA: Bağlantı kurulamadı: ${res.error}`
+      );
     } catch (e: any) {
-      setGeminiResult(`ERROR Hata: ${e.message}`);
+      setTestResult(`❌ HATA: ${e.message}`);
     } finally {
-      setTestingGemini(false);
+      setTestingNvidia(false);
     }
   };
 
@@ -31,13 +33,13 @@ export default function AiProvidersSettings() {
         <CardHeader className="border-b border-border/60 bg-muted/20 pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-base font-bold text-foreground">Google Gemini Yapay Zeka Servisi</CardTitle>
+              <CardTitle className="text-base font-bold text-foreground">NVIDIA NIM & Açık Kaynak Yapay Zeka Motoru</CardTitle>
               <CardDescription className="text-xs">
-                Ana editoryal içerik üretimi, dil modeli ve önem skoru analizi (Gemini Flash)
+                Llama 3.2 11B Vision, Nemotron-3 Super 120B/550B ve OpenRouter Yük Dengeleme Ağı (Gemini API kotası harcanmaz)
               </CardDescription>
             </div>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-              API Aktif
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+              NVIDIA NIM Aktif
             </span>
           </div>
         </CardHeader>
@@ -45,20 +47,20 @@ export default function AiProvidersSettings() {
           <Button 
             variant="outline" 
             size="sm"
-            disabled={testingGemini}
-            onClick={() => handleTest("gemini")}
+            disabled={testingNvidia}
+            onClick={handleTest}
             className="h-8 text-xs font-semibold border-border/80"
           >
-            {testingGemini ? "Bağlantı Test Ediliyor..." : "Gemini API Bağlantısını Test Et"}
+            {testingNvidia ? "NVIDIA Motoru Test Ediliyor..." : "NVIDIA NIM Bağlantısını Test Et"}
           </Button>
 
-          {geminiResult && (
+          {testResult && (
             <div className={`text-xs p-3.5 rounded-xl border whitespace-pre-wrap leading-relaxed font-mono ${
-              geminiResult.includes('SUCCESS') 
+              testResult.includes('BAŞARILI') 
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' 
                 : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400'
             }`}>
-              {geminiResult}
+              {testResult}
             </div>
           )}
         </CardContent>

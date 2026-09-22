@@ -129,7 +129,7 @@ export default async function DashboardPage() {
           <div className="space-y-3">
             {[
               { label: "Haber Toplama (RSS)", status: "Aktif", ok: true },
-              { label: "AI Analiz (Gemini)", status: "Aktif", ok: true },
+              { label: "AI Analiz (NVIDIA NIM)", status: "Aktif", ok: true },
               { label: "İçerik Üretimi", status: "Aktif", ok: true },
               { label: "Facebook Yayını", status: "Aktif", ok: true },
               { label: "Yayınlanmayı Bekleyen", status: `${readyContent} içerik`, ok: readyContent > 0 },

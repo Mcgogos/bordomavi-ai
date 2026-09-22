@@ -53,13 +53,13 @@ export async function deleteNewsSource(id: string) {
   }
 }
 
-export async function testProviderAction(providerName: "gemini") {
+export async function testProviderAction(providerName?: string) {
   try {
-    const provider = new (await import("@/services/ai/gemini.provider")).GeminiProvider();
+    const provider = new (await import("@/services/ai/nvidia.provider")).NvidiaProvider();
     
     const startTime = Date.now();
     const result = await provider.generateContent(
-      "Bana Trabzonspor hakkinda kisa bir slogan yaz."
+      "Bana Trabzonspor hakkinda kisa ve etkili bir slogan yaz."
     );
     const endTime = Date.now();
 
