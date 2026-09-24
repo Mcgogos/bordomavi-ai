@@ -14,7 +14,7 @@ export interface ReelScene {
 
 export interface SuggestedVisual {
   id: string;
-  type: 'NEWS' | 'PLAYER' | 'STADIUM' | 'CANVA';
+  type: 'NEWS' | 'PLAYER' | 'STADIUM' | 'FANS' | 'ACTION' | 'CANVA';
   label: string;
   url: string;
   description: string;
@@ -30,21 +30,20 @@ export interface GeneratedReel {
   facebookCaption: string;
 }
 
-// Curated high quality vertical action visuals for Trabzonspor entities
-const ENTITY_VISUALS: Record<string, string> = {
-  'thomas_reis': 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1080&q=80',
-  'simon_banza': 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1080&q=80',
-  'stefan_savic': 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1080&q=80',
-  'ugurcan_cakir': 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1080&q=80',
-  'edin_visca': 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1080&q=80',
-  'anthony_nwakaeme': 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=1080&q=80',
-  'papara_park': 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1080&q=80',
-  'transfer': 'https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&w=1080&q=80',
+// 9:16 Dikey Formatlı Yüksek Çözünürlüklü Tematik Trabzonspor & Futbol Arka Plan Havuzu
+const CURATED_VERTICAL_SLIDES = {
+  stadium: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1080&h=1920&q=80',
+  fans: 'https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1080&h=1920&q=80',
+  playerAction: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1080&h=1920&q=80',
+  celebration: 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1080&h=1920&q=80',
+  pitchNight: 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1080&h=1920&q=80',
+  transferBall: 'https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&w=1080&h=1920&q=80',
+  tactics: 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1080&h=1920&q=80',
 };
 
 /**
- * Verilen haber metnini 15-20 saniyelik profesyonel dikey Reels senaryosuna dönüştürür.
- * Sahne sahne dinamik seslendirme metni ve internet görsel önerileri üretir.
+ * Haberin içeriğini Reels süresine (~20 saniye) göre özetleyen,
+ * eksiksiz ve akıcı tek parça Türkçe seslendirme senaryosu ve 5-6 görselli slayt havuzu üreten motor.
  */
 export function generateDynamicReelScript(params: {
   title: string;
@@ -53,73 +52,92 @@ export function generateDynamicReelScript(params: {
   imageUrl?: string;
 }): GeneratedReel {
   const cleanTitle = sanitizePlainText(params.title || '');
-  const cleanBody = sanitizePlainText(params.body || params.summary || '');
+  let cleanBody = sanitizePlainText(params.body || params.summary || '');
+  
+  // Dış bağlantı ve "devamı için..." kalıntılarını temizle
+  cleanBody = cleanBody
+    .replace(/(haberin\s+)?(devamı|ayrıntıları|detayları)\s+için\s+(tıklayınız|tıklayın|buraya\s+tıklayın)[\.\…]*/gi, '')
+    .replace(/\b(devamı|detaylar)\s+için\s+tıklayın\b/gi, '')
+    .replace(/\bdevamı\s+için\b/gi, '')
+    .trim();
+
   const combinedText = `${cleanTitle} ${cleanBody}`.toLowerCase();
 
   // 1. Kategori ve Konu Tespiti
   let category = 'NEWS';
   let hookTitle = '🔥 Trabzonspor\'da Flaş Gelişme!';
-  let hookSpeech = 'Trabzonspor\'da yer yerinden oynuyor! İşte son dakika haberinin perde arkası:';
-  let detectedEntityKey = 'papara_park';
+  let hookSpeech = 'Trabzonspor\'da yer yerinden oynuyor! Bordo-mavili kulüpte sıcak saatler yaşanıyor.';
+  let mainEntity = 'Trabzonspor';
 
   if (combinedText.includes('transfer') || combinedText.includes('imza') || combinedText.includes('bonservis') || combinedText.includes('anlaşma')) {
     category = 'TRANSFER';
     hookTitle = '🚨 Bordo-Mavi\'de Transfer Bombası!';
-    hookSpeech = 'Bordo-Mavi renklere gönül verenler ekran başına! İşte Trabzonspor\'un yeni transfer hamlesi:';
-    detectedEntityKey = 'transfer';
+    hookSpeech = 'Bordo-Mavili renklere gönül verenler ekran başına! Trabzonspor\'da flaş bir transfer hamlesi gerçekleşti.';
+    mainEntity = 'transfer';
   } else if (combinedText.includes('thomas reis') || combinedText.includes('reis') || combinedText.includes('teknik direktör')) {
     category = 'COACH';
     hookTitle = '⚡ Thomas Reis\'ten Tarihi Karar!';
-    hookSpeech = 'Teknik direktörümüz Thomas Reis son kararını verdi! İşte o flaş açıklama:';
-    detectedEntityKey = 'thomas_reis';
+    hookSpeech = 'Teknik direktörümüz Thomas Reis son kararını verdi. Bordo-Mavili kulüpte önemli gelişmeler var.';
+    mainEntity = 'Thomas Reis';
   } else if (combinedText.includes('savic') || combinedText.includes('saviç')) {
     category = 'DEFENSE';
-    hookTitle = '🛡️ Stefan Savić\'ten Sıcak Haber!';
-    hookSpeech = 'Savunmanın lideri Stefan Saviç hakkında önemli gelişme! İşte detaylar:';
-    detectedEntityKey = 'stefan_savic';
+    hookTitle = '🛡️ Stefan Savić Gündemde!';
+    hookSpeech = 'Savunmanın tecrübeli lideri Stefan Saviç hakkında önemli son dakika gelişmesi yaşandı.';
+    mainEntity = 'Stefan Savić';
   } else if (combinedText.includes('banza')) {
     category = 'STRIKER';
     hookTitle = '⚽ Simon Banza\'dan Çarpıcı Mesaj!';
-    hookSpeech = 'Golcü santrforumuz Simon Banza hakkında sıcak saatler! İşte yaşananlar:';
-    detectedEntityKey = 'simon_banza';
+    hookSpeech = 'Golcü santrforumuz Simon Banza hakkında sıcak gelişmeler var. Taraftarlar heyecanla takip ediyor.';
+    mainEntity = 'Simon Banza';
   } else if (combinedText.includes('uğurcan') || combinedText.includes('ugurcan')) {
     category = 'KEEPER';
     hookTitle = '🧤 Kaptan Uğurcan Çakır Gündemde!';
-    hookSpeech = 'Kaptanımız Uğurcan Çakır ile ilgili flaş gelişme! İşte kulislerden sızan ilk bilgiler:';
-    detectedEntityKey = 'ugurcan_cakir';
+    hookSpeech = 'Kaptanımız Uğurcan Çakır ile ilgili flaş kulis bilgileri ortaya çıktı.';
+    mainEntity = 'Uğurcan Çakır';
   } else if (combinedText.includes('nwakaeme') || combinedText.includes('tony')) {
     category = 'ATTACK';
     hookTitle = '🪄 Anthony Nwakaeme Sahnede!';
-    hookSpeech = 'Sihirbaz Anthony Nwakaeme\'den Bordo-Mavili taraftarları heyecanlandıran haber:';
-    detectedEntityKey = 'anthony_nwakaeme';
+    hookSpeech = 'Sihirbaz Anthony Nwakaeme Bordo-Mavili taraftarları yeniden heyecanlandırdı.';
+    mainEntity = 'Anthony Nwakaeme';
   } else if (combinedText.includes('sakat') || combinedText.includes('tedavi') || combinedText.includes('ameliyat')) {
     category = 'INJURY';
     hookTitle = '⚠️ Fırtına\'da Revir Alarmı!';
-    hookSpeech = 'Trabzonspor sağlık heyetinden son dakika bilgilendirmesi yapıldı:';
+    hookSpeech = 'Trabzonspor sağlık heyetinden kritik bir bilgilendirme yapıldı.';
   }
 
-  // 2. Sahne Metinlerini Özetleme (Reels Zamanlama Prensibi)
-  // Sahne 2: Manşet & İlk Detay (3-8 sn)
-  const scene2Caption = cleanTitle;
-  const scene2Speech = cleanTitle.length > 90 ? cleanTitle.substring(0, 90) + '...' : cleanTitle;
+  // 2. Akıcı ve Doyurucu Konuşma Metni Hazırlığı (Kesintisiz Türkçe TTS için tek parça)
+  // Haber gövdesinden en kilit 1-2 cümleyi damıt
+  let coreFact = cleanTitle;
+  if (coreFact.length > 100) coreFact = coreFact.slice(0, 95) + '...';
 
-  // Sahne 3: Perde Arkası (8-14 sn)
-  let scene3Caption = cleanBody.length > 120 ? cleanBody.substring(0, 120) + '...' : cleanBody;
-  if (!scene3Caption || scene3Caption === scene2Caption) {
-    scene3Caption = 'Bordo-Mavili kulüpte sıcak saatler yaşanıyor. Taraftarlar heyecanla sürecin netleşmesini bekliyor.';
+  // Detay cümlesi: temizlenmiş gövdeden anlamlı bir bölüm
+  let detailSummary = cleanBody.replace(cleanTitle, '').trim();
+  if (detailSummary.length > 130) {
+    // İlk noktalı cümleyi yakala
+    const firstPeriod = detailSummary.indexOf('.');
+    if (firstPeriod > 40 && firstPeriod < 120) {
+      detailSummary = detailSummary.slice(0, firstPeriod + 1);
+    } else {
+      detailSummary = detailSummary.slice(0, 115) + '...';
+    }
   }
-  const scene3Speech = scene3Caption;
+  if (!detailSummary || detailSummary.length < 20) {
+    detailSummary = 'Bordo-Mavili yönetim ve teknik heyet bu doğrultuda çalışmalarını titizlikle sürdürüyor.';
+  }
 
-  // Sahne 4: Viral Yorum Çağrısı (14-18 sn)
-  const scene4Caption = '💬 Sizce bu karar doğru mu? (EVET / HAYIR) Fikrinizi yoruma yazın, takipte kalın!';
-  const scene4Speech = 'Bordo-Mavili taraftarlar, siz bu kararı destekliyor musunuz? Fikrinizi hemen yorumlarda belirtin, sayfamızı takip etmeyi unutmayın!';
+  const ctaSpeech = 'Peki siz bu gelişmeyi nasıl değerlendiriyorsunuz? Yorumlarda buluşalım, takipte kalın!';
+  const ctaCaption = '💬 Sizce bu karar doğru mu? Yorumlarda buluşalım, takipte kalın!';
 
+  // BİRLEŞİK, KESİNTİSİZ SESLENDİRME METNİ (~45-55 kelime, tam 18-20 saniye akıcı Türkçe)
+  const fullNarration = `${hookSpeech} ${coreFact}. ${detailSummary} ${ctaSpeech}`;
+
+  // 3. Zaman Eşzamanlı 4 Sahne (Görsel Altyazı ve Rozetler İçin)
   const scenes: ReelScene[] = [
     {
       index: 1,
-      timeRange: '0-3 sn',
-      durationSeconds: 3,
-      name: '1. Kanca (Hook)',
+      timeRange: '0-4 sn',
+      durationSeconds: 4,
+      name: '1. Giriş & Kanca',
       color: 'text-amber-400',
       badge: 'Flaş Giriş',
       caption: hookTitle,
@@ -127,88 +145,107 @@ export function generateDynamicReelScript(params: {
     },
     {
       index: 2,
-      timeRange: '3-8 sn',
+      timeRange: '4-9 sn',
       durationSeconds: 5,
-      name: '2. Gelişme & Manşet',
+      name: '2. Manşet & Gelişme',
       color: 'text-white',
-      badge: 'Ana Haber',
-      caption: scene2Caption,
-      speechText: scene2Speech,
+      badge: 'Ana Gelişme',
+      caption: cleanTitle,
+      speechText: coreFact,
     },
     {
       index: 3,
-      timeRange: '8-14 sn',
+      timeRange: '9-15 sn',
       durationSeconds: 6,
-      name: '3. Detay & Perde Arkası',
+      name: '3. Perde Arkası & Detay',
       color: 'text-sky-300',
-      badge: 'Önemli Detay',
-      caption: scene3Caption,
-      speechText: scene3Speech,
+      badge: 'Perde Arkası',
+      caption: detailSummary,
+      speechText: detailSummary,
     },
     {
       index: 4,
-      timeRange: '14-18 sn',
-      durationSeconds: 4,
-      name: '4. Eylem Çağrısı (CTA)',
+      timeRange: '15-20 sn',
+      durationSeconds: 5,
+      name: '4. Yorum & Etkileşim Çağrısı',
       color: 'text-emerald-400',
-      badge: 'Yorum Kancası',
-      caption: scene4Caption,
-      speechText: scene4Speech,
+      badge: 'Tartışma Kancası',
+      caption: ctaCaption,
+      speechText: ctaSpeech,
     }
   ];
 
-  // 3. Kesintisiz Seslendirme Metni
-  const fullNarration = `${hookSpeech} ${scene2Speech} ${scene3Speech} ${scene4Speech}`;
+  // 4. Reels İçin 5-6 Görselden Oluşan Dinamik Slayt Havuzu
+  // Relative URL client-side'da her zaman 0 gecikmeyle çalışır
+  const dynamicCanvaOgUrl = `/api/og?title=${encodeURIComponent(cleanTitle)}&template=REELS&format=vertical${params.imageUrl ? `&imageUrl=${encodeURIComponent(params.imageUrl)}` : ''}`;
 
-  // 4. Dinamik Görsel Önerileri (Haber Görseli, İlgili Futbolcu/Hoca, Papara Park, 9:16 Dikey Canva)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai.vercel.app';
-  const dynamicCanvaOgUrl = `${appUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&template=REELS&format=vertical${params.imageUrl ? `&imageUrl=${encodeURIComponent(params.imageUrl)}` : ''}`;
+  const suggestedVisuals: SuggestedVisual[] = [
+    {
+      id: 'canva-vertical',
+      type: 'CANVA',
+      label: '1. 9:16 Dikey HD Afiş (Otomatik BordoMavi)',
+      url: dynamicCanvaOgUrl,
+      description: 'Habere özel başlık, logo ve degrade içeren dikey kapak görseli.'
+    }
+  ];
 
-  const suggestedVisuals: SuggestedVisual[] = [];
-
-  // Öncelik 1: Orijinal Haber Görseli (varsa)
+  // Görsel 2: Varsa haber orijinal fotoğrafı, yoksa oyuncu aksiyon fotoğrafı
   if (params.imageUrl) {
     suggestedVisuals.push({
       id: 'news-image',
       type: 'NEWS',
-      label: 'Haber Orijinal Görseli',
+      label: '2. Haber Orijinal Fotoğrafı',
       url: params.imageUrl,
-      description: 'Haber kaynağındaki doğrudan fotoğraf.'
+      description: 'Habere ait orijinal basın görseli.'
     });
-  }
-
-  // Öncelik 2: 9:16 Dikey Akıllı BordoMavi Şablonu
-  suggestedVisuals.push({
-    id: 'canva-vertical',
-    type: 'CANVA',
-    label: '9:16 Dikey HD Afiş (Otomatik)',
-    url: dynamicCanvaOgUrl,
-    description: 'Logo, tipografi ve bordo-mavi gradyan içeren dikey format.'
-  });
-
-  // Öncelik 3: Tespit edilen oyuncu veya stadyum görseli
-  const matchedVisual = ENTITY_VISUALS[detectedEntityKey] || ENTITY_VISUALS['papara_park'];
-  suggestedVisuals.push({
-    id: 'entity-photo',
-    type: 'PLAYER',
-    label: detectedEntityKey === 'papara_park' ? 'Papara Park Atmosfer' : 'İlgili Futbolcu / Hoca Özel Fotoğraf',
-    url: matchedVisual,
-    description: 'İçerikle birebir eşleşen HD dikey arka plan.'
-  });
-
-  // Öncelik 4: Stadyum Genel
-  if (detectedEntityKey !== 'papara_park') {
+  } else {
     suggestedVisuals.push({
-      id: 'stadium-bg',
-      type: 'STADIUM',
-      label: 'Papara Park Maç Gecesi',
-      url: ENTITY_VISUALS['papara_park'],
-      description: 'Tribün ve stadyum atmosfer görseli.'
+      id: 'player-action',
+      type: 'PLAYER',
+      label: '2. Yıldız Oyuncu / Hoca Aksiyon',
+      url: CURATED_VERTICAL_SLIDES.playerAction,
+      description: 'Bordo-Mavili futbolcu aksiyon fotoğrafı.'
     });
   }
+
+  // Görsel 3: Papara Park Stadyumu & Maç Atmosferi
+  suggestedVisuals.push({
+    id: 'stadium-night',
+    type: 'STADIUM',
+    label: '3. Papara Park Stadyumu (Gece)',
+    url: CURATED_VERTICAL_SLIDES.stadium,
+    description: 'Papara Park maç gecesi ışıkları ve stadyum atmosferi.'
+  });
+
+  // Görsel 4: Coşkulu Trabzonspor Taraftarları & Bayraklar
+  suggestedVisuals.push({
+    id: 'fans-passion',
+    type: 'FANS',
+    label: '4. Bordo-Mavi Tribün & Meşaleler',
+    url: CURATED_VERTICAL_SLIDES.fans,
+    description: 'Trabzonspor taraftarının coşkulu tribün görüntüsü.'
+  });
+
+  // Görsel 5: Gol Sevinci & Takım Ruhu
+  suggestedVisuals.push({
+    id: 'team-celebration',
+    type: 'ACTION',
+    label: '5. Fırtına Gol Sevinci',
+    url: CURATED_VERTICAL_SLIDES.celebration,
+    description: 'Bordo-Mavili oyuncuların sevinç ve kenetlenme anı.'
+  });
+
+  // Görsel 6: Saha İçi Gece Işıkları & Mücadele
+  suggestedVisuals.push({
+    id: 'pitch-tactics',
+    type: 'ACTION',
+    label: '6. Taktik Mücadele & Zemin',
+    url: CURATED_VERTICAL_SLIDES.pitchNight,
+    description: 'Saha içi odak ve maç temposu görseli.'
+  });
 
   // 5. Facebook Reels Paylaşım Açıklaması
-  const facebookCaption = `🎬 BORDO MAVİ REELS | ${cleanTitle}\n\n${cleanBody}\n\n${scene4Caption}\n\n#Trabzonspor #BordoMavi #Reels #Shorts #Fırtına #SüperLig`;
+  const facebookCaption = `🎬 BORDO MAVİ REELS | ${cleanTitle}\n\n${cleanBody}\n\n${ctaCaption}\n\n#Trabzonspor #BordoMavi #Reels #Shorts #Fırtına #SüperLig`;
 
   return {
     title: cleanTitle,

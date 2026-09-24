@@ -79,7 +79,14 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
           </Button>
 
           <Button 
-            onClick={() => openReelStudio(generatedImages[0]?.title || "Trabzonspor'da Son Dakika Gelişmesi!")}
+            onClick={() => {
+              const first = generatedImages[0];
+              openReelStudio(
+                first?.title || "Trabzonspor'da Son Dakika Gelişmesi!",
+                first?.sourceNews?.imageUrl || first?.media?.url || "",
+                first?.body || first?.sourceNews?.summary || ""
+              );
+            }}
             className="flex-1 sm:flex-initial bg-gradient-to-r from-[#781324] to-[#164E7A] text-white hover:opacity-90 font-semibold text-xs h-10 shadow-xs px-3.5"
           >
             <Film className="mr-1.5 h-4 w-4" /> Reels Stüdyosu
@@ -150,6 +157,9 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
                 const queryTemplate = selectedTemplate !== "ALL" ? `&template=${selectedTemplate}` : "";
                 const ogUrl = `/api/og?title=${encodeURIComponent(img.title)}${queryTemplate}`;
 
+                const itemImg = img.sourceNews?.imageUrl || img.media?.url || "";
+                const itemSummary = img.body || img.sourceNews?.summary || "";
+
                 return (
                   <Card key={img.id} className="overflow-hidden group border-border/80 bg-card shadow-xs hover:shadow-md transition-all">
                     <div className="relative aspect-video bg-muted overflow-hidden">
@@ -182,7 +192,7 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => openReelStudio(img.title, undefined, img.body)}
+                          onClick={() => openReelStudio(img.title, itemImg, itemSummary)}
                           className="h-8 text-xs font-semibold bg-white text-slate-900 hover:bg-slate-100 shadow-lg"
                         >
                           <Play className="w-3.5 h-3.5 mr-1 text-[#781324]" />
@@ -208,7 +218,7 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => openReelStudio(img.title, undefined, img.body)}
+                          onClick={() => openReelStudio(img.title, itemImg, itemSummary)}
                           className="h-8 text-[11px] font-semibold text-[#781324] dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10 flex items-center justify-center gap-1"
                         >
                           <Play className="w-3.5 h-3.5 text-rose-500" />
@@ -276,7 +286,13 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
         title={activeReel.title}
         imageUrl={activeReel.imageUrl}
         summary={activeReel.summary}
-        availableNews={generatedImages}
+        body={activeReel.summary}
+        availableNews={generatedImages.map(img => ({
+          id: img.id,
+          title: img.title,
+          summary: img.body || img.sourceNews?.summary || "",
+          imageUrl: img.sourceNews?.imageUrl || img.media?.url || ""
+        }))}
       />
 
       {/* Canva Tasarım Stüdyosu Modalı */}

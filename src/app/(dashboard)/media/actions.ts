@@ -151,22 +151,26 @@ export async function generateAiReelScriptAction(params: { title: string; body?:
     const cleanBody = stripExternalSources(params.body || '');
 
     const prompt = `
-Aşağıdaki Trabzonspor haberini 15-20 saniyelik dikey bir Facebook/Instagram Reels senaryosuna dönüştür.
+Aşağıdaki Trabzonspor haberini 18-20 saniyelik dikey bir Facebook/Instagram Reels videosunda tek parça halinde okunacak profesyonel seslendirme metnine dönüştür.
 Haber Başlığı: ${cleanTitle}
 Haber Detayı: ${cleanBody}
 
 Kurallar:
-1. Kesinlikle dış haber ajansı veya kaynak adı (Günebakış, Haber61 vb.) KULLANMA. Kaynak doğrudan Bordo Mavi'dir.
-2. 4 sahne oluştur:
-   - Sahne 1 (0-3 sn - Kanca): Merak uyandıran, vurucu bir seslendirme girişi.
-   - Sahne 2 (3-8 sn - Manşet): Olayın ve manşetin en vurucu 15-20 kelimelik sesli özeti.
-   - Sahne 3 (8-14 sn - Detay): Perde arkası, kritik detay veya etki.
-   - Sahne 4 (14-18 sn - CTA): Takipçileri yorum yapmaya zorlayan net bir A/B tartışma sorusu ve sayfa takip çağrısı.
-3. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Sade düz metin formatında yaz.
-4. Yanıtını doğrudan sahne sahne düz metin olarak ver.`;
+1. Kesinlikle dış haber ajansı veya kaynak adı (Günebakış, Haber61 vb.) KULLANMA. Kaynak doğrudan 'Bordo Mavi Haber Merkezi'dir.
+2. Haberin uzunluğu ne olursa olsun, haberin özünü ve taraftarın bilmesi gereken kilit detayları tam 45-55 kelimelik, tek seferde akıcı ve kesintisiz okunacak bir spiker anlatımına dönüştür. Parçalı değil, baştan sona tek parça bir paragraf olsun.
+3. Girişte flaş bir kanca ile başla, ortada olayın gerçeğini ve perde arkasını ver, sonda ise takipçileri yorum yapmaya çağıran net bir soruyla bitir.
+4. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Asla parantez içi sahne yönlendirmeleri (Sahne 1, Müzik vb.) koyma.
+5. Yanıt olarak YALNIZCA spikerin mikrofonda doğrudan seslendireceği düz Türkçe paragrafı ver.`;
 
     const generated = await aiProvider.generateContent(prompt);
-    return { success: true, scriptText: stripExternalSources(generated || '') };
+    const scriptText = stripExternalSources(generated || '')
+      .replace(/\*\*/g, '')
+      .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+      .replace(/\[.*?\]/g, '')
+      .replace(/^(Sahne|Kanca|Seslendirme|Metin|Spiker)\s*\d*:\s*/gim, '')
+      .trim();
+
+    return { success: true, scriptText };
   } catch (err: any) {
     console.error("generateAiReelScriptAction Error:", err);
     return { success: false, error: err.message };

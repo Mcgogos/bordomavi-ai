@@ -21,8 +21,21 @@ export default async function MediaPage() {
     select: {
       id: true,
       title: true,
+      body: true,
       status: true,
-      createdAt: true
+      createdAt: true,
+      media: {
+        select: {
+          url: true
+        }
+      },
+      sourceNews: {
+        select: {
+          imageUrl: true,
+          title: true,
+          summary: true
+        }
+      }
     }
   });
 

@@ -18,6 +18,11 @@ export function stripExternalSources(text: string): string {
     .replace(/\bKaynak\s*:\s*[A-Za-z0-9ÇĞİÖŞÜçğıöşü\s\.\-]+(?=\n|$)/gi, '')
     // "Günebakış'ın haberine göre", "Haber61'e göre", "61saat'ten alınan bilgiye göre"
     .replace(/\b(Günebakış|Gunebakis|Haber61|61saat|Kuzey\s*Ekspres|Taka|Fotomaç|Fotomac|Fanatik|DHA|AA|İHA)('ın|'in|'un|'ün|'e|'a)?\s+(özel\s+)?(haberine|haberine göre|aktardığına göre|göre|kaynaklı|tarafından)\b/gi, 'Bordo Mavi Haber Merkezi\'nin edindiği bilgiye göre')
+    // "devamı için tıklayınız", "haberin devamı için tıklayın", "ayrıntılar için tıklayınız" vb. ifadeleri tamamen temizle
+    .replace(/(haberin\s+)?(devamı|ayrıntıları|detayları)\s+için\s+(tıklayınız|tıklayın|buraya\s+tıklayın)[\.\…]*/gi, '')
+    .replace(/\b(devamı|detaylar)\s+için\s+tıklayın\b/gi, '')
+    .replace(/\b(devamı|detaylar)\s+için\s+tıklayınız\b/gi, '')
+    .replace(/\bdevamı\s+için\b/gi, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -34,7 +39,12 @@ export function sanitizePlainText(text: string): string {
 
 export function generateSmartFallbackPost(news: any): string {
   const cleanTitle = sanitizePlainText(news.title || '');
-  const cleanSummary = sanitizePlainText(news.summary || news.aiSummary || '');
+  let cleanSummary = sanitizePlainText(news.summary || news.aiSummary || '');
+
+  // Eğer özet çok kısaysa zengin ve doyurucu bir haber gövdesi oluştur
+  if (cleanSummary.length < 120) {
+    cleanSummary = `Bordo-Mavili kulüpte sıcak saatler yaşanıyor. Trabzonspor teknik heyeti ve yönetimi, takımın başarısı ve şampiyonluk yolundaki hedefleri doğrultusunda çalışmalarını aralıksız sürdürüyor. Yaşanan bu son gelişme camiada ve taraftarlar arasında büyük yankı uyandırırken, kulüp yetkililerinin konuyla ilgili planlamalarını titizlikle yürüttüğü öğrenildi.`;
+  }
 
   const category = (news.category || news.aiRecommendedContentType || '').toUpperCase();
   let badge = 'BORDO MAVİ ÖZEL HABER';
@@ -43,7 +53,7 @@ export function generateSmartFallbackPost(news: any): string {
   else if (category.includes('ANALYSIS')) badge = 'BORDO MAVİ ÖZEL ANALİZ';
 
   const fanQuestions = [
-    '📌 Sizce bu karar Trabzonspor’un şampiyonluk yolundaki hedeflerini nasıl etkiler? (1-10 arası puanlayın!)',
+    '📌 Sizce bu karar Trabzonspor’un hedeflerini nasıl etkiler? (1-10 arası puanlayın!)',
     '🔥 Bordo-Mavi renklere gönül verenler: Bu hamleyi destekliyor musunuz? Katılanlar "BEĞEN" butonuna bassın, fikri olan yoruma yazsın!',
     '⚽ Sizce ilk 11’in değişilmezi mi olmalı, yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek) Yorumlarda buluşalım!',
     '🗣️ Bordo-Mavili taraftarlar ses veriyor! Bu gelişme hakkındaki net görüşünüz nedir? Herkes tek cümleyle yazsın!',
@@ -52,12 +62,7 @@ export function generateSmartFallbackPost(news: any): string {
   ];
   const selectedQuestion = fanQuestions[Math.floor(Math.random() * fanQuestions.length)];
 
-  let post = `${badge}\n\n${cleanTitle}\n\n`;
-  if (cleanSummary && cleanSummary !== cleanTitle) {
-    post += `${cleanSummary}\n\n`;
-  }
-  post += `${selectedQuestion}\n\n`;
-  post += '#Trabzonspor #BordoMavi #Fırtına #SüperLig';
+  let post = `${badge}\n\n${cleanTitle}\n\n${cleanSummary}\n\n${selectedQuestion}\n\n#Trabzonspor #BordoMavi #Fırtına #SüperLig`;
 
   return sanitizePlainText(post);
 }
@@ -185,8 +190,8 @@ Haber Detayı: ${sanitizePlainText(news.summary || news.aiSummary || '')}
         
 Kurallar:
 1. Dikkat çekici, merak uyandıran güçlü bir başlık ile başla.
-2. 2-4 kısa ve vurucu paragraftan oluşsun (mobil ekranda kolay okunsun).
-3. Haberin kaynağı KESİNLİKLE 'Bordo Mavi Haber Merkezi' veya 'Bordo Mavi Özel'dir. Asla başka gazete veya site adı (Günebakış, Haber61, 61saat, Fanatik, Fotomaç vb.) KULLANMA. 'Kaynak: ...' veya '... sitesine göre' gibi ifadeler KESİNLİKLE YASAKTIR. Haberi ilk ve özel olarak biz veriyormuşuz gibi doğrudan kendi içeriğimiz olarak yaz.
+2. Doyurucu, akıcı ve bilgilendirici olsun (en az 3-4 zengin paragraf). Haberin kim, ne zaman, neden ve nasıl detaylarını, taraftarın merak ettiği tüm teknik ve kulis boyutlarını eksiksiz aktar. Metin 1-2 cümlelik kısa bir özet değil, taraftarın okuduğunda tüm gelişmeyi baştan sona tam anlayacağı zengin ve tatmin edici bir haber makalesi olmalıdır.
+3. Haberin kaynağı KESİNLİKLE 'Bordo Mavi Haber Merkezi' veya 'Bordo Mavi Özel'dir. Asla başka gazete veya site adı (Günebakış, Haber61, 61saat, Fanatik, Fotomaç vb.) KULLANMA. 'Kaynak: ...' veya '... sitesine göre' gibi ifadeler KESİNLİKLE YASAKTIR. KESİNLİKLE 'Devamı için tıklayınız', 'Detaylar için tıklayın', 'Haberin devamı sitemizde' gibi dış link çağrışımları KULLANMA. Haberin tamamını doğrudan bu gönderide aktar.
 4. Kesinleşmemiş haberler için "kulüp kaynaklarından edinilen bilgiye göre", "yönetim kulislerinde konuşulanlara göre" gibi güvenilir ifadeler kullan.
 5. Gönderinin sonuna takipçileri YORUM YAPMAYA, OYLAMAYA ve TARTIŞMAYA teşvik edecek net ve etkileşim patlatıcı bir soru veya A/B tercihi ekle (Örn: 'Sizce ilk 11 başlamalı mı yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek)', 'Bu kararı destekliyor musunuz? (EVET / HAYIR)', 'Bu hamleyi 1-10 arası puanlayın!'). Sonuna 'Fikrinizi yorumlarda belirtin!' veya 'Yorumlarda buluşalım!' çağrısı ekle.
 6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
@@ -302,8 +307,8 @@ Haber Detayı: ${sanitizePlainText(news.summary || news.aiSummary || '')}
     
 Kurallar:
 1. Dikkat çekici, merak uyandıran güçlü bir başlık ile başla.
-2. 2-4 kısa ve vurucu paragraftan oluşsun (mobil ekranda kolay okunsun).
-3. Haberin kaynağı KESİNLİKLE 'Bordo Mavi Haber Merkezi' veya 'Bordo Mavi Özel'dir. Asla başka gazete veya site adı (Günebakış, Haber61, 61saat, Fanatik, Fotomaç vb.) KULLANMA. 'Kaynak: ...' veya '... sitesine göre' gibi ifadeler KESİNLİKLE YASAKTIR. Haberi ilk ve özel olarak biz veriyormuşuz gibi doğrudan kendi içeriğimiz olarak yaz.
+2. Doyurucu, akıcı ve bilgilendirici olsun (en az 3-4 zengin paragraf). Haberin kim, ne zaman, neden ve nasıl detaylarını, taraftarın merak ettiği tüm teknik ve kulis boyutlarını eksiksiz aktar. Metin 1-2 cümlelik kısa bir özet değil, taraftarın okuduğunda tüm gelişmeyi baştan sona tam anlayacağı zengin ve tatmin edici bir haber makalesi olmalıdır.
+3. Haberin kaynağı KESİNLİKLE 'Bordo Mavi Haber Merkezi' veya 'Bordo Mavi Özel'dir. Asla başka gazete veya site adı (Günebakış, Haber61, 61saat, Fanatik, Fotomaç vb.) KULLANMA. 'Kaynak: ...' veya '... sitesine göre' gibi ifadeler KESİNLİKLE YASAKTIR. KESİNLİKLE 'Devamı için tıklayınız', 'Detaylar için tıklayın', 'Haberin devamı sitemizde' gibi dış link çağrışımları KULLANMA. Haberin tamamını doğrudan bu gönderide aktar.
 4. Kesinleşmemiş haberler için "kulüp kaynaklarından edinilen bilgiye göre", "yönetim kulislerinde konuşulanlara göre" gibi güvenilir ifadeler kullan.
 5. Gönderinin sonuna takipçileri YORUM YAPMAYA, OYLAMAYA ve TARTIŞMAYA teşvik edecek net ve etkileşim patlatıcı bir soru veya A/B tercihi ekle (Örn: 'Sizce ilk 11 başlamalı mı yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek)', 'Bu kararı destekliyor musunuz? (EVET / HAYIR)', 'Bu hamleyi 1-10 arası puanlayın!'). Sonuna 'Fikrinizi yorumlarda belirtin!' veya 'Yorumlarda buluşalım!' çağrısı ekle.
 6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
