@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
@@ -14,8 +14,9 @@ export function middleware(req: NextRequest) {
   
   const isAuthRoute = req.nextUrl.pathname.startsWith("/login");
   const isApiRoute = req.nextUrl.pathname.startsWith("/api");
+  const isShareRoute = req.nextUrl.pathname.startsWith("/share");
 
-  if (isApiRoute) {
+  if (isApiRoute || isShareRoute) {
     return NextResponse.next();
   }
 

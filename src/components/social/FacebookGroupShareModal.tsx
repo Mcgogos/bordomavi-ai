@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { 
   Users, X, Copy, ExternalLink, Check, Plus, Trash2, 
   Share2, CheckCircle2, ArrowRight, Sparkles, ShieldCheck,
-  Compass, Info, Globe, AlertCircle
+  Compass, Globe, Zap, HelpCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +51,7 @@ export function FacebookGroupShareModal({
   // Sıralı paylaşım adımı
   const [stepIndex, setStepIndex] = useState<number>(-1);
 
-  // LocalStorage'dan kayıtlı grupları yükle (Eski sahte 404 URL'leri filtrele)
+  // LocalStorage'dan kayıtlı grupları yükle
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -89,6 +89,10 @@ export function FacebookGroupShareModal({
 
   if (!isOpen || !post) return null;
 
+  // Gerçek genel paylaşım bağlantısı (Public Share URL)
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || "https://bordomavi-ai.vercel.app";
+  const publicShareUrl = `${baseUrl}/share/${post.id}`;
+
   // Facebook post gerçek Permalink URL'si (pageId_postId formatını hatasız açar)
   const getPostFacebookUrl = () => {
     if (post.facebookPostId && post.facebookPostId.length > 5 && !post.facebookPostId.startsWith("mock-")) {
@@ -98,8 +102,7 @@ export function FacebookGroupShareModal({
       }
       return `https://www.facebook.com/${post.facebookPostId}`;
     }
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://bordomavi-ai.vercel.app";
-    return `${baseUrl}/content`;
+    return publicShareUrl;
   };
 
   const postUrl = getPostFacebookUrl();
@@ -122,7 +125,7 @@ export function FacebookGroupShareModal({
     if (!text.includes("#Trabzonspor")) {
       text += "\n\n#Trabzonspor #BordoMavi #Fırtına";
     }
-    text += `\n\n🔗 Haberin Detayı: ${postUrl}`;
+    text += `\n\n🔗 Haberin Detayı ve Fotoğrafları: ${publicShareUrl}`;
     return text;
   };
 
@@ -131,18 +134,25 @@ export function FacebookGroupShareModal({
       const fullText = getFullShareMessage();
       await navigator.clipboard.writeText(fullText);
       setCopied(true);
-      toast.success("📋 Haber metni ve link panoya kopyalandı! Gruplarda Ctrl+V ile yapıştırabilirsiniz.");
+      toast.success("📋 Haber metni ve link otomatik panonuza kopyalandı! Gruplarda Ctrl+V ile yapıştırabilirsiniz.");
       setTimeout(() => setCopied(false), 3000);
     } catch {
       toast.error("Panoya kopyalanamadı.");
     }
   };
 
-  // Doğrudan Facebook'ta Gönderiyi Açarak Resmi Paylaşım Yapma
+  // 1. YÖNTEM: Facebook Resmi Otomatik Kartlı Paylaşım Penceresi (Görsel ve Metin Kendiliğinden Gelir)
+  const handleOpenAutomaticGroupSharer = () => {
+    const sharerUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(publicShareUrl)}&display=popup`;
+    window.open(sharerUrl, "_blank", "width=650,height=650,scrollbars=yes,status=no");
+    toast.success("✨ Facebook Paylaşım Penceresi açıldı! Üstteki açılır menüden 'Bir grupta paylaş' seçeneğini tıklayın; görsel ve başlık otomatik hazır gelir!");
+  };
+
+  // 2. YÖNTEM: Doğrudan Facebook Sayfa Gönderisini Açarak Paylaşma (Takipçi ve Beğeni Kazandırır)
   const handleOpenPostDirectly = async () => {
     await handleCopyShareText();
     window.open(postUrl, "_blank", "noopener,noreferrer");
-    toast.success("Facebook gönderisi yeni sekmede açıldı! Gönderinin altındaki 'Paylaş' > 'Bir grupta paylaş' butonunu kullanabilirsiniz.");
+    toast.success("Facebook gönderiniz açıldı! Gönderinin altındaki 'Paylaş' > 'Bir grupta paylaş' butonunu tıklayabilirsiniz.");
   };
 
   const toggleSelectGroup = (id: string) => {
@@ -155,14 +165,6 @@ export function FacebookGroupShareModal({
       }
       return next;
     });
-  };
-
-  const handleToggleSelectAll = () => {
-    if (selectedGroupIds.size === groups.length) {
-      setSelectedGroupIds(new Set());
-    } else {
-      setSelectedGroupIds(new Set(groups.map((g) => g.id)));
-    }
   };
 
   const handleAddNewGroup = (e: React.FormEvent) => {
@@ -221,7 +223,7 @@ export function FacebookGroupShareModal({
 
   const handleStartSequentialShare = async () => {
     if (groups.length === 0) {
-      toast.info("Henüz listenize grup eklemediniz. Lütfen 'Grup Ekle' ile üye olduğunuz grupları ekleyin veya yukarıdaki 'Facebook'ta Gönderiyi Aç' seçeneğini kullanın.");
+      toast.info("Grup listeniz henüz boş. Üyesi olduğunuz bir Trabzonspor grubunu ekleyin veya yukarıdaki 'Otomatik Kartlı Paylaş' butonunu kullanın.");
       setIsAddingGroup(true);
       return;
     }
@@ -240,10 +242,11 @@ export function FacebookGroupShareModal({
     setSharedGroupIds((prev) => new Set([...Array.from(prev), firstGroup.id]));
 
     window.open(firstGroup.url, "_blank", "noopener,noreferrer");
-    toast.success(`1/${selectedGroupsList.length} grup açıldı: ${firstGroup.name}. Metin panonuzda, yapıştırıp gönderin!`);
+    toast.success(`1/${selectedGroupsList.length} grup açıldı: ${firstGroup.name}. Metin panonuzda, 'Gönderi oluştur' alanına Ctrl+V ile yapıştırın!`);
   };
 
-  const handleNextSequentialGroup = () => {
+  const handleNextSequentialGroup = async () => {
+    await handleCopyShareText();
     const nextIdx = stepIndex + 1;
     if (nextIdx < selectedGroupsList.length) {
       const nextGroup = selectedGroupsList[nextIdx];
@@ -255,41 +258,6 @@ export function FacebookGroupShareModal({
       setStepIndex(-1);
       toast.success("🎉 Tebrikler! Seçtiğiniz tüm gruplarda paylaşım süreci tamamlandı.");
     }
-  };
-
-  // Tümünü Yeni Sekmelerde Aç
-  const handleOpenAllSelected = async () => {
-    if (selectedGroupsList.length === 0) {
-      toast.error("Lütfen en az bir grup seçin.");
-      return;
-    }
-
-    await handleCopyShareText();
-
-    let openedCount = 0;
-    selectedGroupsList.forEach((group) => {
-      try {
-        window.open(group.url, "_blank", "noopener,noreferrer");
-        openedCount++;
-        setSharedGroupIds((prev) => new Set([...Array.from(prev), group.id]));
-      } catch {
-        // Pop-up engeli
-      }
-    });
-
-    if (openedCount > 0) {
-      toast.success(`🚀 ${openedCount} grup yeni sekmede açıldı! Haber metni panonuzda.`);
-    } else {
-      toast.warning("Tarayıcınız çoklu sekmeleri engelledi. 'Sırayla Aç & Paylaş' butonunu kullanabilirsiniz.");
-    }
-  };
-
-  // Facebook Resmi Web Sharer (Sadece geçerli genel web URL'leri kabul eder)
-  const handleOpenOfficialSharer = () => {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://bordomavi-ai.vercel.app";
-    const webUrl = `${baseUrl}/api/og?title=${encodeURIComponent(post.title)}&summary=${encodeURIComponent((post.body || '').slice(0, 100))}`;
-    const sharerUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(webUrl)}`;
-    window.open(sharerUrl, "_blank", "width=640,height=600,scrollbars=yes");
   };
 
   return (
@@ -307,12 +275,12 @@ export function FacebookGroupShareModal({
                 <h2 className="text-base sm:text-lg font-bold text-foreground">
                   Facebook Gruplarında Paylaşım Asistanı
                 </h2>
-                <Badge variant="outline" className="text-[10px] bg-sky-500/10 text-sky-500 border-sky-500/30">
-                  Hızlı & Güvenli
+                <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                  Otomatik Paylaşım Destekli
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Yayınlanan haberinizi Facebook gruplarında güvenle ve sıfır engelleme riskiyle paylaşın.
+                Haberinizi Facebook gruplarında görseli ve başlığıyla birlikte en hızlı şekilde paylaşın.
               </p>
             </div>
           </div>
@@ -330,41 +298,69 @@ export function FacebookGroupShareModal({
         {/* Modal Gövdesi */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
 
-          {/* 🌟 1. YÖNTEM (EN KESİN & RESMİ ÇÖZÜM): Facebook'ta Gönderiyi Açıp Grupta Paylaşma */}
-          <div className="p-4 rounded-xl bg-gradient-to-br from-[#1877F2]/10 via-[#1877F2]/5 to-transparent border-2 border-[#1877F2]/40 space-y-3 shadow-xs">
+          {/* 🌟 1. YÖNTEM: KENDİLİĞİNDEN OTOMATİK OLUŞAN RESMİ PAYLAŞIM PENCERESİ */}
+          <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 via-[#1877F2]/5 to-transparent border-2 border-emerald-500/40 space-y-3 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#1877F2] animate-ping"></span>
-                  <span className="text-xs font-bold text-[#1877F2] uppercase tracking-wider">
-                    En Hızlı & Kesin Çözüm (Resmi Facebook Paylaşımı)
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                    <Zap className="w-3.5 h-3.5" /> 1. YÖNTEM: Otomatik Görsel ve Başlıklı Paylaşım (Tavsiye Edilen)
                   </span>
                 </div>
                 <h4 className="text-sm font-bold text-foreground">
-                  Facebook'ta Gönderiyi Aç &gt; "Paylaş" &gt; "Bir Grupta Paylaş"
+                  Tek Tıkla Facebook Paylaşım Penceresini Aç
                 </h4>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Bu butona tıkladığınızda haber metni panonuza kopyalanır ve yayınlanan gönderi Facebook'ta açılır. Gönderinin altındaki <strong>"Paylaş"</strong> butonuna basıp <strong>"Bir grupta paylaş"</strong> seçeneğiyle üyesi olduğunuz tüm grupları tek tıkla seçebilirsiniz.
+                  Bu butona bastığınızda Facebook'un resmi paylaşım penceresi açılır. <strong>Haberin afiş görseli, başlığı ve detayları KENDİLİĞİNDEN OTOMATİK GELİR.</strong> Pencerenin üstündeki menüden <strong>"Bir grupta paylaş"</strong> seçeneğini tıklayıp istediğiniz grubu seçmeniz yeterlidir.
+                </p>
+              </div>
+
+              <Button
+                onClick={handleOpenAutomaticGroupSharer}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 px-4 shrink-0 shadow-md flex items-center justify-center gap-1.5"
+              >
+                <Zap className="w-4 h-4 text-emerald-200" />
+                <span>Otomatik Paylaşımı Aç</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* 🌟 2. YÖNTEM: SAYFA GÖNDERİSİNİ GRUPTA PAYLAŞMA (TAKİPÇİ KAZANDIRAN YÖNTEM) */}
+          <div className="p-4 rounded-xl bg-gradient-to-br from-[#1877F2]/10 via-[#1877F2]/5 to-transparent border border-[#1877F2]/30 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-[#1877F2] uppercase tracking-wider flex items-center gap-1">
+                    <Share2 className="w-3.5 h-3.5" /> 2. YÖNTEM: Sayfanızın Gönderisini Grupta Paylaşın
+                  </span>
+                </div>
+                <h4 className="text-sm font-bold text-foreground">
+                  Gönderiyi Aç &gt; "Paylaş" &gt; "Bir Grupta Paylaş"
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Facebook'ta yayınlanan gönderinizi açar. Gönderinin altındaki <strong>"Paylaş"</strong> butonuna basıp <strong>"Bir grupta paylaş"</strong> diyerek üye olduğunuz gruplara gönderirsiniz. <strong>Sayfanızın takipçi ve beğenilerini en hızlı artıran yöntem budur.</strong>
                 </p>
               </div>
 
               <Button
                 onClick={handleOpenPostDirectly}
-                className="bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold text-xs h-10 px-4 shrink-0 shadow-md flex items-center justify-center gap-1.5"
+                variant="outline"
+                className="border-[#1877F2]/40 text-[#1877F2] hover:bg-[#1877F2]/10 font-bold text-xs h-10 px-4 shrink-0 shadow-xs flex items-center justify-center gap-1.5"
               >
                 <Share2 className="w-4 h-4" />
                 <span>Facebook'ta Gönderiyi Aç</span>
-                <ExternalLink className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
           
-          {/* Haber Özeti ve Kopyalama */}
+          {/* Haber Özeti ve Otomatik Panoya Kopyalama Alanı */}
           <div className="p-3.5 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-0.5 flex-1">
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-500" /> Panoya Hazır Metin
+                  <Sparkles className="w-3 h-3 text-amber-500" /> Panoya Hazır Metin (Ctrl+V İle Yapıştırılabilir)
                 </span>
                 <h3 className="text-xs sm:text-sm font-bold text-foreground line-clamp-1">
                   {post.title}
@@ -390,12 +386,12 @@ export function FacebookGroupShareModal({
             </div>
           </div>
 
-          {/* 2. YÖNTEM: Kendi Özel Grup Listeniz (Tarayıcınıza Kaydedilir) */}
+          {/* 🌟 3. YÖNTEM: Kendi Özel Grup Listeniz (Sırayla Aç & Yapıştır) */}
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs sm:text-sm font-bold text-foreground">
-                  Özel Grup Listeniz ({selectedGroupIds.size} / {groups.length} Seçili)
+                  3. YÖNTEM: Özel Grup Listeniz ({selectedGroupIds.size} / {groups.length} Seçili)
                 </span>
                 <Badge variant="secondary" className="text-[10px]">
                   {groups.length} Kayıtlı Grup
@@ -484,7 +480,7 @@ export function FacebookGroupShareModal({
 
             {/* Grup Listesi Grid */}
             {groups.length === 0 ? (
-              <div className="p-6 rounded-xl border border-dashed border-border/80 bg-muted/20 text-center space-y-2.5">
+              <div className="p-5 rounded-xl border border-dashed border-border/80 bg-muted/20 text-center space-y-2.5">
                 <div className="w-10 h-10 rounded-full bg-sky-500/10 text-sky-500 flex items-center justify-center mx-auto">
                   <Users className="w-5 h-5" />
                 </div>
@@ -493,7 +489,7 @@ export function FacebookGroupShareModal({
                     Henüz listenize grup eklemediniz
                   </p>
                   <p className="text-[11px] text-muted-foreground max-w-md mx-auto leading-relaxed">
-                    Facebook'ta üyesi olduğunuz Trabzonspor gruplarının bağlantısını yukarıdaki <strong>"+ Grup Ekle"</strong> butonundan ekleyebilir ya da en kolayı yukarıdaki <strong>"Facebook'ta Gönderiyi Aç"</strong> butonuyla doğrudan gruplarınıza paylaşabilirsiniz.
+                    Yukarıdaki <strong>"1. YÖNTEM: Otomatik Paylaşımı Aç"</strong> butonunu kullanarak hiçbir grup eklemeden de üyesi olduğunuz tüm gruplara tek tıkla paylaşabilirsiniz. Dilerseniz <strong>"+ Grup Ekle"</strong> butonundan sık kullandığınız grupları listenize kaydedebilirsiniz.
                   </p>
                 </div>
                 <div className="flex items-center justify-center gap-2 pt-1">
@@ -504,12 +500,12 @@ export function FacebookGroupShareModal({
                     className="h-8 text-xs font-semibold"
                   >
                     <Plus className="w-3.5 h-3.5 mr-1 text-[#1877F2]" />
-                    İlk Grubunuzu Ekleyin
+                    Grup Ekle
                   </Button>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[190px] overflow-y-auto pr-1">
                 {groups.map((group) => {
                   const isSelected = selectedGroupIds.has(group.id);
                   const isShared = sharedGroupIds.has(group.id);
@@ -554,8 +550,9 @@ export function FacebookGroupShareModal({
                           href={group.url}
                           target="_blank"
                           rel="noreferrer"
+                          onClick={handleCopyShareText}
                           className="p-1 rounded text-muted-foreground hover:text-[#1877F2] hover:bg-sky-500/10 transition-colors"
-                          title="Grubu Facebook'ta Aç"
+                          title="Grubu Aç ve Metni Kopyala"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
@@ -576,37 +573,52 @@ export function FacebookGroupShareModal({
             )}
           </div>
 
-          {/* Sıralı Paylaşım Modu Aktif İse İlerleme Barı */}
+          {/* Sıralı Paylaşım Modu Aktif İse Canlı İlerleme & Yönlendirme Barı */}
           {stepIndex >= 0 && stepIndex < selectedGroupsList.length && (
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 animate-in fade-in">
-              <div className="space-y-0.5">
-                <span className="text-[11px] font-bold text-amber-500 flex items-center gap-1">
-                  <span>⏳</span> Sıralı Paylaşım Devam Ediyor: {stepIndex + 1} / {selectedGroupsList.length}
+            <div className="p-3.5 rounded-xl bg-amber-500/15 border-2 border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                  Sıralı Grup Açma Devam Ediyor: {stepIndex + 1} / {selectedGroupsList.length}
                 </span>
-                <p className="text-xs font-semibold text-foreground">
+                <p className="text-xs font-bold text-foreground">
                   Açılan grup: <span className="underline">{selectedGroupsList[stepIndex]?.name}</span>
                 </p>
-                <p className="text-[10px] text-muted-foreground">
-                  Metin panoda kopyalandı. Grubun 'Yazı yaz...' kutusuna Ctrl+V ile yapıştırıp paylaştıktan sonra sıradaki gruba geçin.
+                <p className="text-[11px] text-amber-900 dark:text-amber-200 font-medium">
+                  👉 <strong>Nasıl Paylaşılır?</strong> Metin panonuza kopyalandı. Açılan grupta <strong>'Gönderi oluştur'</strong> kutusuna tıklayıp klavyeden <strong>Ctrl + V (Yapıştır)</strong> yapın ve Paylaş'a basın.
                 </p>
               </div>
 
-              <Button
-                size="sm"
-                onClick={handleNextSequentialGroup}
-                className="h-9 px-3 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-md shrink-0 flex items-center gap-1"
-              >
-                <span>Sıradaki Grubu Aç</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCopyShareText}
+                  className="h-9 px-2.5 text-xs font-semibold bg-background"
+                >
+                  <Copy className="w-3.5 h-3.5 mr-1" /> Tekrar Kopyala
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleNextSequentialGroup}
+                  className="h-9 px-3 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-md flex items-center gap-1"
+                >
+                  <span>Sıradaki Grubu Aç</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </div>
           )}
 
-          {/* Güvenlik Bilgilendirme Notu */}
+          {/* Meta Güvenlik Notu & Bilgilendirme */}
           <div className="p-3 rounded-xl bg-muted/30 border border-border/50 flex items-start gap-2.5 text-[11px] text-muted-foreground leading-relaxed">
-            <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+            <HelpCircle className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
             <p>
-              <strong className="text-foreground font-semibold">Meta & Facebook Güvenlik Koruması:</strong> Meta politikaları gereği harici robotik yazılımlarla üyesi olunan gruplara arkadan toplu mesaj basılması spam olarak algılanır ve hesabınızın kapanmasına neden olur. Bu asistan, gönderinizi <strong>resmi Facebook mekanizmasıyla</strong> ve <strong>panodan tek tık yapıştırmayla</strong> en güvenli şekilde paylaşmanızı sağlar.
+              <strong className="text-foreground font-semibold">Paylaşım Neden Otomatik Gelir / Gelmez?</strong> Meta (Facebook) güvenlik kuralları gereği, harici web siteleri başka bir sitenin sekmesine (`facebook.com`) gizlice yazı yazamaz. Bu nedenle:
+              <br />
+              • <strong>1. Yöntem:</strong> Facebook'un resmi paylaşım diyalogunu açar ve afiş + başlığı <strong>otomatik oluşturur</strong>.
+              <br />
+              • <strong>3. Yöntem:</strong> Grubu yeni sekmede açar, metni <strong>otomatik panonuza kopyalar</strong>; tek yapmanız gereken <strong>Ctrl + V (Yapıştır)</strong> yapmaktır.
             </p>
           </div>
 
@@ -619,29 +631,15 @@ export function FacebookGroupShareModal({
               type="button"
               variant="outline"
               size="sm"
-              onClick={handleOpenOfficialSharer}
-              className="text-xs font-semibold border-border text-muted-foreground hover:text-foreground h-10 px-3"
+              onClick={handleOpenAutomaticGroupSharer}
+              className="text-xs font-semibold border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 h-10 px-3 flex-1 sm:flex-none"
             >
-              <Share2 className="w-3.5 h-3.5 mr-1 text-[#1877F2]" />
-              Resmi Paylaşım Penceresi
+              <Zap className="w-3.5 h-3.5 mr-1 text-emerald-500" />
+              Otomatik Kartlı Paylaşım Penceresi
             </Button>
           </div>
 
           <div className="flex items-center gap-2">
-            {groups.length > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleOpenAllSelected}
-                disabled={selectedGroupIds.size === 0}
-                className="text-xs font-semibold border-border h-10 px-3 flex-1 sm:flex-none"
-              >
-                <ExternalLink className="w-3.5 h-3.5 mr-1" />
-                Tüm Grupları Aç ({selectedGroupIds.size})
-              </Button>
-            )}
-
             <Button
               type="button"
               size="sm"
@@ -649,7 +647,7 @@ export function FacebookGroupShareModal({
               className="h-10 px-4 text-xs sm:text-sm font-bold bg-[#1877F2] hover:bg-[#166fe5] text-white shadow-md flex items-center justify-center gap-1.5 flex-1 sm:flex-none transition-all"
             >
               <Users className="w-4 h-4 text-white shrink-0" />
-              <span>Sırayla Grupları Aç & Paylaş</span>
+              <span>Grupları Sırayla Aç & Yapıştır</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           </div>
