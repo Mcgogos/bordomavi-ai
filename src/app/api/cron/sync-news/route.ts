@@ -37,15 +37,15 @@ export async function GET(request: Request) {
     console.log("[CRON] Phase 4: Checking content quality...");
     const qualityResult = await checkContentQuality(3);
 
-    // 5. Facebook'ta Yayınla — Saatlik Isı Haritasına göre dinamik akıllı kota (Pik saatlerde 3'e kadar)
-    const quotaInfo = SmartPublisher.getPublishingQuota();
+    // 5. Facebook'ta Yayınla — Algoritmik Pacing (90dk cooldown) & Günlük Tavan (8 post) denetimi
+    const quotaInfo = await SmartPublisher.getPublishingQuota();
     console.log(`[CRON] Phase 5: Publishing to Facebook (${quotaInfo.windowName} - Kota: ${quotaInfo.quota})...`);
     
     let publishResult = { success: true, requested: quotaInfo.quota, processed: 0, failed: 0, results: [] as any[] };
     if (quotaInfo.quota > 0) {
       publishResult = await publishReadyContent(quotaInfo.quota);
     } else {
-      console.log(`[CRON] Phase 5: ${quotaInfo.reason}`);
+      console.log(`[CRON] Phase 5 (PASSED): ${quotaInfo.reason}`);
     }
 
     // 6. Canlı Facebook İstatistiklerini Senkronize Et (Son 5 Gönderi)

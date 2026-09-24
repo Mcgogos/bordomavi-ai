@@ -27,10 +27,12 @@ export function generateSmartFallbackPost(news: any): string {
   else if (category.includes('ANALYSIS')) badge = 'TRABZONSPOR ÖZEL ANALİZ';
 
   const fanQuestions = [
-    'Bordo Mavi renklere gönül veren taraftarlarımız bu gelişme hakkında ne düşünüyor? Yorumlarda buluşalım!',
-    'Fırtına yeni hedefleri için kenetlenmeye devam ediyor. Sizce bu hamle takımımıza nasıl yansır? Görüşlerinizi yazın!',
-    'Bordo-Mavili sevdamızda yaşanan son gelişmeleri sıcağı sıcağına aktarıyoruz. Siz bu durumu nasıl değerlendiriyorsunuz?',
-    'Fırtına emin adımlarla yoluna devam ediyor. Bu önemli gelişme hakkındaki düşüncelerinizi merak ediyoruz!'
+    '📌 Sizce bu karar Trabzonspor’un şampiyonluk yolundaki hedeflerini nasıl etkiler? (1-10 arası puanlayın!)',
+    '🔥 Bordo-Mavi renklere gönül verenler: Bu hamleyi destekliyor musunuz? Katılanlar "BEĞEN" butonuna bassın, fikri olan yoruma yazsın!',
+    '⚽ Sizce ilk 11’in değişilmezi mi olmalı, yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek) Yorumlarda buluşalım!',
+    '🗣️ Bordo-Mavili taraftarlar ses veriyor! Bu gelişme hakkındaki net görüşünüz nedir? Herkes tek cümleyle yazsın!',
+    '⚡ Fırtına zirveye kilitlendi! Teknik heyetin bu tercihini doğru buluyor musunuz? (EVET / HAYIR) Fikirlerinizi paylaşın!',
+    '🏆 Şampiyonluk yolunda kritik viraj! Bordo-Mavili renklere gönül verenler yorumlarda kenetleniyor! 👇'
   ];
   const selectedQuestion = fanQuestions[Math.floor(Math.random() * fanQuestions.length)];
 
@@ -174,7 +176,7 @@ Kurallar:
 2. 2-4 kısa paragraftan oluşsun (okunması kolay).
 3. Haber kaynağına dayalı net bir özet sun.
 4. Kesinleşmemiş haberler için "iddia edildi", "öne sürüldü" gibi güvenilirlik ifadeleri kullan.
-5. Sonunda Bordo Mavi tarzında kısa bir yorum ekle (Örn: "Sizce bu transfer takıma katkı sağlar mı?", "Fırtına'nın yeni rotası ne olacak?").
+5. Gönderinin sonuna takipçileri YORUM YAPMAYA, OYLAMAYA ve TARTIŞMAYA teşvik edecek net ve etkileşim patlatıcı bir soru veya A/B tercihi ekle (Örn: 'Sizce ilk 11 başlamalı mı yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek)', 'Bu kararı destekliyor musunuz? (EVET / HAYIR)', 'Bu hamleyi 1-10 arası puanlayın!'). Sonuna 'Fikrinizi yorumlarda belirtin!' veya 'Yorumlarda buluşalım!' çağrısı ekle.
 6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
 7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.
 8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).`;
@@ -292,7 +294,7 @@ Kurallar:
 2. 2-4 kısa paragraftan oluşsun (okunması kolay).
 3. Haber kaynağına dayalı net bir özet sun.
 4. Kesinleşmemiş haberler için "iddia edildi", "öne sürüldü" gibi güvenilirlik ifadeleri kullan.
-5. Sonunda Bordo Mavi tarzında kısa bir yorum ekle (Örn: "Sizce bu transfer takıma katkı sağlar mı?", "Fırtına'nın yeni rotası ne olacak?").
+5. Gönderinin sonuna takipçileri YORUM YAPMAYA, OYLAMAYA ve TARTIŞMAYA teşvik edecek net ve etkileşim patlatıcı bir soru veya A/B tercihi ekle (Örn: 'Sizce ilk 11 başlamalı mı yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek)', 'Bu kararı destekliyor musunuz? (EVET / HAYIR)', 'Bu hamleyi 1-10 arası puanlayın!'). Sonuna 'Fikrinizi yorumlarda belirtin!' veya 'Yorumlarda buluşalım!' çağrısı ekle.
 6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
 7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.
 8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).`;

@@ -14,32 +14,95 @@ export async function publishReadyContent(limit: number = 1) {
   };
 
   try {
+    // 1. Algoritmik Soğuma (Pacing Guard) Denetimi:
+    // Facebook EdgeRank algoritmasını korumak için iki otonom gönderi arası en az 90 dakika beklenir.
+    const lastPublished = await prisma.content.findFirst({
+      where: {
+        status: 'PUBLISHED',
+        publishedAt: { not: null }
+      },
+      orderBy: { publishedAt: 'desc' },
+      select: { publishedAt: true, title: true }
+    });
+
+    if (lastPublished?.publishedAt) {
+      const minutesSince = Math.floor((Date.now() - new Date(lastPublished.publishedAt).getTime()) / (60 * 1000));
+      if (minutesSince < 90) {
+        console.log(`[Content Publisher] Pacing Guard: Last post "${lastPublished.title}" was published ${minutesSince}m ago (< 90m). Skipping auto-publish.`);
+        return {
+          ...result,
+          cooldownActive: true,
+          minutesSinceLastPost: minutesSince,
+          reason: `Pacing koruması aktif: Son paylaşımdan sonra henüz ${minutesSince} dakika geçti (Minimum bekleme: 90 dk).`
+        };
+      }
+    }
+
+    // 2. Günlük Tavan Sınırı (Daily Cap Guard):
+    // Bir gün içinde otonom yayınlanan gönderi sayısı maksimum 8 olabilir.
+    const nowTurkey = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
+    const startOfTodayTurkey = new Date(nowTurkey);
+    startOfTodayTurkey.setHours(0, 0, 0, 0);
+
+    const todayCount = await prisma.content.count({
+      where: {
+        status: 'PUBLISHED',
+        publishedAt: { gte: startOfTodayTurkey }
+      }
+    });
+
+    if (todayCount >= 8) {
+      console.log(`[Content Publisher] Daily Cap Guard: Already published ${todayCount} posts today (Cap: 8).`);
+      return {
+        ...result,
+        dailyCapReached: true,
+        todayCount,
+        reason: `Günlük 8 gönderi tavanına ulaşıldı (${todayCount}/8). Takipçi doygunluğunu önlemek için yayın kuyruğa alındı.`
+      };
+    }
+
+    // Her otonom döngüde EN FAZLA 1 adet gönderi yayınlanır (erişim bölünmesini önler)
+    const effectiveLimit = Math.min(limit, 1);
+
     const readyContents = await prisma.content.findMany({
       where: {
         status: 'READY_TO_PUBLISH',
         facebookPostId: null,
+        // Kalite filtresi: Sadece yüksek puanlı (75+) içerikler otonom yayınlanır
         OR: [
-          // Never failed yet (no retry text in aiReasoning)
-          { aiReasoning: { equals: null } },
-          { NOT: { aiReasoning: { contains: 'Yayinlama Hatasi' } } },
-          // OR failed, but at least 15 minutes ago
-          { updatedAt: { lt: new Date(Date.now() - 15 * 60 * 1000) } }
+          { qualityScore: { gte: 75 } },
+          { viralScore: { gte: 75 } },
+          { newsValueScore: { gte: 75 } }
+        ],
+        AND: [
+          {
+            OR: [
+              // Never failed yet (no retry text in aiReasoning)
+              { aiReasoning: { equals: null } },
+              { NOT: { aiReasoning: { contains: 'Yayinlama Hatasi' } } },
+              // OR failed, but at least 15 minutes ago
+              { updatedAt: { lt: new Date(Date.now() - 15 * 60 * 1000) } }
+            ]
+          }
         ]
       },
       include: {
         sourceNews: true
       },
-      take: limit * 2,
-      orderBy: { createdAt: 'desc' }
+      take: 5,
+      orderBy: [
+        { qualityScore: 'desc' },
+        { createdAt: 'desc' }
+      ]
     });
 
     if (readyContents.length === 0) {
-      console.log("[Content Publisher] No READY_TO_PUBLISH content found.");
+      console.log("[Content Publisher] No qualified READY_TO_PUBLISH content found (score >= 75).");
       return result;
     }
 
     for (const content of readyContents) {
-      if (result.processed + result.failed >= limit) break;
+      if (result.processed >= effectiveLimit) break;
       if (publishingIds.has(content.id)) continue;
 
       // 1. Tazelik Denetimi (Anti-Stale Guard):

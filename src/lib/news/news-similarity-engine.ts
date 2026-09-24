@@ -39,6 +39,10 @@ const KNOWN_ENTITIES: Record<string, string[]> = {
   'thomas_reis': ['thomas reis', 'thomas', 'reis'],
   'ertugrul_dogan': ['ertuğrul doğan', 'ertugrul dogan', 'doğan', 'dogan', 'baskan', 'başkan'],
   'fatih_tekke': ['fatih tekke', 'tekke'],
+  'senol_gunes': ['şenol güneş', 'senol gunes', 'şenol hoca', 'gunes', 'güneş'],
+  'abdullah_avci': ['abdullah avcı', 'abdullah avci', 'avcı', 'avci'],
+  'nevzat_aydin': ['nevzat aydın', 'nevzat aydin', 'nevzat'],
+  'ahmet_agaoglu': ['ahmet ağaoğlu', 'ahmet agaoglu', 'ağaoğlu', 'agaoglu'],
   
   // Kaleciler
   'ugurcan_cakir': ['uğurcan çakır', 'ugurcan cakir', 'uğurcan', 'ugurcan', 'kaptan'],
@@ -54,6 +58,9 @@ const KNOWN_ENTITIES: Record<string, string[]> = {
   'serdar_saatci': ['serdar saatçı', 'serdar saatci'],
   'huseyin_turkmen': ['hüseyin türkmen', 'huseyin turkmen'],
   'arif_bosluk': ['arif boşluk', 'arif bosluk'],
+  'rayyan_baniya': ['rayyan baniya', 'baniya'],
+  'stefano_denswil': ['stefano denswil', 'denswil'],
+  'ali_sahin_yilmaz': ['ali şahin', 'ali sahin'],
   
   // Orta Saha
   'batista_mendy': ['batista mendy', 'mendy'],
@@ -62,6 +69,8 @@ const KNOWN_ENTITIES: Record<string, string[]> = {
   'ozan_tufan': ['ozan tufan', 'tufan'],
   'muhammed_cham': ['muhammed cham', 'cham'],
   'cihan_canak': ['cihan çanak', 'cihan canak', 'çanak', 'canak'],
+  'enis_bardhi': ['enis bardhi', 'bardhi'],
+  'salih_malkocoglu': ['salih malkoçoğlu', 'salih malkocoglu'],
   
   // Hücum
   'simon_banza': ['simon banza', 'banza'],
@@ -69,7 +78,12 @@ const KNOWN_ENTITIES: Record<string, string[]> = {
   'anthony_nwakaeme': ['anthony nwakaeme', 'nwakaeme', 'tony'],
   'denis_dragus': ['denis dragus', 'dragus'],
   'enis_destan': ['enis destan', 'destan'],
-  'poyraz_yildirim': ['poyraz yıldırım', 'poyraz yildirim']
+  'poyraz_yildirim': ['poyraz yıldırım', 'poyraz yildirim'],
+  'mislav_orsic': ['mislav orsic', 'orşiç', 'orsic'],
+  'paul_onuachu': ['paul onuachu', 'onuachu'],
+  'danylo_sikan': ['danylo sikan', 'sikan'],
+  'mustafa_eskihellac': ['mustafa eskihellaç', 'eskihellaç', 'eskihellac'],
+  'marco_asensio': ['marco asensio', 'asensio']
 };
 
 /**
@@ -355,7 +369,8 @@ export async function checkAgainstPublishedHistory(
         status: true,
         publishedAt: true,
         facebookPostId: true,
-        sourceNewsId: true
+        sourceNewsId: true,
+        createdAt: true
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -384,7 +399,7 @@ export async function checkAgainstPublishedHistory(
         matchReason = simResult.reason;
       }
 
-      // Eğer eşleşme bulunduysa erken çıkış yap
+      // Eğer doğrudan semantik benzerlik eşleşmesi bulunduysa erken çıkış yap
       if (simResult.isDuplicate) {
         return {
           isDuplicate: true,
@@ -397,6 +412,31 @@ export async function checkAgainstPublishedHistory(
           },
           reason: `Geçmiş yayın ile eşleşti (%${Math.round(simResult.similarity * 100)}): "${post.title}". ${simResult.reason}`
         };
+      }
+
+      // 24 saatlik aynı şahıs / konu koruması:
+      // Eğer son 24 saat içinde bu futbolcu/yönetici/özne hakkında bir paylaşım yapıldıysa
+      // ve ortak bir olay veya ortak 2+ kelime varsa veya benzerlik >= 0.28 ise
+      // takipçileri aynı konuya boğmamak ve Facebook algoritmasını korumak için mükerrer say!
+      const postTimestamp = post.publishedAt || post.createdAt;
+      const isWithin24h = postTimestamp 
+        ? (Date.now() - new Date(postTimestamp).getTime()) < 24 * 60 * 60 * 1000 
+        : true;
+
+      if (isWithin24h && simResult.sharedEntities.length > 0) {
+        if (simResult.sharedEvents.length > 0 || simResult.sharedTokens.length >= 2 || simResult.similarity >= 0.28) {
+          return {
+            isDuplicate: true,
+            similarity: Math.max(simResult.similarity, 0.75),
+            matchedPost: {
+              id: post.id,
+              title: post.title,
+              publishedAt: post.publishedAt,
+              facebookPostId: post.facebookPostId
+            },
+            reason: `Son 24 saat içinde aynı özne (${simResult.sharedEntities.join(', ')}) hakkında zaten bir gönderi yayınlandı: "${post.title}". Sayfa kalitesini ve etkileşim oranını korumak için mükerrer sayıldı.`
+          };
+        }
       }
     }
 

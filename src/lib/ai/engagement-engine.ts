@@ -31,33 +31,34 @@ export class EngagementEngine {
 
     if (textLower.includes("transfer") || textLower.includes("imza") || textLower.includes("bonservis") || textLower.includes("kulüp")) {
       const transferCTAs = [
-        "Sizce bu transfer Trabzonspor'umuza güç katar mı? İlk 11 için yeterli mi? Görüşlerinizi yorumlarda paylaşın! 👇",
-        "Bordo-Mavili taraftarlar ne düşünüyor? Bu hamle şampiyonluk yolunda doğru adım mı? Yorumlarda buluşalım! 🔴🔵",
-        "Siz olsaydınız bu mevkiye kimi transfer ederdiniz? Fikirlerinizi bekliyoruz! 👇"
+        "Sizce bu transfer ilk 11'in değişilmezi mi olmalı, yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek) Yorumlarda buluşalım! 👇",
+        "Bordo-Mavili taraftarlar ne düşünüyor? Bu hamle şampiyonluk yolunda doğru adım mı? (EVET / HAYIR) Fikirlerinizi paylaşın! 🔴🔵",
+        "Bu transfer hamlesini 1 ile 10 arasında puanlayın: 1️⃣ - 🔟? Yorumlarda oyluyoruz! 👇"
       ];
       return transferCTAs[Math.floor(Math.random() * transferCTAs.length)];
     }
 
     if (textLower.includes(OFFICIAL_MANAGER.name.toLowerCase()) || textLower.includes("reis") || textLower.includes("hoca") || textLower.includes("teknik direktör") || textLower.includes("taktik")) {
       const coachCTAs = [
-        "Hocamızın bu kararını nasıl değerlendiriyorsunuz? Sizce doğru 11 sahada mı? Yorumlarınızı yazın! 👇",
-        "Takımın taktiksel gelişimini nasıl buluyorsunuz? Fikirlerinizi bizimle paylaşın! 🔴🔵"
+        "Hocamızın bu kararını destekliyor musunuz? (EVET / HAYIR) Katılanlar 'BEĞEN' butonuna bassın, fikri olan yoruma yazsın! 👇",
+        "Sizce sahaya hangi 11 ile çıkmalıyız? İdeal kadronuzu yoruma bırakın, en çok beğenilen kadroyu öne çıkaralım! 🔴🔵",
+        "Takımın taktiksel gelişimini 1-10 arası puanlayın: 1️⃣ - 🔟? Fikirlerinizi bekliyoruz! 👇"
       ];
       return coachCTAs[Math.floor(Math.random() * coachCTAs.length)];
     }
 
     if (textLower.includes("maç") || textLower.includes("derbi") || textLower.includes("skor") || textLower.includes("rakip")) {
       const matchCTAs = [
-        "Sizce maçın yıldızı kim olur? Skor tahminlerinizi yoruma yazın, bakalım kim bilecek! ⚽👇",
-        "Fırtına bu maçtan nasıl bir sonuçla ayrılır? Skor tahminlerinizi bekliyoruz! 🔴🔵"
+        "Sizce maçın kırılma anı veya yıldızı kim olur? Skor tahminlerinizi yoruma yazın, bakalım kim bilecek! ⚽👇",
+        "Fırtına bu kritik virajdan nasıl bir sonuçla ayrılır? (GALİBİYET / BERABERLİK / MAĞLUBİYET) Tahminleri alalım! 🔴🔵"
       ];
       return matchCTAs[Math.floor(Math.random() * matchCTAs.length)];
     }
 
     // Varsayılan genel etkileşim sorusu
     const defaultCTAs = [
-      "Bordo-Mavili renklere gönül veren taraftarlarımız ne düşünüyor? Düşüncelerinizi yorumlarda belirtin! 🔴🔵",
-      "Sizce bu gelişme takımın gidişatını nasıl etkiler? Yorumlarınızı bekliyoruz! 👇"
+      "Bordo-Mavili renklere gönül verenler ses versin! Bu gelişme hakkında ne düşünüyorsunuz? Yorumlarda buluşalım! 🔴🔵",
+      "Sizce bu gelişme Trabzonspor'umuzun sezon sonu hedeflerini nasıl etkiler? (1-10 arası puanlayın!) 👇"
     ];
     return defaultCTAs[Math.floor(Math.random() * defaultCTAs.length)];
   }
