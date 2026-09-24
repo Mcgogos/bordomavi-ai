@@ -22,9 +22,11 @@ export async function GET(request: NextRequest) {
     const minute = searchParams.get('minute');
     const score = searchParams.get('score');
     const player = searchParams.get('player');
+    const format = searchParams.get('format')?.toLowerCase();
 
-    const canvasWidth = 1200;
-    const canvasHeight = 630;
+    const isVertical = requestedTemplate === 'REELS' || format === 'vertical' || format === 'reels';
+    const canvasWidth = isVertical ? 1080 : 1200;
+    const canvasHeight = isVertical ? 1920 : 630;
     
     // 3. Kullanıcının Orijinal BordoMavi Logosu (Bellek içi Base64 - Sıfır fs / Sıfır Vercel hatası)
     const logoDataUrl = BORDOMAVI_BRAND_LOGO_DATA_URI;
@@ -55,6 +57,180 @@ export async function GET(request: NextRequest) {
       } catch (e) {
         console.warn("[OG Route] Harici görsel indirilemedi, kurumsal dinamik zemin kullanılıyor:", e);
       }
+    }
+
+    if (isVertical) {
+      return new ImageResponse(
+        (
+          <div
+            style={{
+              height: '100%',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: '#070B14',
+              color: '#FFFFFF',
+              position: 'relative',
+              overflow: 'hidden',
+              fontFamily: 'sans-serif',
+              justifyContent: 'space-between',
+              padding: '70px 60px 80px 60px'
+            }}
+          >
+            {/* BACKGROUND IMAGE / GRADIENT */}
+            {safeExternalImageDataUrl ? (
+              <>
+                <img
+                  src={safeExternalImageDataUrl}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover'
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    background: 'linear-gradient(to bottom, rgba(10,15,29,0.85) 0%, rgba(123,15,29,0.3) 35%, rgba(10,15,29,0.95) 75%, #070B14 100%)'
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '-20%',
+                    left: '-20%',
+                    width: '1400px',
+                    height: '1400px',
+                    background: 'radial-gradient(circle, rgba(123,15,28,0.8) 0%, rgba(10,15,29,0) 70%)'
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '-20%',
+                    right: '-20%',
+                    width: '1400px',
+                    height: '1400px',
+                    background: 'radial-gradient(circle, rgba(46,139,201,0.6) 0%, rgba(10,15,29,0) 70%)'
+                  }}
+                />
+              </>
+            )}
+
+            {/* TOP HEADER: BRAND + REELS BADGE */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', zIndex: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                {logoDataUrl && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '9999px',
+                    border: '4px solid #F59E0B',
+                    padding: '8px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)'
+                  }}>
+                    <img src={logoDataUrl} width={90} height={90} style={{ borderRadius: '9999px', objectFit: 'contain' }} />
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '32px', fontWeight: '900', color: '#FFFFFF', letterSpacing: '2px' }}>
+                    BORDOMAVI
+                  </span>
+                  <span style={{ fontSize: '20px', fontWeight: '700', color: '#38BDF8', letterSpacing: '1px' }}>
+                    ÖZEL HABER MERKEZİ
+                  </span>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: 'rgba(225, 29, 72, 0.9)',
+                border: '2px solid rgba(255, 255, 255, 0.4)',
+                borderRadius: '9999px',
+                padding: '12px 28px',
+                boxShadow: '0 8px 20px rgba(0,0,0,0.5)'
+              }}>
+                <span style={{ fontSize: '22px', fontWeight: '900', color: '#FFFFFF', letterSpacing: '1px' }}>
+                  🎬 REELS & SHORTS
+                </span>
+              </div>
+            </div>
+
+            {/* BOTTOM SECTION: BADGE + TITLE + SUMMARY + ENGAGEMENT */}
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', zIndex: 10, marginTop: 'auto' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: 'rgba(245, 158, 11, 0.25)',
+                border: '2px solid #F59E0B',
+                borderRadius: '8px',
+                padding: '10px 24px',
+                alignSelf: 'flex-start',
+                marginBottom: '24px'
+              }}>
+                <span style={{ fontSize: '24px', fontWeight: '900', color: '#FCD34D', letterSpacing: '1.5px' }}>
+                  ⚡ FLAŞ GELİŞME
+                </span>
+              </div>
+
+              <h1 style={{
+                fontSize: title.length > 60 ? '56px' : '68px',
+                fontWeight: '900',
+                lineHeight: 1.15,
+                color: '#FFFFFF',
+                margin: '0 0 24px 0',
+                textShadow: '0 6px 24px rgba(0,0,0,0.9)'
+              }}>
+                {title}
+              </h1>
+
+              {summary && (
+                <p style={{
+                  fontSize: '34px',
+                  fontWeight: '500',
+                  color: '#E2E8F0',
+                  lineHeight: 1.35,
+                  margin: '0 0 36px 0',
+                  textShadow: '0 4px 16px rgba(0,0,0,0.8)'
+                }}>
+                  {summary}
+                </p>
+              )}
+
+              {/* FOOTER CALL TO ACTION */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingTop: '28px',
+                borderTop: '3px solid rgba(255,255,255,0.2)',
+                width: '100%'
+              }}>
+                <span style={{ fontSize: '28px', fontWeight: '900', color: '#38BDF8', letterSpacing: '1px' }}>
+                  #Trabzonspor #BordoMavi
+                </span>
+                <span style={{ fontSize: '24px', fontWeight: '800', color: '#FCD34D' }}>
+                  💬 Yorumlarda Buluşalım! 👇
+                </span>
+              </div>
+            </div>
+          </div>
+        ),
+        { width: 1080, height: 1920 }
+      );
     }
 
     return new ImageResponse(

@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, Newspaper, FileText, Edit, Calendar, 
   Image as ImageIcon, BarChart3, Brain, Settings, Shield,
-  LogOut, Trophy, Menu, X
+  LogOut, Menu, X
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -15,7 +15,6 @@ const menu = [
   { name: "Haber Akışı", href: "/news", icon: Newspaper, group: "Genel" },
   { name: "İçerik Merkezi", href: "/content", icon: FileText, group: "İçerik" },
   { name: "Editör", href: "/editor", icon: Edit, group: "İçerik" },
-  { name: "Maç Günü", href: "/matchday", icon: Trophy, group: "İçerik" },
   { name: "Takvim", href: "/calendar", icon: Calendar, group: "Planlama" },
   { name: "Medya", href: "/media", icon: ImageIcon, group: "Planlama" },
   { name: "Analitik", href: "/analytics", icon: BarChart3, group: "Raporlar" },
@@ -27,8 +26,8 @@ const menu = [
 const mobileBottomNav = [
   { name: "Özet", href: "/dashboard", icon: LayoutDashboard },
   { name: "Haberler", href: "/news", icon: Newspaper },
+  { name: "İçerik", href: "/content", icon: FileText },
   { name: "Editör", href: "/editor", icon: Edit },
-  { name: "Maç Günü", href: "/matchday", icon: Trophy },
   { name: "Medya", href: "/media", icon: ImageIcon },
 ];
 

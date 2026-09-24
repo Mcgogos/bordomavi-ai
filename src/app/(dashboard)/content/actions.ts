@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { FacebookService } from "@/services/facebook.service";
 import { checkAgainstPublishedHistory } from "@/lib/news/news-similarity-engine";
+import { stripExternalSources } from "@/lib/content/content-generator";
 
 export async function deleteContentAction(id: string) {
   try {
@@ -47,12 +48,12 @@ export async function publishContentNowAction(contentId: string, forcePublish: b
       }
     }
 
-    // Build clean plain text message without markdown asterisks
-    const cleanTitle = (content.title || '').replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
-    const cleanBody = (content.body || '').replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    // Build clean plain text message without markdown asterisks and without external sources
+    const cleanTitle = stripExternalSources(content.title || '').replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    const cleanBody = stripExternalSources(content.body || '').replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
     let message = cleanTitle ? cleanTitle + "\n\n" + cleanBody : cleanBody;
     if (content.hashtags) message += "\n\n" + content.hashtags.trim();
-    message = message.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    message = stripExternalSources(message).replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
 
     // Build the og image URL for the news title with matched template
     const combinedText = `${cleanTitle} ${cleanBody}`.toLowerCase();

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { isNewsTooOld, checkAgainstPublishedHistory } from "@/lib/news/news-similarity-engine";
+import { stripExternalSources } from "@/lib/content/content-generator";
 
 export async function saveContentAction(id: string, updates: { title?: string, body?: string, status?: string }) {
   try {
@@ -47,10 +48,10 @@ export async function publishContentDirectlyAction(
     
     // 1. Önce güncellemeleri temizle ve kaydet
     const cleanTitle = updates.title
-      ? updates.title.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim()
+      ? stripExternalSources(updates.title).replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim()
       : undefined;
     const cleanBody = updates.body
-      ? updates.body.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim()
+      ? stripExternalSources(updates.body).replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim()
       : undefined;
 
     const updatedContent = await prisma.content.update({
@@ -80,7 +81,7 @@ export async function publishContentDirectlyAction(
     }
 
     // 2. Facebook yayını için hazırlık (10 Canva şablonundan uygun olanı seç)
-    const messageBody = (updatedContent.body || '').replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    const messageBody = stripExternalSources(updatedContent.body || '').replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai.vercel.app';
     
     const combinedText = `${updatedContent.title || ''} ${messageBody}`.toLowerCase();

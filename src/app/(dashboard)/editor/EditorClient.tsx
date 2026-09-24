@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { saveContentAction, deleteContentAction, publishContentDirectlyAction } from "./actions";
 import { EngagementEngine, ABHeadlineVariant } from "@/lib/ai/engagement-engine";
 import { CanvaStudioModal } from "@/components/media/CanvaStudioModal";
+import { ReelStudioModal } from "@/components/media/ReelStudioModal";
 import { FacebookGroupShareModal } from "@/components/social/FacebookGroupShareModal";
 import { BORDOMAVI_BRAND_LOGO_DATA_URI } from "@/lib/canva/brand-logo-data";
 
@@ -320,7 +321,7 @@ export default function EditorClient({ initialContents }: { initialContents: any
                   </span>
                 </div>
                 <h4 className="font-semibold text-sm text-foreground line-clamp-2 leading-snug">{c.title}</h4>
-                <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{c.sourceNews?.title}</p>
+                <p className="text-[11px] text-[#781324] font-medium mt-1 line-clamp-1">Bordo Mavi Özel İçerik</p>
               </div>
             ))}
           </div>
@@ -345,11 +346,9 @@ export default function EditorClient({ initialContents }: { initialContents: any
                         Canlı Editör
                       </span>
                     </div>
-                    <CardDescription className="text-xs flex items-center gap-1 text-muted-foreground">
-                      Orijinal Kaynak: 
-                      <a href={selectedContent.sourceNews?.url} target="_blank" rel="noreferrer" className="text-primary font-medium hover:underline flex items-center">
-                        Haber Bağlantısı <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
+                    <CardDescription className="text-xs flex items-center gap-1.5 text-muted-foreground">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Bordo Mavi Haber Masası &bull; Birinci El Doğrulanmış İçerik
                     </CardDescription>
                   </div>
 
@@ -442,11 +441,12 @@ export default function EditorClient({ initialContents }: { initialContents: any
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="h-9 px-2.5 text-xs bg-card hover:bg-muted border-border/80 text-foreground justify-start sm:justify-center" 
+                      className="h-9 px-3 text-xs bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-600 dark:text-rose-400 font-bold shadow-xs flex items-center justify-start sm:justify-center gap-1.5" 
                       onClick={() => setShowReelModal(true)}
+                      title="15-20 Saniyelik Sesli Reels & Görsel Stüdyosu"
                     >
-                      <Film className="w-3.5 h-3.5 mr-1.5 text-rose-500 shrink-0" />
-                      <span className="truncate">Reels Senaryosu</span>
+                      <Film className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      <span className="truncate">🎬 Reels & Ses Stüdyosu</span>
                     </Button>
 
                     <Button 
@@ -717,68 +717,16 @@ export default function EditorClient({ initialContents }: { initialContents: any
         </div>
       )}
 
-      {/* Reels / Video Senaryosu Modalı */}
-      {showReelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-card border border-border/90 rounded-2xl p-6 shadow-2xl max-w-lg w-full space-y-4">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2">
-                <Film className="w-5 h-5 text-rose-500" />
-                <h3 className="font-bold text-base text-foreground">15 Saniyelik Reels / Shorts Senaryosu</h3>
-              </div>
-              <button 
-                onClick={() => setShowReelModal(false)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2.5 text-xs">
-              <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
-                <span className="font-bold text-primary block mb-0.5">🎬 Sahne 1: Kanca / Dikkat Çekme (0-3 sn)</span>
-                <p className="text-muted-foreground italic">"Trabzonspor'da yer yerinden oynuyor! İşte son dakika bombası..."</p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
-                <span className="font-bold text-foreground block mb-0.5">⚡ Sahne 2: Gelişme & Detay (3-8 sn)</span>
-                <p className="text-muted-foreground italic">{localTitle.substring(0, 90)}...</p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
-                <span className="font-bold text-foreground block mb-0.5">🔥 Sahne 3: Perde Arkası (8-12 sn)</span>
-                <p className="text-muted-foreground italic">{localBody.substring(0, 110)}...</p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                <span className="font-bold text-emerald-600 block mb-0.5">📢 Sahne 4: Eylem Çağrısı (12-15 sn)</span>
-                <p className="text-muted-foreground italic">"Sizce bu karar doğru mu? Yorumlarda buluşalım, takipte kalın!"</p>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(`Sahne 1 (0-3s): "Trabzonspor'da flaş gelişme!"\nSahne 2 (3-8s): ${localTitle}\nSahne 3 (8-12s): ${localBody}\nSahne 4 (12-15s): Yorumlarda buluşalım!`);
-                  toast.success("Reels senaryosu panoya kopyalandı!");
-                }}
-              >
-                <Copy className="w-3.5 h-3.5 mr-1.5" />
-                Senaryoyu Kopyala
-              </Button>
-              <Button 
-                size="sm" 
-                className="bg-[#781324] hover:bg-[#5e0e1c] text-white"
-                onClick={() => setShowReelModal(false)}
-              >
-                Kapat
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Profesyonel AI Reels & Ses Stüdyosu Modalı */}
+      <ReelStudioModal
+        isOpen={showReelModal}
+        onClose={() => setShowReelModal(false)}
+        title={localTitle}
+        summary={localBody ? localBody.slice(0, 160) : ""}
+        body={localBody}
+        imageUrl={selectedId && customVisuals[selectedId] ? customVisuals[selectedId] : selectedContent?.sourceNews?.imageUrl || ""}
+        availableNews={contents.map(c => ({ id: c.id, title: c.title, summary: c.body, imageUrl: c.sourceNews?.imageUrl }))}
+      />
 
       {/* Canva Tasarım Stüdyosu Modalı */}
       <CanvaStudioModal

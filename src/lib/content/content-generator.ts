@@ -6,10 +6,27 @@ import {
   deduplicateNewsBatch
 } from '@/lib/news/news-similarity-engine';
 
-// Helper to strictly remove markdown asterisks (** and *) for clean plain text publishing
-export function sanitizePlainText(text: string): string {
+/**
+ * Dış haber ajansı ve yerel site isimlerini (Günebakış, Haber61, 61saat vb.) metinden temizler.
+ * Bordo Mavi doğrudan ana kaynak konumundadır.
+ */
+export function stripExternalSources(text: string): string {
   if (!text) return '';
   return text
+    // "Kaynak : Günebakış", "Kaynak: Haber61", "Kaynak: 61saat" vb. satırları tamamen sil
+    .replace(/(^|\n)\s*Kaynak\s*:\s*[^\n\r]+/gi, '')
+    .replace(/\bKaynak\s*:\s*[A-Za-z0-9ÇĞİÖŞÜçğıöşü\s\.\-]+(?=\n|$)/gi, '')
+    // "Günebakış'ın haberine göre", "Haber61'e göre", "61saat'ten alınan bilgiye göre"
+    .replace(/\b(Günebakış|Gunebakis|Haber61|61saat|Kuzey\s*Ekspres|Taka|Fotomaç|Fotomac|Fanatik|DHA|AA|İHA)('ın|'in|'un|'ün|'e|'a)?\s+(özel\s+)?(haberine|haberine göre|aktardığına göre|göre|kaynaklı|tarafından)\b/gi, 'Bordo Mavi Haber Merkezi\'nin edindiği bilgiye göre')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// Helper to strictly remove markdown asterisks (** and *) and external sources for clean plain text publishing
+export function sanitizePlainText(text: string): string {
+  if (!text) return '';
+  const noSources = stripExternalSources(text);
+  return noSources
     .replace(/\*\*/g, '')
     .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
     .trim();
@@ -18,13 +35,12 @@ export function sanitizePlainText(text: string): string {
 export function generateSmartFallbackPost(news: any): string {
   const cleanTitle = sanitizePlainText(news.title || '');
   const cleanSummary = sanitizePlainText(news.summary || news.aiSummary || '');
-  const sourceName = news.source?.name ? `Kaynak: ${news.source.name}` : '';
 
   const category = (news.category || news.aiRecommendedContentType || '').toUpperCase();
-  let badge = 'BORDO MAVİ FLAŞ HABER';
+  let badge = 'BORDO MAVİ ÖZEL HABER';
   if (category.includes('TRANSFER')) badge = 'BORDO MAVİ TRANSFER GELİŞMESİ';
   else if (category.includes('MATCH')) badge = 'TRABZONSPOR MAÇ GÜNDEMİ';
-  else if (category.includes('ANALYSIS')) badge = 'TRABZONSPOR ÖZEL ANALİZ';
+  else if (category.includes('ANALYSIS')) badge = 'BORDO MAVİ ÖZEL ANALİZ';
 
   const fanQuestions = [
     '📌 Sizce bu karar Trabzonspor’un şampiyonluk yolundaki hedeflerini nasıl etkiler? (1-10 arası puanlayın!)',
@@ -39,9 +55,6 @@ export function generateSmartFallbackPost(news: any): string {
   let post = `${badge}\n\n${cleanTitle}\n\n`;
   if (cleanSummary && cleanSummary !== cleanTitle) {
     post += `${cleanSummary}\n\n`;
-  }
-  if (sourceName) {
-    post += `${sourceName}\n\n`;
   }
   post += `${selectedQuestion}\n\n`;
   post += '#Trabzonspor #BordoMavi #Fırtına #SüperLig';
@@ -168,14 +181,13 @@ export async function generateAutomatedContent(limit: number = 5) {
 Lütfen aşağıdaki haber detaylarını kullanarak Bordo Mavi (Trabzonspor) taraftar platformu için dikkat çekici bir Facebook gönderisi taslağı oluştur.
         
 Haber Başlığı: ${sanitizePlainText(news.title)}
-Kaynak: ${news.source?.name || 'Bilinmiyor'}
-Haber Özeti: ${sanitizePlainText(news.summary || news.aiSummary || '')}
+Haber Detayı: ${sanitizePlainText(news.summary || news.aiSummary || '')}
         
 Kurallar:
-1. Dikkat çekici bir başlık ile başla.
-2. 2-4 kısa paragraftan oluşsun (okunması kolay).
-3. Haber kaynağına dayalı net bir özet sun.
-4. Kesinleşmemiş haberler için "iddia edildi", "öne sürüldü" gibi güvenilirlik ifadeleri kullan.
+1. Dikkat çekici, merak uyandıran güçlü bir başlık ile başla.
+2. 2-4 kısa ve vurucu paragraftan oluşsun (mobil ekranda kolay okunsun).
+3. Haberin kaynağı KESİNLİKLE 'Bordo Mavi Haber Merkezi' veya 'Bordo Mavi Özel'dir. Asla başka gazete veya site adı (Günebakış, Haber61, 61saat, Fanatik, Fotomaç vb.) KULLANMA. 'Kaynak: ...' veya '... sitesine göre' gibi ifadeler KESİNLİKLE YASAKTIR. Haberi ilk ve özel olarak biz veriyormuşuz gibi doğrudan kendi içeriğimiz olarak yaz.
+4. Kesinleşmemiş haberler için "kulüp kaynaklarından edinilen bilgiye göre", "yönetim kulislerinde konuşulanlara göre" gibi güvenilir ifadeler kullan.
 5. Gönderinin sonuna takipçileri YORUM YAPMAYA, OYLAMAYA ve TARTIŞMAYA teşvik edecek net ve etkileşim patlatıcı bir soru veya A/B tercihi ekle (Örn: 'Sizce ilk 11 başlamalı mı yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek)', 'Bu kararı destekliyor musunuz? (EVET / HAYIR)', 'Bu hamleyi 1-10 arası puanlayın!'). Sonuna 'Fikrinizi yorumlarda belirtin!' veya 'Yorumlarda buluşalım!' çağrısı ekle.
 6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
 7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.
@@ -286,14 +298,13 @@ export async function generateSingleContent(newsId: string) {
 Lütfen aşağıdaki haber detaylarını kullanarak Bordo Mavi (Trabzonspor) taraftar platformu için dikkat çekici bir Facebook gönderisi taslağı oluştur.
     
 Haber Başlığı: ${sanitizePlainText(news.title)}
-Kaynak: ${news.source?.name || 'Bilinmiyor'}
-Haber Özeti: ${sanitizePlainText(news.summary || news.aiSummary || '')}
+Haber Detayı: ${sanitizePlainText(news.summary || news.aiSummary || '')}
     
 Kurallar:
-1. Dikkat çekici bir başlık ile başla.
-2. 2-4 kısa paragraftan oluşsun (okunması kolay).
-3. Haber kaynağına dayalı net bir özet sun.
-4. Kesinleşmemiş haberler için "iddia edildi", "öne sürüldü" gibi güvenilirlik ifadeleri kullan.
+1. Dikkat çekici, merak uyandıran güçlü bir başlık ile başla.
+2. 2-4 kısa ve vurucu paragraftan oluşsun (mobil ekranda kolay okunsun).
+3. Haberin kaynağı KESİNLİKLE 'Bordo Mavi Haber Merkezi' veya 'Bordo Mavi Özel'dir. Asla başka gazete veya site adı (Günebakış, Haber61, 61saat, Fanatik, Fotomaç vb.) KULLANMA. 'Kaynak: ...' veya '... sitesine göre' gibi ifadeler KESİNLİKLE YASAKTIR. Haberi ilk ve özel olarak biz veriyormuşuz gibi doğrudan kendi içeriğimiz olarak yaz.
+4. Kesinleşmemiş haberler için "kulüp kaynaklarından edinilen bilgiye göre", "yönetim kulislerinde konuşulanlara göre" gibi güvenilir ifadeler kullan.
 5. Gönderinin sonuna takipçileri YORUM YAPMAYA, OYLAMAYA ve TARTIŞMAYA teşvik edecek net ve etkileşim patlatıcı bir soru veya A/B tercihi ekle (Örn: 'Sizce ilk 11 başlamalı mı yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek)', 'Bu kararı destekliyor musunuz? (EVET / HAYIR)', 'Bu hamleyi 1-10 arası puanlayın!'). Sonuna 'Fikrinizi yorumlarda belirtin!' veya 'Yorumlarda buluşalım!' çağrısı ekle.
 6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
 7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.

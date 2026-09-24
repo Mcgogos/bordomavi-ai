@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { FacebookService } from "@/services/facebook.service";
+import { stripExternalSources } from "@/lib/content/content-generator";
+import { AIFactory } from "@/services/ai/ai.factory";
 
 export async function publishCanvaDesignAction(params: {
   title: string;
@@ -79,26 +81,39 @@ export async function publishCanvaDesignAction(params: {
   }
 }
 
+
 export async function publishReelAction(params: {
   title: string;
   summary: string;
   scriptText: string;
+  imageUrl?: string;
 }) {
   try {
-    const cleanTitle = (params.title || "")
+    const cleanTitle = stripExternalSources(params.title || "")
       .replace(/\*\*/g, "")
       .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3")
       .trim();
 
-    const cleanSummary = (params.summary || "")
+    const cleanSummary = stripExternalSources(params.summary || "")
       .replace(/\*\*/g, "")
       .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3")
       .trim();
 
-    const message = `🎬 AI REELS & SHORTS | ${cleanTitle}\n\n${cleanSummary}\n\n${params.scriptText}\n\n#Trabzonspor #BordoMavi #Reels #Shorts #Fırtına`;
+    const cleanScript = stripExternalSources(params.scriptText || "")
+      .replace(/\*\*/g, "")
+      .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, "$1$2$3")
+      .trim();
+
+    let message = `🎬 BORDO MAVİ REELS | ${cleanTitle}\n\n${cleanSummary}\n\n${cleanScript}`;
+    if (!message.includes('#Trabzonspor')) {
+      message += '\n\n#Trabzonspor #BordoMavi #Reels #Shorts #Fırtına';
+    }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || "https://bordomavi-ai.vercel.app";
-    const mediaUrl = `${baseUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&template=REELS`;
+    let mediaUrl = `${baseUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&template=REELS&format=vertical`;
+    if (params.imageUrl) {
+      mediaUrl += `&imageUrl=${encodeURIComponent(params.imageUrl)}`;
+    }
 
     const result = await FacebookService.publishPost(message, mediaUrl);
 
@@ -106,7 +121,7 @@ export async function publishReelAction(params: {
       await prisma.content.create({
         data: {
           title: cleanTitle,
-          body: params.scriptText,
+          body: cleanScript,
           type: "REELS_SCRIPT",
           status: "PUBLISHED",
           facebookPostId: result.postId,
@@ -118,6 +133,7 @@ export async function publishReelAction(params: {
 
       revalidatePath("/media");
       revalidatePath("/content");
+      revalidatePath("/editor");
       return { success: true, postId: result.postId };
     }
 
@@ -125,5 +141,34 @@ export async function publishReelAction(params: {
   } catch (error: any) {
     console.error("publishReelAction Error:", error);
     return { success: false, error: error.message || "Reels yayınlanırken hata oluştu." };
+  }
+}
+
+export async function generateAiReelScriptAction(params: { title: string; body?: string }) {
+  try {
+    const aiProvider = AIFactory.getRouter("CONTENT_GENERATION");
+    const cleanTitle = stripExternalSources(params.title || '');
+    const cleanBody = stripExternalSources(params.body || '');
+
+    const prompt = `
+Aşağıdaki Trabzonspor haberini 15-20 saniyelik dikey bir Facebook/Instagram Reels senaryosuna dönüştür.
+Haber Başlığı: ${cleanTitle}
+Haber Detayı: ${cleanBody}
+
+Kurallar:
+1. Kesinlikle dış haber ajansı veya kaynak adı (Günebakış, Haber61 vb.) KULLANMA. Kaynak doğrudan Bordo Mavi'dir.
+2. 4 sahne oluştur:
+   - Sahne 1 (0-3 sn - Kanca): Merak uyandıran, vurucu bir seslendirme girişi.
+   - Sahne 2 (3-8 sn - Manşet): Olayın ve manşetin en vurucu 15-20 kelimelik sesli özeti.
+   - Sahne 3 (8-14 sn - Detay): Perde arkası, kritik detay veya etki.
+   - Sahne 4 (14-18 sn - CTA): Takipçileri yorum yapmaya zorlayan net bir A/B tartışma sorusu ve sayfa takip çağrısı.
+3. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Sade düz metin formatında yaz.
+4. Yanıtını doğrudan sahne sahne düz metin olarak ver.`;
+
+    const generated = await aiProvider.generateContent(prompt);
+    return { success: true, scriptText: stripExternalSources(generated || '') };
+  } catch (err: any) {
+    console.error("generateAiReelScriptAction Error:", err);
+    return { success: false, error: err.message };
   }
 }

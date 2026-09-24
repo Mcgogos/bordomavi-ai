@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { FacebookService } from '@/services/facebook.service';
 import { isNewsTooOld, checkAgainstPublishedHistory } from '@/lib/news/news-similarity-engine';
+import { stripExternalSources } from '@/lib/content/content-generator';
 
 const publishingIds = new Set<string>();
 
@@ -146,11 +147,11 @@ export async function publishReadyContent(limit: number = 1) {
       try {
         console.log(`[Content Publisher] Publishing content ID: ${content.id}`);
 
-        const cleanTitle = (content.title || '')
+        const cleanTitle = stripExternalSources(content.title || '')
           .replace(/\*\*/g, '')
           .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
           .trim();
-        const cleanBody = (content.body || '')
+        const cleanBody = stripExternalSources(content.body || '')
           .replace(/\*\*/g, '')
           .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
           .trim();
@@ -159,7 +160,10 @@ export async function publishReadyContent(limit: number = 1) {
         if (content.hashtags) {
           messageBody += '\n\n' + content.hashtags.trim();
         }
-        messageBody = messageBody.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+        messageBody = stripExternalSources(messageBody)
+          .replace(/\*\*/g, '')
+          .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+          .trim();
 
         // Dinamik görsel (Canva/OG Image) URL'sini 10 şablondan içerik türüne göre belirle.
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai.vercel.app';

@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { 
   FileText, CheckCircle2, CalendarClock, Radio, Eye, Send, 
-  Trash, Filter, Search, Loader2, RefreshCw, ThumbsUp, MessageSquare, Share2, BarChart2, Users
+  Trash, Filter, Search, Loader2, RefreshCw, ThumbsUp, MessageSquare, Share2, BarChart2, Users, Film
 } from "lucide-react";
 import { FacebookGroupShareModal } from "@/components/social/FacebookGroupShareModal";
+import { ReelStudioModal } from "@/components/media/ReelStudioModal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isSyncingStats, setIsSyncingStats] = useState(false);
   const [groupSharePost, setGroupSharePost] = useState<any | null>(null);
+  const [reelItem, setReelItem] = useState<any | null>(null);
 
   const handlePublishNow = async (id: string) => {
     setIsPublishing(id);
@@ -325,11 +327,9 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                       <h3 className="font-bold text-xs text-foreground leading-snug line-clamp-2">
                         {titleClean}
                       </h3>
-                      {content.sourceNews?.title && (
-                        <p className="text-[11px] text-muted-foreground line-clamp-1 italic mt-0.5">
-                          Kaynak: {cleanText(content.sourceNews.title)}
-                        </p>
-                      )}
+                      <p className="text-[11px] text-[#781324] font-medium line-clamp-1 mt-0.5">
+                        Bordo Mavi Özel İçerik
+                      </p>
                     </div>
                   </div>
 
@@ -360,15 +360,26 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                     )}
 
                   {/* Mobil Aksiyon Butonları — Asla Kesilmez, Tam Dokunmatik */}
-                  <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="grid grid-cols-4 gap-1.5 pt-1">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setPreviewContent(content)}
-                      className="h-8 text-xs font-semibold border-border/80"
+                      className="h-8 text-xs font-semibold border-border/80 px-2"
                     >
                       <Eye className="w-3.5 h-3.5 mr-1" />
                       Önizle
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setReelItem(content)}
+                      className="h-8 text-xs font-semibold border-rose-500/30 text-rose-600 hover:bg-rose-500/10 px-2"
+                      title="15s Sesli Reels Hazırla"
+                    >
+                      <Film className="w-3.5 h-3.5 mr-1" />
+                      Reels
                     </Button>
 
                     {content.status !== "PUBLISHED" ? (
@@ -383,7 +394,7 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                         ) : (
                           <Send className="w-3.5 h-3.5" />
                         )}
-                        Hemen Yayınla
+                        Yayınla
                       </Button>
                     ) : (
                       <Button
@@ -392,7 +403,7 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                         className="col-span-2 h-8 text-xs font-bold bg-[#1877F2] hover:bg-[#166fe5] text-white shadow-xs flex items-center justify-center gap-1.5"
                       >
                         <Users className="w-3.5 h-3.5" />
-                        Gruplarda Paylaş
+                        Paylaş
                       </Button>
                     )}
                   </div>
@@ -409,7 +420,7 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
               <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/80">
                 <TableHead className="w-16 font-bold text-xs uppercase tracking-wider text-muted-foreground py-3 pl-4">Görsel</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground py-3">İçerik Başlığı</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Kaynak</TableHead>
+                <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Tür</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Durum</TableHead>
                 <TableHead className="text-center font-bold text-xs uppercase tracking-wider text-muted-foreground">Kalite</TableHead>
                 <TableHead className="text-center font-bold text-xs uppercase tracking-wider text-muted-foreground">FB Etkileşimi</TableHead>
@@ -455,10 +466,10 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                         </span>
                       </TableCell>
 
-                      <TableCell className="max-w-[180px] text-xs text-muted-foreground py-3.5">
-                        <span className="line-clamp-1 italic">
-                          {cleanText(content.sourceNews?.title) || "—"}
-                        </span>
+                      <TableCell className="max-w-[180px] text-xs py-3.5 whitespace-nowrap">
+                        <Badge variant="outline" className="text-[11px] font-medium border-[#781324]/30 text-[#781324] bg-[#781324]/5">
+                          Bordo Mavi Özel
+                        </Badge>
                       </TableCell>
 
                       <TableCell className="py-3.5 whitespace-nowrap">
@@ -514,6 +525,17 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                           >
                             <Eye className="w-3.5 h-3.5 mr-1" />
                             Önizle
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs font-semibold border-rose-500/30 text-rose-600 hover:bg-rose-500/10 hover:text-rose-700 flex items-center gap-1"
+                            onClick={() => setReelItem(content)}
+                            title="15-20s Sesli Reels & Görsel Stüdyosu"
+                          >
+                            <Film className="w-3.5 h-3.5" />
+                            Reels
                           </Button>
 
                           {content.status === "PUBLISHED" ? (
@@ -606,9 +628,22 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
                   {previewContent.hashtags}
                 </div>
               )}
-              <div className="flex justify-end gap-2 pt-2 border-t border-border/70">
+              <div className="flex justify-end items-center gap-2 pt-2 border-t border-border/70">
                 <Button variant="outline" onClick={() => setPreviewContent(null)} className="h-9 text-xs">
                   Kapat
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    const postToReel = previewContent;
+                    setPreviewContent(null);
+                    setReelItem(postToReel);
+                  }} 
+                  className="h-9 text-xs font-semibold border-rose-500/30 text-rose-600 hover:bg-rose-500/10 flex items-center gap-1.5"
+                  title="15-20s Sesli Reels & Görsel Stüdyosu"
+                >
+                  <Film className="w-3.5 h-3.5 text-rose-500" />
+                  🎬 Reels Hazırla
                 </Button>
                 {previewContent?.status === "PUBLISHED" ? (
                   <Button
@@ -646,6 +681,19 @@ export default function ContentClient({ initialContents, metrics }: ContentClien
         onClose={() => setGroupSharePost(null)}
         post={groupSharePost}
       />
+
+      {/* Profesyonel AI Reels & Ses Stüdyosu Modalı */}
+      {reelItem && (
+        <ReelStudioModal
+          isOpen={!!reelItem}
+          onClose={() => setReelItem(null)}
+          title={reelItem.title}
+          summary={reelItem.body ? reelItem.body.slice(0, 160) : ""}
+          body={reelItem.body}
+          imageUrl={reelItem.sourceNews?.imageUrl || ""}
+          availableNews={contents.map(c => ({ id: c.id, title: c.title, summary: c.body, imageUrl: c.sourceNews?.imageUrl }))}
+        />
+      )}
     </div>
   );
 }
