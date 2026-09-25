@@ -76,7 +76,7 @@ export class SmartPublisher {
         minutesSinceLastPost = Math.floor((Date.now() - new Date(lastPublished.publishedAt).getTime()) / (60 * 1000));
       }
 
-      const MIN_COOLDOWN_MINUTES = 90;
+      const MIN_COOLDOWN_MINUTES = 20;
       if (minutesSinceLastPost < MIN_COOLDOWN_MINUTES) {
         return {
           hour,
@@ -87,11 +87,11 @@ export class SmartPublisher {
           delayMsBetweenPosts: 0,
           cooldownActive: true,
           minutesSinceLastPost,
-          reason: `Son paylaşımdan bu yana ${minutesSinceLastPost} dk geçti. Facebook EdgeRank algoritmasını korumak ve etkileşimi katlamak için iki gönderi arası en az ${MIN_COOLDOWN_MINUTES} dk bekleniyor. Kalan: ${MIN_COOLDOWN_MINUTES - minutesSinceLastPost} dk.`
+          reason: `Son paylaşımdan bu yana ${minutesSinceLastPost} dk geçti. Düzenli ve spamsiz akış için iki gönderi arası en az ${MIN_COOLDOWN_MINUTES} dk bekleniyor. Kalan: ${MIN_COOLDOWN_MINUTES - minutesSinceLastPost} dk.`
         };
       }
 
-      // 3. Günlük Tavan Sınırı (Daily Cap Guard): Maksimum 8 gönderi
+      // 3. Günlük Tavan Sınırı (Daily Cap Guard): Maksimum 24 gönderi
       const nowTurkey = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
       const startOfTodayTurkey = new Date(nowTurkey);
       startOfTodayTurkey.setHours(0, 0, 0, 0);
@@ -103,7 +103,7 @@ export class SmartPublisher {
         }
       });
 
-      const MAX_DAILY_POSTS = 8;
+      const MAX_DAILY_POSTS = 24;
       if (todayCount >= MAX_DAILY_POSTS) {
         return {
           hour,
@@ -113,7 +113,7 @@ export class SmartPublisher {
           efficiencyRate: "Tamamlandı",
           delayMsBetweenPosts: 0,
           todayCount,
-          reason: `Bugün hedeflenen maksimum ${MAX_DAILY_POSTS} gönderi limitine ulaşıldı (${todayCount} paylaşıldı). Takipçileri haber bombardımanına tutmamak ve algoritma cezasını önlemek için kalan içerikler yarına aktarılıyor.`
+          reason: `Bugün hedeflenen maksimum ${MAX_DAILY_POSTS} gönderi limitine ulaşıldı (${todayCount} paylaşıldı). Takipçi doygunluğunu önlemek için kalan içerikler ertesi güne aktarılıyor.`
         };
       }
 

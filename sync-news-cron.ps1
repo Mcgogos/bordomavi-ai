@@ -37,11 +37,18 @@ try {
     $msgStart = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [INFO] Requesting: $Url"
     Add-Content -Path $LogFile -Value $msgStart
 
-    $Response = Invoke-RestMethod -Uri $Url -Method Get -ErrorAction Stop
-    $ResponseJson = $Response | ConvertTo-Json -Depth 5 -Compress
-    
-    $msgSuccess = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [SUCCESS] $ResponseJson"
-    Add-Content -Path $LogFile -Value $msgSuccess
+    # 1. Öncelik: Doğrudan DNS resolve destekli curl (Windows DNS takılmalarına karşı %100 korumalı)
+    $curlOutput = & curl.exe -s --max-time 50 --resolve bordomavi-ai.vercel.app:443:64.29.17.3 "$Url"
+    if ($curlOutput -and $curlOutput.Contains('"success":true')) {
+        $msgSuccess = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [SUCCESS] $curlOutput"
+        Add-Content -Path $LogFile -Value $msgSuccess
+    } else {
+        # 2. Yedek: Standart Invoke-RestMethod
+        $Response = Invoke-RestMethod -Uri $Url -Method Get -TimeoutSec 45 -ErrorAction Stop
+        $ResponseJson = $Response | ConvertTo-Json -Depth 5 -Compress
+        $msgSuccess = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [SUCCESS] $ResponseJson"
+        Add-Content -Path $LogFile -Value $msgSuccess
+    }
 } catch {
     $msgError = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [ERROR] $($_.Exception.Message)"
     Add-Content -Path $LogFile -Value $msgError

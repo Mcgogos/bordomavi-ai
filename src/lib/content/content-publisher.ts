@@ -5,7 +5,7 @@ import { stripExternalSources } from '@/lib/content/content-generator';
 
 const publishingIds = new Set<string>();
 
-export async function publishReadyContent(limit: number = 1) {
+export async function publishReadyContent(limit: number = 1, force: boolean = false) {
   const result = {
     success: true,
     requested: limit,
@@ -16,7 +16,8 @@ export async function publishReadyContent(limit: number = 1) {
 
   try {
     // 1. Algoritmik Soğuma (Pacing Guard) Denetimi:
-    // Facebook EdgeRank algoritmasını korumak için iki otonom gönderi arası en az 90 dakika beklenir.
+    // İki otonom gönderi arası en az 20 dakika beklenir (haberlerin birikmesini önler, gün boyu taze akış sağlar)
+    const MIN_COOLDOWN_MINUTES = 20;
     const lastPublished = await prisma.content.findFirst({
       where: {
         status: 'PUBLISHED',
@@ -26,21 +27,22 @@ export async function publishReadyContent(limit: number = 1) {
       select: { publishedAt: true, title: true }
     });
 
-    if (lastPublished?.publishedAt) {
+    if (!force && lastPublished?.publishedAt) {
       const minutesSince = Math.floor((Date.now() - new Date(lastPublished.publishedAt).getTime()) / (60 * 1000));
-      if (minutesSince < 90) {
-        console.log(`[Content Publisher] Pacing Guard: Last post "${lastPublished.title}" was published ${minutesSince}m ago (< 90m). Skipping auto-publish.`);
+      if (minutesSince < MIN_COOLDOWN_MINUTES) {
+        console.log(`[Content Publisher] Pacing Guard: Last post "${lastPublished.title}" was published ${minutesSince}m ago (< ${MIN_COOLDOWN_MINUTES}m). Skipping auto-publish.`);
         return {
           ...result,
           cooldownActive: true,
           minutesSinceLastPost: minutesSince,
-          reason: `Pacing koruması aktif: Son paylaşımdan sonra henüz ${minutesSince} dakika geçti (Minimum bekleme: 90 dk).`
+          reason: `Pacing koruması aktif: Son paylaşımdan sonra henüz ${minutesSince} dakika geçti (Minimum bekleme: ${MIN_COOLDOWN_MINUTES} dk).`
         };
       }
     }
 
     // 2. Günlük Tavan Sınırı (Daily Cap Guard):
-    // Bir gün içinde otonom yayınlanan gönderi sayısı maksimum 8 olabilir.
+    // Bir gün içinde otonom yayınlanan gönderi sayısı maksimum 24 olabilir (eski sınır 8'di ve haberleri tıkıyordu)
+    const MAX_DAILY_POSTS = 24;
     const nowTurkey = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
     const startOfTodayTurkey = new Date(nowTurkey);
     startOfTodayTurkey.setHours(0, 0, 0, 0);
@@ -52,13 +54,13 @@ export async function publishReadyContent(limit: number = 1) {
       }
     });
 
-    if (todayCount >= 8) {
-      console.log(`[Content Publisher] Daily Cap Guard: Already published ${todayCount} posts today (Cap: 8).`);
+    if (!force && todayCount >= MAX_DAILY_POSTS) {
+      console.log(`[Content Publisher] Daily Cap Guard: Already published ${todayCount} posts today (Cap: ${MAX_DAILY_POSTS}).`);
       return {
         ...result,
         dailyCapReached: true,
         todayCount,
-        reason: `Günlük 8 gönderi tavanına ulaşıldı (${todayCount}/8). Takipçi doygunluğunu önlemek için yayın kuyruğa alındı.`
+        reason: `Günlük ${MAX_DAILY_POSTS} gönderi tavanına ulaşıldı (${todayCount}/${MAX_DAILY_POSTS}). Kalan içerikler ertesi güne aktarılıyor.`
       };
     }
 
