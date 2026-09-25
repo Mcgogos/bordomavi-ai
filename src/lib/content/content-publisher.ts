@@ -16,8 +16,8 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
 
   try {
     // 1. Algoritmik Soğuma (Pacing Guard) Denetimi:
-    // İki otonom gönderi arası en az 20 dakika beklenir (haberlerin birikmesini önler, gün boyu taze akış sağlar)
-    const MIN_COOLDOWN_MINUTES = 20;
+    // İki otonom gönderi arası en az 120 dakika (2 saat) beklenir (Facebook spam cezası ve kısıtlamalarını önler)
+    const MIN_COOLDOWN_MINUTES = 120;
     const lastPublished = await prisma.content.findFirst({
       where: {
         status: 'PUBLISHED',
@@ -35,14 +35,14 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
           ...result,
           cooldownActive: true,
           minutesSinceLastPost: minutesSince,
-          reason: `Pacing koruması aktif: Son paylaşımdan sonra henüz ${minutesSince} dakika geçti (Minimum bekleme: ${MIN_COOLDOWN_MINUTES} dk).`
+          reason: `Pacing koruması aktif: Son paylaşımdan sonra henüz ${minutesSince} dakika geçti (Minimum bekleme: 2 saat / ${MIN_COOLDOWN_MINUTES} dk).`
         };
       }
     }
 
     // 2. Günlük Tavan Sınırı (Daily Cap Guard):
-    // Bir gün içinde otonom yayınlanan gönderi sayısı maksimum 24 olabilir (eski sınır 8'di ve haberleri tıkıyordu)
-    const MAX_DAILY_POSTS = 24;
+    // Bir gün içinde otonom yayınlanan gönderi sayısı maksimum 8 olabilir (2 saatlik aralıkla gün içi ideal dağılım)
+    const MAX_DAILY_POSTS = 8;
     const nowTurkey = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
     const startOfTodayTurkey = new Date(nowTurkey);
     startOfTodayTurkey.setHours(0, 0, 0, 0);

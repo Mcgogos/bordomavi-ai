@@ -61,7 +61,7 @@ export class SmartPublisher {
     }
 
     try {
-      // 2. Algoritmik Soğuma (Pacing Guard) Denetimi: En az 90 dakika beklenmelidir
+      // 2. Algoritmik Soğuma (Pacing Guard) Denetimi: Facebook algoritmasını korumak için 2 saat (120 dk) beklenir
       const lastPublished = await prisma.content.findFirst({
         where: {
           status: 'PUBLISHED',
@@ -76,22 +76,22 @@ export class SmartPublisher {
         minutesSinceLastPost = Math.floor((Date.now() - new Date(lastPublished.publishedAt).getTime()) / (60 * 1000));
       }
 
-      const MIN_COOLDOWN_MINUTES = 20;
+      const MIN_COOLDOWN_MINUTES = 120; // 2 saatte bir yayın
       if (minutesSinceLastPost < MIN_COOLDOWN_MINUTES) {
         return {
           hour,
           minute,
           quota: 0,
-          windowName: "Algoritmik Pacing (Soğuma) Modu",
+          windowName: "Algoritmik Pacing (2 Saatlik Soğuma)",
           efficiencyRate: "Durduruldu",
           delayMsBetweenPosts: 0,
           cooldownActive: true,
           minutesSinceLastPost,
-          reason: `Son paylaşımdan bu yana ${minutesSinceLastPost} dk geçti. Düzenli ve spamsiz akış için iki gönderi arası en az ${MIN_COOLDOWN_MINUTES} dk bekleniyor. Kalan: ${MIN_COOLDOWN_MINUTES - minutesSinceLastPost} dk.`
+          reason: `Son paylaşımdan bu yana ${minutesSinceLastPost} dk geçti. Facebook spam filtresine takılmamak için iki gönderi arası 2 saat (${MIN_COOLDOWN_MINUTES} dk) bekleniyor. Kalan süre: ${MIN_COOLDOWN_MINUTES - minutesSinceLastPost} dk.`
         };
       }
 
-      // 3. Günlük Tavan Sınırı (Daily Cap Guard): Maksimum 24 gönderi
+      // 3. Günlük Tavan Sınırı (Daily Cap Guard): Maksimum 8 gönderi (2 saatlik aralıklarla dengeli dağılım)
       const nowTurkey = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
       const startOfTodayTurkey = new Date(nowTurkey);
       startOfTodayTurkey.setHours(0, 0, 0, 0);
@@ -103,7 +103,7 @@ export class SmartPublisher {
         }
       });
 
-      const MAX_DAILY_POSTS = 24;
+      const MAX_DAILY_POSTS = 8;
       if (todayCount >= MAX_DAILY_POSTS) {
         return {
           hour,
