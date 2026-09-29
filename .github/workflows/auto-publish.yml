@@ -2,8 +2,8 @@ name: 24/7 Autonomous News & Matchday Publish Cron
 
 on:
   schedule:
-    # Her 30 dakikada bir otomatik calistir (Bulutta 7/24 Kesintisiz)
-    - cron: '*/30 * * * *'
+    # Her 20 dakikada bir otomatik calistir (Bulutta 7/24 Kesintisiz)
+    - cron: '*/20 * * * *'
   workflow_dispatch: # Manuel olarak GitHub panelinden tetikleme imkani
 
 jobs:
@@ -13,10 +13,10 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Trigger 30-Min News Sync & Auto-Publish
+      - name: Trigger 20-Min News Sync & Auto-Publish
         run: |
-          echo "Triggering 30-min auto publish on Vercel..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 120 "https://bordomavi-ai.vercel.app/api/cron/sync-news?secret=test_secret")
+          echo "Triggering 20-min auto publish on Vercel..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" --retry 3 --retry-delay 5 --max-time 120 "https://bordomavi-ai.vercel.app/api/cron/sync-news?secret=test_secret")
           HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
           
