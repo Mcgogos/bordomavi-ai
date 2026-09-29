@@ -4,6 +4,7 @@ import SettingsClient from "./SettingsClient";
 import AiProvidersSettings from "./AiProvidersSettings";
 import FacebookSettings from "./FacebookSettings";
 import CanvaSettings from "./CanvaSettings";
+import CloudAutomationSettings from "./CloudAutomationSettings";
 
 export default async function SettingsPage() {
   const sources = await getNewsSources();
@@ -22,6 +23,7 @@ export default async function SettingsPage() {
         </p>
       </div>
 
+      <CloudAutomationSettings />
       <FacebookSettings />
       <CanvaSettings />
       <AiProvidersSettings />

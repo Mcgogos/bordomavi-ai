@@ -4,7 +4,7 @@ import {
   Newspaper, FileText, Send, TrendingUp, 
   Activity, Zap, Clock, CheckCircle2
 } from "lucide-react";
-
+import WebAutomationCard from "@/components/dashboard/WebAutomationCard";
 
 export default async function DashboardPage() {
   const [totalNews, pendingNews, totalContent, publishedContent, readyContent, recentPublished] = await Promise.all([
@@ -83,6 +83,9 @@ export default async function DashboardPage() {
           <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">7/24 Otonom Motor Aktif</span>
         </div>
       </div>
+
+      {/* Web & Bulut Otomasyon Kartı (Tek Tıkla Senkronizasyon & Kalp Atışı) */}
+      <WebAutomationCard />
 
       {/* KPI Cards (Mobilde 2 Kolon, Masaüstünde 4 Kolon) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
