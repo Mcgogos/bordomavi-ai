@@ -7,11 +7,9 @@ import { ReelScriptData } from './reels-script-generator';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const ffmpegPath = require('ffmpeg-static');
 
-// 9:16 Dikey Formatlı Yüksek Çözünürlüklü Tematik Trabzonspor Arka Planları
 export const CURATED_REEL_BACKGROUNDS = {
   stadium: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1080&h=1920&q=80',
-  fans: 'https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1080&h=1920&q=80',
-  playerAction: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1080&h=1920&q=80',
+  fans: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1080&h=1920&q=80',
   tactics: 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1080&h=1920&q=80',
   pitchNight: 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1080&h=1920&q=80',
 };
@@ -22,7 +20,7 @@ export interface ComposedSlidesResult {
 }
 
 /**
- * Windows / Linux ortamlarında font dosyasını tespit eder
+ * Windows / Linux ortamlarında font dosyasını dinamik olarak tespit eder.
  */
 export function getAvailableFontPath(): string {
   if (process.platform === 'win32') {
@@ -44,9 +42,16 @@ export function getAvailableFontPath(): string {
 }
 
 /**
- * Uzun başlıkları satırlara böler (drawtext için)
+ * FFmpeg drawtext için dosya yolundaki iki noktayı kaçış karakteriyle korur.
  */
-function wrapTextToLines(text: string, maxCharsPerLine: number = 24): string[] {
+export function escapeFFmpegPath(filePath: string): string {
+  return filePath.replace(/\\/g, '/').replace(':', '\\:');
+}
+
+/**
+ * Uzun başlıkları satırlara böler (taşmaları önlemek için).
+ */
+export function wrapTextToLines(text: string, maxCharsPerLine: number = 22, maxLines: number = 3): string[] {
   const words = text.split(' ');
   const lines: string[] = [];
   let currentLine = '';
@@ -60,11 +65,11 @@ function wrapTextToLines(text: string, maxCharsPerLine: number = 24): string[] {
     }
   }
   if (currentLine) lines.push(currentLine);
-  return lines.slice(0, 4); // En fazla 4 satır
+  return lines.slice(0, maxLines);
 }
 
 /**
- * Harici görseli güvenle indirir
+ * Harici görseli güvenle indirir.
  */
 async function downloadImageSafe(url: string, outputPath: string): Promise<boolean> {
   try {
@@ -86,7 +91,13 @@ async function downloadImageSafe(url: string, outputPath: string): Promise<boole
 }
 
 /**
- * 4 Sahneli, Canva kalitesinde 1080x1920 dikey slayt görsellerini üretir.
+ * 4 Sahneli, Profesyonel TV Yayını / Canva Standardında 1080x1920 Dikey Görseller Üretir.
+ * 
+ * Düzen:
+ * - Üst Başlık (y: 60 - 280): BordoMavi Amblemi + "BORDO MAVİ MEDYA" + Canlı Rozet
+ * - Orta Görsel (y: 310 - 1090): 1020x760 Altın Çerçeveli HD Haber Görseli
+ * - Alt Sahne (y: 1130 - 1530): Kristal Koyu Cam Kart (Altyazılar İçin Güvenli Alan)
+ * - Alt Güvenli Alan (y: 1540 - 1920): Facebook UI ile çakışmayan boş alan
  */
 export async function composeReelSlides(
   scriptData: ReelScriptData,
@@ -97,14 +108,11 @@ export async function composeReelSlides(
   const slidePaths: string[] = [];
   const tempFilesToClean: string[] = [];
 
-  const logoPath = path.join(process.cwd(), 'public', 'logo.png');
-  const hasLogo = fs.existsSync(logoPath);
+  // Kulüp logosu tespiti
+  const brandLogo = path.join(process.cwd(), 'public', 'assets', 'brand', 'bordomavi-logo.png');
+  const fallbackLogo = path.join(process.cwd(), 'public', 'logo.png');
+  const logoPath = fs.existsSync(brandLogo) ? brandLogo : (fs.existsSync(fallbackLogo) ? fallbackLogo : null);
   const font = getAvailableFontPath();
-
-  // Renk Paleti (BordoMavi kurumsal)
-  const isTransfer = scriptData.category === 'TRANSFER';
-  const isDerby = scriptData.category === 'MATCH_PREVIEW';
-  const bgColor = isTransfer ? '0x3D040E' : isDerby ? '0x0B1B36' : '0x450A14';
 
   // 1. Haber Görselini İndir
   const downloadedNewsImg = path.join(tempDir, `bm_news_img_${timestamp}.jpg`);
@@ -114,187 +122,228 @@ export async function composeReelSlides(
     if (hasNewsImg) tempFilesToClean.push(downloadedNewsImg);
   }
 
-  // Yedek stadyum görselini indir
+  // 2. Yedek Stadyum Görseli
   const downloadedStadiumImg = path.join(tempDir, `bm_stadium_${timestamp}.jpg`);
   const hasStadiumImg = await downloadImageSafe(CURATED_REEL_BACKGROUNDS.stadium, downloadedStadiumImg);
   if (hasStadiumImg) tempFilesToClean.push(downloadedStadiumImg);
 
+  const heroPhotoPath = hasNewsImg ? downloadedNewsImg : (hasStadiumImg ? downloadedStadiumImg : null);
+
+  // Kategoriye göre üst rozet rengi
+  const isTransfer = scriptData.category === 'TRANSFER';
+  const badgeBgColor = isTransfer ? '0xDC2626@0.95' : '0x2563EB@0.95';
+  const badgeBorderColor = isTransfer ? '0xF59E0B@0.8' : '0x38BDF8@0.8';
+  const rawBadge = (scriptData.badgeTitle || (isTransfer ? 'FLAS TRANSFER' : 'SICAK HABER')).replace(/[':]/g, '').trim();
+
   // -------------------------------------------------------------
-  // SLAYT 1: Canva Kalitesinde Giriş ve Kapak Kartı (1080x1920)
+  // SLAYT 1: Kapak & Ana Haber Tanıtımı (1080x1920)
   // -------------------------------------------------------------
   const slide1Path = path.join(tempDir, `bm_slide_1_${timestamp}.png`);
   tempFilesToClean.push(slide1Path);
   slidePaths.push(slide1Path);
 
-  const titleLines = wrapTextToLines(scriptData.title, 22);
-  let titleFilter = '';
-  const startY = 820;
-  titleLines.forEach((line, idx) => {
-    const escapedLine = line.replace(/'/g, '').replace(/:/g, '\\:').trim();
-    titleFilter += `,drawtext=fontfile='${font}':text='${escapedLine}':fontsize=62:fontcolor=white:x=(w-text_w)/2:y=${startY + idx * 75}`;
-  });
+  const titleLines = wrapTextToLines(scriptData.title, 22, 3);
+  const titleTextFile = path.join(tempDir, `bm_title_${timestamp}.txt`);
+  fs.writeFileSync(titleTextFile, titleLines.join('\n'), 'utf8');
+  tempFilesToClean.push(titleTextFile);
 
-  const escapedBadge = scriptData.badgeTitle.replace(/'/g, '').replace(/:/g, '\\:');
-  const slide1Args: string[] = [
-    '-y',
-    '-f', 'lavfi',
-    '-i', `color=c=${bgColor}:s=1080x1920:d=1:r=1`,
-  ];
-
-  if (hasLogo) {
-    slide1Args.push('-i', logoPath);
-    slide1Args.push(
-      '-filter_complex',
-      `[1:v]scale=200:200[logo];` +
-      `[0:v]drawbox=x=60:y=60:w=960:h=1800:color=white@0.08:t=fill,` +
-      `drawbox=x=60:y=60:w=960:h=1800:color=0xF59E0B@0.4:t=3,` +
-      `drawbox=x=290:y=420:w=500:h=70:color=0xDC2626@0.9:t=fill,` +
-      `drawtext=fontfile='${font}':text='${escapedBadge}':fontsize=32:fontcolor=white:x=(w-text_w)/2:y=440` +
-      `${titleFilter},` +
-      `drawbox=x=140:y=1220:w=800:h=140:color=black@0.65:t=fill,` +
-      `drawtext=fontfile='${font}':text='BORDO MAVI OZEL HABER MERKEZI':fontsize=28:fontcolor=0x38BDF8:x=(w-text_w)/2:y=1255,` +
-      `drawtext=fontfile='${font}':text='CANLI REELS BULTENI':fontsize=22:fontcolor=white@0.8:x=(w-text_w)/2:y=1300[bg];` +
-      `[bg][logo]overlay=(W-w)/2:180[outv]`,
-      '-map', '[outv]'
-    );
+  const slide1Args: string[] = ['-y'];
+  if (heroPhotoPath) {
+    slide1Args.push('-i', heroPhotoPath);
   } else {
-    slide1Args.push(
-      '-filter_complex',
-      `[0:v]drawbox=x=60:y=60:w=960:h=1800:color=white@0.08:t=fill,` +
-      `drawbox=x=290:y=420:w=500:h=70:color=0xDC2626@0.9:t=fill,` +
-      `drawtext=fontfile='${font}':text='${escapedBadge}':fontsize=32:fontcolor=white:x=(w-text_w)/2:y=440` +
-      `${titleFilter}[outv]`,
-      '-map', '[outv]'
-    );
+    slide1Args.push('-f', 'lavfi', '-i', 'color=c=0x3D040E:s=1080x1920:d=1:r=1');
   }
 
-  slide1Args.push('-vframes', '1', slide1Path);
+  let s1Filter = '';
+  if (logoPath) {
+    slide1Args.push('-i', logoPath);
+    s1Filter = 
+      // 1. Arka planı doldur ve sinematik karanlık katman uygula
+      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
+      `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
+      // 2. Ana görseli 1020x760 altın çerçeveli televizyon penceresi yap
+      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0xF59E0B@0.9:t=4[fgBox];` +
+      // 3. Logo
+      `[1:v]scale=130:130[logo];` +
+      // 4. Katmanları birleştir
+      `[darkBg][fgBox]overlay=30:310[withFg];` +
+      // 5. Üst kurumsal başlık bandı (y: 60 - 280)
+      `[withFg]drawbox=x=30:y=60:w=1020:h=220:color=0x0F172A@0.90:t=fill,` +
+      `drawbox=x=30:y=60:w=1020:h=220:color=0x38BDF8@0.4:t=2,` +
+      `drawbox=x=660:y=90:w=360:h=60:color=${badgeBgColor}:t=fill,` +
+      `drawbox=x=660:y=90:w=360:h=60:color=${badgeBorderColor}:t=2,` +
+      `drawtext=fontfile='${font}':text='${rawBadge}':fontsize=28:fontcolor=white:x=685:y=105,` +
+      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=36:fontcolor=white:x=195:y=100,` +
+      `drawtext=fontfile='${font}':text='CANLI REELS BULTENI':fontsize=24:fontcolor=0x38BDF8:x=195:y=155[withHeader];` +
+      `[withHeader][logo]overlay=48:105[withLogo];` +
+      // 6. Alt haber başlığı kartı (y: 1120 - 1530)
+      `[withLogo]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3,` +
+      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(titleTextFile)}':fontsize=52:fontcolor=white:x=(w-text_w)/2:y=1190:line_spacing=18[outv]`;
+  } else {
+    s1Filter = 
+      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
+      `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
+      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0xF59E0B@0.9:t=4[fgBox];` +
+      `[darkBg][fgBox]overlay=30:310[withFg];` +
+      `[withFg]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3,` +
+      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(titleTextFile)}':fontsize=52:fontcolor=white:x=(w-text_w)/2:y=1190:line_spacing=18[outv]`;
+  }
+
+  slide1Args.push('-filter_complex', s1Filter, '-map', '[outv]', '-vframes', '1', slide1Path);
   await runFFmpeg(slide1Args);
 
   // -------------------------------------------------------------
-  // SLAYT 2: Haber Görseli Odaklı Sahne (Blurred Backdrop + Sharp FG)
+  // SLAYT 2: Olayın Gelişimi & Detay Kartı (Altyazı için Temiz Alt Alan)
   // -------------------------------------------------------------
   const slide2Path = path.join(tempDir, `bm_slide_2_${timestamp}.png`);
   tempFilesToClean.push(slide2Path);
   slidePaths.push(slide2Path);
 
-  const mainPhotoPath = hasNewsImg ? downloadedNewsImg : (hasStadiumImg ? downloadedStadiumImg : slide1Path);
-  const slide2Args: string[] = [
-    '-y',
-    '-i', mainPhotoPath,
-  ];
+  const slide2Args: string[] = ['-y'];
+  if (heroPhotoPath) slide2Args.push('-i', heroPhotoPath);
+  else slide2Args.push('-f', 'lavfi', '-i', 'color=c=0x1E1B4B:s=1080x1920:d=1:r=1');
 
-  if (hasLogo) {
+  let s2Filter = '';
+  if (logoPath) {
     slide2Args.push('-i', logoPath);
-    slide2Args.push(
-      '-filter_complex',
-      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=25:10[blurBg];` +
-      `[0:v]scale=980:980:force_original_aspect_ratio=decrease[fgImg];` +
-      `[1:v]scale=120:120[logo];` +
-      `[blurBg][fgImg]overlay=(W-w)/2:320[withFg];` +
-      `[withFg]drawbox=x=0:y=1350:w=1080:h=350:color=black@0.75:t=fill,` +
-      `drawbox=x=50:y=1380:w=320:h=50:color=0x2563EB@0.9:t=fill,` +
-      `drawtext=fontfile='${font}':text='SICAK GELISME':fontsize=26:fontcolor=white:x=80:y=1392[withBox];` +
-      `[withBox][logo]overlay=60:80[outv]`,
-      '-map', '[outv]'
-    );
+    s2Filter = 
+      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
+      `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
+      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0x2563EB@0.9:t=4[fgBox];` +
+      `[1:v]scale=130:130[logo];` +
+      `[darkBg][fgBox]overlay=30:310[withFg];` +
+      // Üst Başlık
+      `[withFg]drawbox=x=30:y=60:w=1020:h=220:color=0x0F172A@0.90:t=fill,` +
+      `drawbox=x=30:y=60:w=1020:h=220:color=0x38BDF8@0.4:t=2,` +
+      `drawbox=x=660:y=90:w=360:h=60:color=0x2563EB@0.95:t=fill,` +
+      `drawbox=x=660:y=90:w=360:h=60:color=0x38BDF8@0.8:t=2,` +
+      `drawtext=fontfile='${font}':text='CANLI GELISME':fontsize=28:fontcolor=white:x=685:y=105,` +
+      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=36:fontcolor=white:x=195:y=100,` +
+      `drawtext=fontfile='${font}':text='DETAYLI ANALIZ':fontsize=24:fontcolor=0x38BDF8:x=195:y=155[withHeader];` +
+      `[withHeader][logo]overlay=48:105[withLogo];` +
+      // Alt Altyazı Sahnesi (Altyazı drawtext'i bunun üstüne kusursuz oturur)
+      `[withLogo]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=30:y=1120:w=1020:h=400:color=0x2563EB@0.65:t=3[outv]`;
   } else {
-    slide2Args.push(
-      '-filter_complex',
-      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=25:10[blurBg];` +
-      `[0:v]scale=980:980:force_original_aspect_ratio=decrease[fgImg];` +
-      `[blurBg][fgImg]overlay=(W-w)/2:320[outv]`,
-      '-map', '[outv]'
-    );
+    s2Filter = 
+      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
+      `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
+      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0x2563EB@0.9:t=4[fgBox];` +
+      `[darkBg][fgBox]overlay=30:310[withFg];` +
+      `[withFg]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=30:y=1120:w=1020:h=400:color=0x2563EB@0.65:t=3[outv]`;
   }
-  slide2Args.push('-vframes', '1', slide2Path);
+
+  slide2Args.push('-filter_complex', s2Filter, '-map', '[outv]', '-vframes', '1', slide2Path);
   await runFFmpeg(slide2Args);
 
   // -------------------------------------------------------------
-  // SLAYT 3: Papara Park & Taktik / Detay Sahnesi
+  // SLAYT 3: Papara Park & Taktik / Kulis Sahnesi
   // -------------------------------------------------------------
   const slide3Path = path.join(tempDir, `bm_slide_3_${timestamp}.png`);
   tempFilesToClean.push(slide3Path);
   slidePaths.push(slide3Path);
 
-  const stadiumPhotoPath = hasStadiumImg ? downloadedStadiumImg : (hasNewsImg ? downloadedNewsImg : slide1Path);
-  const slide3Args: string[] = [
-    '-y',
-    '-i', stadiumPhotoPath,
-  ];
+  const stadiumPhoto = hasStadiumImg ? downloadedStadiumImg : heroPhotoPath;
+  const slide3Args: string[] = ['-y'];
+  if (stadiumPhoto) slide3Args.push('-i', stadiumPhoto);
+  else slide3Args.push('-f', 'lavfi', '-i', 'color=c=0x0F172A:s=1080x1920:d=1:r=1');
 
-  if (hasLogo) {
+  let s3Filter = '';
+  if (logoPath) {
     slide3Args.push('-i', logoPath);
-    slide3Args.push(
-      '-filter_complex',
-      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[fullBg];` +
-      `[1:v]scale=120:120[logo];` +
-      `[fullBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.6:t=fill,` +
-      `drawbox=x=60:y=1300:w=960:h=260:color=0x0F172A@0.85:t=fill,` +
-      `drawbox=x=60:y=1300:w=960:h=260:color=0x38BDF8@0.5:t=3,` +
-      `drawtext=fontfile='${font}':text='PERDE ARKASI':fontsize=30:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1340,` +
-      `drawtext=fontfile='${font}':text='BORDO MAVI TAKTIK VE KULIS':fontsize=42:fontcolor=white:x=(w-text_w)/2:y=1400[withBox];` +
-      `[withBox][logo]overlay=60:80[outv]`,
-      '-map', '[outv]'
-    );
+    s3Filter = 
+      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
+      `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
+      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0xF59E0B@0.85:t=4[fgBox];` +
+      `[1:v]scale=130:130[logo];` +
+      `[darkBg][fgBox]overlay=30:310[withFg];` +
+      `[withFg]drawbox=x=30:y=60:w=1020:h=220:color=0x0F172A@0.90:t=fill,` +
+      `drawbox=x=30:y=60:w=1020:h=220:color=0xF59E0B@0.4:t=2,` +
+      `drawbox=x=660:y=90:w=360:h=60:color=0xB45309@0.95:t=fill,` +
+      `drawbox=x=660:y=90:w=360:h=60:color=0xFCD34D@0.8:t=2,` +
+      `drawtext=fontfile='${font}':text='KULIS VE PERFORMANS':fontsize=26:fontcolor=white:x=675:y=106,` +
+      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=36:fontcolor=white:x=195:y=100,` +
+      `drawtext=fontfile='${font}':text='PAPARA PARK GUNDEMI':fontsize=24:fontcolor=0xFCD34D:x=195:y=155[withHeader];` +
+      `[withHeader][logo]overlay=48:105[withLogo];` +
+      `[withLogo]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3[outv]`;
   } else {
-    slide3Args.push(
-      '-filter_complex',
-      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[outv]`,
-      '-map', '[outv]'
-    );
+    s3Filter = 
+      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
+      `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
+      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0xF59E0B@0.85:t=4[fgBox];` +
+      `[darkBg][fgBox]overlay=30:310[withFg];` +
+      `[withFg]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3[outv]`;
   }
-  slide3Args.push('-vframes', '1', slide3Path);
+
+  slide3Args.push('-filter_complex', s3Filter, '-map', '[outv]', '-vframes', '1', slide3Path);
   await runFFmpeg(slide3Args);
 
   // -------------------------------------------------------------
-  // SLAYT 4: Yorum & Tartışma Kancası (Outro CTA)
+  // SLAYT 4: Tartışma ve Yorum Çağrısı (Outro CTA)
   // -------------------------------------------------------------
   const slide4Path = path.join(tempDir, `bm_slide_4_${timestamp}.png`);
   tempFilesToClean.push(slide4Path);
   slidePaths.push(slide4Path);
 
-  const outroQuestion = scriptData.scenes[3]?.subtitle || 'Sizin gorusunuz nedir?';
-  const outroLines = wrapTextToLines(outroQuestion, 24);
-  let outroFilter = '';
-  outroLines.forEach((line, idx) => {
-    const escaped = line.replace(/'/g, '').replace(/:/g, '\\:').trim();
-    outroFilter += `,drawtext=fontfile='${font}':text='${escaped}':fontsize=52:fontcolor=white:x=(w-text_w)/2:y=${780 + idx * 70}`;
-  });
+  const outroQuestion = scriptData.scenes[3]?.subtitle || 'Sizce bu gelişme Trabzonspor için nasıl sonuçlanır?';
+  const outroLines = wrapTextToLines(outroQuestion, 24, 3);
+  const outroTextFile = path.join(tempDir, `bm_outro_${timestamp}.txt`);
+  fs.writeFileSync(outroTextFile, outroLines.join('\n'), 'utf8');
+  tempFilesToClean.push(outroTextFile);
 
-  const slide4Args: string[] = [
-    '-y',
-    '-f', 'lavfi',
-    '-i', 'color=c=0x1E1B4B:s=1080x1920:d=1:r=1',
-  ];
+  const slide4Args: string[] = ['-y'];
+  if (heroPhotoPath) slide4Args.push('-i', heroPhotoPath);
+  else slide4Args.push('-f', 'lavfi', '-i', 'color=c=0x1E1B4B:s=1080x1920:d=1:r=1');
 
-  if (hasLogo) {
+  let s4Filter = '';
+  if (logoPath) {
     slide4Args.push('-i', logoPath);
-    slide4Args.push(
-      '-filter_complex',
-      `[1:v]scale=220:220[logo];` +
-      `[0:v]drawbox=x=60:y=60:w=960:h=1800:color=white@0.06:t=fill,` +
-      `drawbox=x=60:y=60:w=960:h=1800:color=0xF59E0B@0.4:t=3,` +
-      `drawbox=x=260:y=480:w=560:h=80:color=0xF59E0B@0.9:t=fill,` +
-      `drawtext=fontfile='${font}':text='SIZIN GORUSUNUZ?':fontsize=36:fontcolor=black:x=(w-text_w)/2:y=504` +
-      `${outroFilter},` +
-      `drawbox=x=140:y=1250:w=800:h=120:color=0x781324@0.9:t=fill,` +
-      `drawtext=fontfile='${font}':text='YORUMLARDA BULUSALIM':fontsize=36:fontcolor=white:x=(w-text_w)/2:y=1290,` +
-      `drawtext=fontfile='${font}':text='Bordo Mavi Haber Takip Et':fontsize=24:fontcolor=white@0.7:x=(w-text_w)/2:y=1440[bg];` +
-      `[bg][logo]overlay=(W-w)/2:220[outv]`,
-      '-map', '[outv]'
-    );
+    s4Filter = 
+      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:10[blurBg];` +
+      `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.75:t=fill[darkBg];` +
+      // Orta Tartışma Penceresi
+      `[darkBg]drawbox=x=30:y=310:w=1020:h=760:color=0x0F172A@0.92:t=fill,` +
+      `drawbox=x=30:y=310:w=1020:h=760:color=0xF59E0B@0.8:t=4,` +
+      `drawbox=x=260:y=370:w=560:h=70:color=0xF59E0B@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='SIZIN GORUSUNUZ NE?':fontsize=34:fontcolor=black:x=(w-text_w)/2:y=390,` +
+      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(outroTextFile)}':fontsize=46:fontcolor=white:x=(w-text_w)/2:y=520:line_spacing=18[withQuestion];` +
+      // Üst Başlık
+      `[1:v]scale=130:130[logo];` +
+      `[withQuestion]drawbox=x=30:y=60:w=1020:h=220:color=0x0F172A@0.90:t=fill,` +
+      `drawbox=x=30:y=60:w=1020:h=220:color=0xF59E0B@0.4:t=2,` +
+      `drawbox=x=660:y=90:w=360:h=60:color=0xDC2626@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='TARTISMA KANALI':fontsize=28:fontcolor=white:x=685:y=105,` +
+      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=36:fontcolor=white:x=195:y=100,` +
+      `drawtext=fontfile='${font}':text='TARAFTAR KORSESI':fontsize=24:fontcolor=0xF59E0B:x=195:y=155[withHeader];` +
+      `[withHeader][logo]overlay=48:105[withLogo];` +
+      // Alt CTA Kartı
+      `[withLogo]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3,` +
+      `drawbox=x=220:y=1400:w=640:h=80:color=0x781324@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='FIKRINI YORUMLARDA YAZ!':fontsize=34:fontcolor=white:x=(w-text_w)/2:y=1422[outv]`;
   } else {
-    slide4Args.push(
-      '-filter_complex',
-      `[0:v]drawbox=x=60:y=60:w=960:h=1800:color=white@0.06:t=fill${outroFilter}[outv]`,
-      '-map', '[outv]'
-    );
+    s4Filter = 
+      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:10[blurBg];` +
+      `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.75:t=fill[darkBg];` +
+      `[darkBg]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3[outv]`;
   }
-  slide4Args.push('-vframes', '1', slide4Path);
+
+  slide4Args.push('-filter_complex', s4Filter, '-map', '[outv]', '-vframes', '1', slide4Path);
   await runFFmpeg(slide4Args);
 
-  console.log(`[VisualComposer] ✅ 4 Canva-grade 1080x1920 slides generated successfully!`);
+  console.log(`[VisualComposer] ✅ 4 Corporate Broadcast 1080x1920 slides generated successfully!`);
 
   return {
     slidePaths,

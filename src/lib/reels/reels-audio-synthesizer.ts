@@ -134,13 +134,16 @@ export async function synthesizeTurkishSpeech(narrationText: string): Promise<Sy
     const fileContent = chunkPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n');
     fs.writeFileSync(concatListFile, fileContent);
 
+    // Parçaları FFmpeg ile birleştir ve 1.20x profesyonel haber temposuna hızlandır
     await new Promise((resolve, reject) => {
       const args = [
         '-y',
         '-f', 'concat',
         '-safe', '0',
         '-i', concatListFile,
-        '-c', 'copy',
+        '-filter:a', 'atempo=1.20',
+        '-c:a', 'libmp3lame',
+        '-b:a', '192k',
         finalAudioPath
       ];
       const child = spawn(ffmpegPath, args);
@@ -150,7 +153,7 @@ export async function synthesizeTurkishSpeech(narrationText: string): Promise<Sy
         if (code === 0 && fs.existsSync(finalAudioPath)) {
           resolve(true);
         } else {
-          reject(new Error(`FFmpeg audio concat failed: ${errStr.slice(-200)}`));
+          reject(new Error(`FFmpeg audio concat & tempo failed: ${errStr.slice(-200)}`));
         }
       });
     });

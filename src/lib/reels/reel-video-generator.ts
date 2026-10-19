@@ -4,7 +4,7 @@ import os from 'os';
 import { spawn } from 'child_process';
 import { generateReelScript, ReelScriptData } from './reels-script-generator';
 import { synthesizeTurkishSpeech } from './reels-audio-synthesizer';
-import { composeReelSlides, getAvailableFontPath } from './reels-visual-composer';
+import { composeReelSlides, getAvailableFontPath, escapeFFmpegPath, wrapTextToLines } from './reels-visual-composer';
 import { verifyReelQuality, ReelQualityCheckResult } from './reels-quality-checker';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -81,13 +81,23 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
     const t2 = +(sceneDuration * 2).toFixed(2);
     const t3 = +(sceneDuration * 3).toFixed(2);
 
-    // Her sahne için okunabilir altyazı metni
-    const sub1 = (scriptData.scenes[0]?.subtitle || scriptData.title).replace(/'/g, '').replace(/:/g, '\\:').trim();
-    const sub2 = (scriptData.scenes[1]?.subtitle || scriptData.title).replace(/'/g, '').replace(/:/g, '\\:').trim();
-    const sub3 = (scriptData.scenes[2]?.subtitle || params.summary || 'Detaylar bültende').replace(/'/g, '').replace(/:/g, '\\:').trim();
-    const sub4 = (scriptData.scenes[3]?.subtitle || 'Fikirlerinizi yorumlarda paylasin!').replace(/'/g, '').replace(/:/g, '\\:').trim();
+    // Her sahne için taşmaları kesin önleyen UTF-8 altyazı dosyaları hazırla (Satır başı maks 24 karakter)
+    const subLines2 = wrapTextToLines(scriptData.scenes[1]?.subtitle || scriptData.title, 24, 2);
+    const subFile2 = path.join(tempDir, `bm_sub_2_${timestamp}.txt`);
+    fs.writeFileSync(subFile2, subLines2.join('\n'), 'utf8');
+    filesToClean.push(subFile2);
 
-    // FFmpeg Filtre Grafiği: 4 Slayt Geçişi + Güvenli Alan Altyazıları + Arka Plan Ses Katmanı
+    const subLines3 = wrapTextToLines(scriptData.scenes[2]?.subtitle || params.summary || 'Detaylar bültende', 24, 2);
+    const subFile3 = path.join(tempDir, `bm_sub_3_${timestamp}.txt`);
+    fs.writeFileSync(subFile3, subLines3.join('\n'), 'utf8');
+    filesToClean.push(subFile3);
+
+    const subLines4 = wrapTextToLines(scriptData.scenes[3]?.subtitle || 'Fikirlerinizi yorumlarda belirtin!', 24, 2);
+    const subFile4 = path.join(tempDir, `bm_sub_4_${timestamp}.txt`);
+    fs.writeFileSync(subFile4, subLines4.join('\n'), 'utf8');
+    filesToClean.push(subFile4);
+
+    // FFmpeg Filtre Grafiği: 4 Slayt Geçişi + Kurumsal Altyazı Sahnesi + Seslendirme
     const ffmpegArgs: string[] = [
       '-y',
       // Girdi 0: Slayt 1 (0 -> t1)
@@ -98,21 +108,20 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       '-loop', '1', '-t', String(sceneDuration), '-i', slide3,
       // Girdi 3: Slayt 4 (t3 -> totalDuration)
       '-loop', '1', '-t', String(+(totalDuration - t3).toFixed(2)), '-i', slide4,
-      // Girdi 4: Türkçe Seslendirme Dosyası
+      // Girdi 4: Türkçe Seslendirme Dosyası (1.20x tempolu)
       '-i', audioResult.audioPath,
       // Girdi 5: Dinamik spor ambiyans fısıltısı (Düşük sesli dolgu)
       '-f', 'lavfi', '-i', `sine=frequency=110:duration=${totalDuration}`,
       '-filter_complex',
       // 4 Video parçasını kesintisiz ardışık bağla
       `[0:v][1:v][2:v][3:v]concat=n=4:v=1:a=0[vRaw];` +
-      // Güvenli alan altyazılarını bindir (y=1400, sarı metin, siyah cam kutu)
+      // Güvenli alan altyazılarını alt cam kartın içine tam ortala (y=1260, altın sarı metin)
       `[vRaw]` +
-      `drawtext=fontfile='${font}':text='${sub1}':fontsize=38:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1420:box=1:boxcolor=black@0.75:boxborderw=18:enable='between(t,0,${t1})',` +
-      `drawtext=fontfile='${font}':text='${sub2}':fontsize=38:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1420:box=1:boxcolor=black@0.75:boxborderw=18:enable='between(t,${t1},${t2})',` +
-      `drawtext=fontfile='${font}':text='${sub3}':fontsize=38:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1420:box=1:boxcolor=black@0.75:boxborderw=18:enable='between(t,${t2},${t3})',` +
-      `drawtext=fontfile='${font}':text='${sub4}':fontsize=42:fontcolor=0xF59E0B:x=(w-text_w)/2:y=1420:box=1:boxcolor=black@0.85:boxborderw=20:enable='gte(t,${t3})'[vOut];` +
-      // Seslendirme + Ambiyans Miksi (Konuşma net, ambiyans -24dB)
-      `[5:a]volume=0.03[ambience];` +
+      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(subFile2)}':fontsize=46:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1260:line_spacing=14:enable='between(t,${t1},${t2})',` +
+      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(subFile3)}':fontsize=46:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1260:line_spacing=14:enable='between(t,${t2},${t3})',` +
+      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(subFile4)}':fontsize=46:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1260:line_spacing=14:enable='gte(t,${t3})'[vOut];` +
+      // Seslendirme + Ambiyans Miksi (Konuşma kristal net, ambiyans -26dB)
+      `[5:a]volume=0.02[ambience];` +
       `[4:a][ambience]amix=inputs=2:duration=first:dropout_transition=2[aOut]`,
       '-map', '[vOut]',
       '-map', '[aOut]',
