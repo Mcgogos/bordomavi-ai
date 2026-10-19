@@ -51,7 +51,7 @@ export function escapeFFmpegPath(filePath: string): string {
 /**
  * Uzun başlıkları satırlara böler (taşmaları önlemek için).
  */
-export function wrapTextToLines(text: string, maxCharsPerLine: number = 22, maxLines: number = 3): string[] {
+export function wrapTextToLines(text: string, maxCharsPerLine: number = 24, maxLines: number = 2): string[] {
   const words = text.split(' ');
   const lines: string[] = [];
   let currentLine = '';
@@ -91,13 +91,13 @@ async function downloadImageSafe(url: string, outputPath: string): Promise<boole
 }
 
 /**
- * 4 Sahneli, Profesyonel TV Yayını / Canva Standardında 1080x1920 Dikey Görseller Üretir.
+ * 4 Sahneli, Profesyonel TV Yayını Standardında 1080x1920 Dikey Görseller Üretir.
  * 
- * Düzen:
- * - Üst Başlık (y: 60 - 280): BordoMavi Amblemi + "BORDO MAVİ MEDYA" + Canlı Rozet
- * - Orta Görsel (y: 310 - 1090): 1020x760 Altın Çerçeveli HD Haber Görseli
- * - Alt Sahne (y: 1130 - 1530): Kristal Koyu Cam Kart (Altyazılar İçin Güvenli Alan)
- * - Alt Güvenli Alan (y: 1540 - 1920): Facebook UI ile çakışmayan boş alan
+ * Güvenli Alan Mimarisi:
+ * - Üst Header (y: 170 - 350): Telefon çentiği ve Facebook üst butonlarının ALTINDA tam görünür alan.
+ * - Orta Görsel (y: 370 - 1140): 1000x770 Altın Çerçeveli HD Haber Fotoğrafı.
+ * - Alt Altyazı Sahnesi (y: 1160 - 1520): 1000x360 Koyu Cam Konteyner (Sesle senkronize altyazılar buraya oturur).
+ * - Alt Arayüz Alanı (y: 1530 - 1920): Facebook mobil arayüzü ile sıfır çakışma için boş bırakılır.
  */
 export async function composeReelSlides(
   scriptData: ReelScriptData,
@@ -129,10 +129,10 @@ export async function composeReelSlides(
 
   const heroPhotoPath = hasNewsImg ? downloadedNewsImg : (hasStadiumImg ? downloadedStadiumImg : null);
 
-  // Kategoriye göre üst rozet rengi
+  // Kategoriye göre rozet
   const isTransfer = scriptData.category === 'TRANSFER';
-  const badgeBgColor = isTransfer ? '0xDC2626@0.95' : '0x2563EB@0.95';
-  const badgeBorderColor = isTransfer ? '0xF59E0B@0.8' : '0x38BDF8@0.8';
+  const badgeBg = isTransfer ? '0xDC2626@0.95' : '0x2563EB@0.95';
+  const badgeBorder = isTransfer ? '0xF59E0B@0.9' : '0x38BDF8@0.9';
   const rawBadge = (scriptData.badgeTitle || (isTransfer ? 'FLAS TRANSFER' : 'SICAK HABER')).replace(/[':]/g, '').trim();
 
   // -------------------------------------------------------------
@@ -142,62 +142,57 @@ export async function composeReelSlides(
   tempFilesToClean.push(slide1Path);
   slidePaths.push(slide1Path);
 
-  const titleLines = wrapTextToLines(scriptData.title, 22, 3);
-  const titleTextFile = path.join(tempDir, `bm_title_${timestamp}.txt`);
-  fs.writeFileSync(titleTextFile, titleLines.join('\n'), 'utf8');
-  tempFilesToClean.push(titleTextFile);
-
   const slide1Args: string[] = ['-y'];
-  if (heroPhotoPath) {
-    slide1Args.push('-i', heroPhotoPath);
-  } else {
-    slide1Args.push('-f', 'lavfi', '-i', 'color=c=0x3D040E:s=1080x1920:d=1:r=1');
-  }
+  if (heroPhotoPath) slide1Args.push('-i', heroPhotoPath);
+  else slide1Args.push('-f', 'lavfi', '-i', 'color=c=0x3D040E:s=1080x1920:d=1:r=1');
 
   let s1Filter = '';
   if (logoPath) {
     slide1Args.push('-i', logoPath);
     s1Filter = 
-      // 1. Arka planı doldur ve sinematik karanlık katman uygula
+      // 1. Arka planı doldur ve koyulaştır
       `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
       `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
-      // 2. Ana görseli 1020x760 altın çerçeveli televizyon penceresi yap
-      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
-      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0xF59E0B@0.9:t=4[fgBox];` +
+      // 2. Ana görseli 1000x770 altın çerçeveli televizyon penceresi yap
+      `[0:v]scale=1000:770:force_original_aspect_ratio=increase,crop=1000:770[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1000:h=770:color=0xF59E0B@0.95:t=4[fgBox];` +
       // 3. Logo
       `[1:v]scale=130:130[logo];` +
       // 4. Katmanları birleştir
-      `[darkBg][fgBox]overlay=30:310[withFg];` +
-      // 5. Üst kurumsal başlık bandı (y: 60 - 280)
-      `[withFg]drawbox=x=30:y=60:w=1020:h=220:color=0x0F172A@0.90:t=fill,` +
-      `drawbox=x=30:y=60:w=1020:h=220:color=0x38BDF8@0.4:t=2,` +
-      `drawbox=x=660:y=90:w=360:h=60:color=${badgeBgColor}:t=fill,` +
-      `drawbox=x=660:y=90:w=360:h=60:color=${badgeBorderColor}:t=2,` +
-      `drawtext=fontfile='${font}':text='${rawBadge}':fontsize=28:fontcolor=white:x=685:y=105,` +
-      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=36:fontcolor=white:x=195:y=100,` +
-      `drawtext=fontfile='${font}':text='CANLI REELS BULTENI':fontsize=24:fontcolor=0x38BDF8:x=195:y=155[withHeader];` +
-      `[withHeader][logo]overlay=48:105[withLogo];` +
-      // 6. Alt haber başlığı kartı (y: 1120 - 1530)
-      `[withLogo]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
-      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3,` +
-      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(titleTextFile)}':fontsize=52:fontcolor=white:x=(w-text_w)/2:y=1190:line_spacing=18[outv]`;
+      `[darkBg][fgBox]overlay=40:370[withFg];` +
+      // 5. Üst kurumsal başlık bandı (y: 170 - 350 - Telefon çentiği ve Facebook butonlarının altında)
+      `[withFg]drawbox=x=40:y=170:w=1000:h=180:color=0x0F172A@0.92:t=fill,` +
+      `drawbox=x=40:y=170:w=1000:h=180:color=0xF59E0B@0.5:t=2,` +
+      `drawbox=x=670:y=200:w=340:h=60:color=${badgeBg}:t=fill,` +
+      `drawbox=x=670:y=200:w=340:h=60:color=${badgeBorder}:t=2,` +
+      `drawtext=fontfile='${font}':text='${rawBadge}':fontsize=28:fontcolor=white:x=695:y=215,` +
+      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=38:fontcolor=white:x=205:y=200,` +
+      `drawtext=fontfile='${font}':text='CANLI REELS BULTENI':fontsize=24:fontcolor=0x38BDF8:x=205:y=255[withHeader];` +
+      `[withHeader][logo]overlay=58:195[withLogo];` +
+      // 6. Görsel üstü canlı haber ticker'ı
+      `[withLogo]drawbox=x=60:y=390:w=360:h=50:color=0xDC2626@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='FLAS GELISME':fontsize=26:fontcolor=white:x=85:y=402,` +
+      // 7. Alt Altyazı Cam Sahnesi (y: 1160 - 1520)
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0xF59E0B@0.65:t=3,` +
+      `drawbox=x=60:y=1180:w=260:h=40:color=0xDC2626@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='CANLI AKTARIM':fontsize=22:fontcolor=white:x=90:y=1190[outv]`;
   } else {
     s1Filter = 
       `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
       `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
-      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
-      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0xF59E0B@0.9:t=4[fgBox];` +
-      `[darkBg][fgBox]overlay=30:310[withFg];` +
-      `[withFg]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
-      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3,` +
-      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(titleTextFile)}':fontsize=52:fontcolor=white:x=(w-text_w)/2:y=1190:line_spacing=18[outv]`;
+      `[0:v]scale=1000:770:force_original_aspect_ratio=increase,crop=1000:770[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1000:h=770:color=0xF59E0B@0.95:t=4[fgBox];` +
+      `[darkBg][fgBox]overlay=40:370[withFg];` +
+      `[withFg]drawbox=x=40:y=1160:w=1000:h=360:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0xF59E0B@0.65:t=3[outv]`;
   }
 
   slide1Args.push('-filter_complex', s1Filter, '-map', '[outv]', '-vframes', '1', slide1Path);
   await runFFmpeg(slide1Args);
 
   // -------------------------------------------------------------
-  // SLAYT 2: Olayın Gelişimi & Detay Kartı (Altyazı için Temiz Alt Alan)
+  // SLAYT 2: Olayın Gelişimi & Detay Kartı
   // -------------------------------------------------------------
   const slide2Path = path.join(tempDir, `bm_slide_2_${timestamp}.png`);
   tempFilesToClean.push(slide2Path);
@@ -213,31 +208,36 @@ export async function composeReelSlides(
     s2Filter = 
       `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
       `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
-      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
-      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0x2563EB@0.9:t=4[fgBox];` +
+      `[0:v]scale=1000:770:force_original_aspect_ratio=increase,crop=1000:770[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1000:h=770:color=0x2563EB@0.95:t=4[fgBox];` +
       `[1:v]scale=130:130[logo];` +
-      `[darkBg][fgBox]overlay=30:310[withFg];` +
-      // Üst Başlık
-      `[withFg]drawbox=x=30:y=60:w=1020:h=220:color=0x0F172A@0.90:t=fill,` +
-      `drawbox=x=30:y=60:w=1020:h=220:color=0x38BDF8@0.4:t=2,` +
-      `drawbox=x=660:y=90:w=360:h=60:color=0x2563EB@0.95:t=fill,` +
-      `drawbox=x=660:y=90:w=360:h=60:color=0x38BDF8@0.8:t=2,` +
-      `drawtext=fontfile='${font}':text='CANLI GELISME':fontsize=28:fontcolor=white:x=685:y=105,` +
-      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=36:fontcolor=white:x=195:y=100,` +
-      `drawtext=fontfile='${font}':text='DETAYLI ANALIZ':fontsize=24:fontcolor=0x38BDF8:x=195:y=155[withHeader];` +
-      `[withHeader][logo]overlay=48:105[withLogo];` +
-      // Alt Altyazı Sahnesi (Altyazı drawtext'i bunun üstüne kusursuz oturur)
-      `[withLogo]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
-      `drawbox=x=30:y=1120:w=1020:h=400:color=0x2563EB@0.65:t=3[outv]`;
+      `[darkBg][fgBox]overlay=40:370[withFg];` +
+      // Üst Başlık (y: 170 - 350)
+      `[withFg]drawbox=x=40:y=170:w=1000:h=180:color=0x0F172A@0.92:t=fill,` +
+      `drawbox=x=40:y=170:w=1000:h=180:color=0x38BDF8@0.5:t=2,` +
+      `drawbox=x=670:y=200:w=340:h=60:color=0x2563EB@0.95:t=fill,` +
+      `drawbox=x=670:y=200:w=340:h=60:color=0x38BDF8@0.9:t=2,` +
+      `drawtext=fontfile='${font}':text='CANLI GELISME':fontsize=28:fontcolor=white:x=695:y=215,` +
+      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=38:fontcolor=white:x=205:y=200,` +
+      `drawtext=fontfile='${font}':text='DETAYLI ANALIZ':fontsize=24:fontcolor=0x38BDF8:x=205:y=255[withHeader];` +
+      `[withHeader][logo]overlay=58:195[withLogo];` +
+      // Ticker
+      `[withLogo]drawbox=x=60:y=390:w=380:h=50:color=0x2563EB@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='OZEL GELISME':fontsize=26:fontcolor=white:x=85:y=402,` +
+      // Alt Altyazı Sahnesi
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0x2563EB@0.65:t=3,` +
+      `drawbox=x=60:y=1180:w=260:h=40:color=0x2563EB@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='DETAY HABER':fontsize=22:fontcolor=white:x=95:y=1190[outv]`;
   } else {
     s2Filter = 
       `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
       `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
-      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
-      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0x2563EB@0.9:t=4[fgBox];` +
-      `[darkBg][fgBox]overlay=30:310[withFg];` +
-      `[withFg]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
-      `drawbox=x=30:y=1120:w=1020:h=400:color=0x2563EB@0.65:t=3[outv]`;
+      `[0:v]scale=1000:770:force_original_aspect_ratio=increase,crop=1000:770[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1000:h=770:color=0x2563EB@0.95:t=4[fgBox];` +
+      `[darkBg][fgBox]overlay=40:370[withFg];` +
+      `[withFg]drawbox=x=40:y=1160:w=1000:h=360:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0x2563EB@0.65:t=3[outv]`;
   }
 
   slide2Args.push('-filter_complex', s2Filter, '-map', '[outv]', '-vframes', '1', slide2Path);
@@ -261,29 +261,36 @@ export async function composeReelSlides(
     s3Filter = 
       `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
       `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
-      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
-      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0xF59E0B@0.85:t=4[fgBox];` +
+      `[0:v]scale=1000:770:force_original_aspect_ratio=increase,crop=1000:770[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1000:h=770:color=0xF59E0B@0.95:t=4[fgBox];` +
       `[1:v]scale=130:130[logo];` +
-      `[darkBg][fgBox]overlay=30:310[withFg];` +
-      `[withFg]drawbox=x=30:y=60:w=1020:h=220:color=0x0F172A@0.90:t=fill,` +
-      `drawbox=x=30:y=60:w=1020:h=220:color=0xF59E0B@0.4:t=2,` +
-      `drawbox=x=660:y=90:w=360:h=60:color=0xB45309@0.95:t=fill,` +
-      `drawbox=x=660:y=90:w=360:h=60:color=0xFCD34D@0.8:t=2,` +
-      `drawtext=fontfile='${font}':text='KULIS VE PERFORMANS':fontsize=26:fontcolor=white:x=675:y=106,` +
-      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=36:fontcolor=white:x=195:y=100,` +
-      `drawtext=fontfile='${font}':text='PAPARA PARK GUNDEMI':fontsize=24:fontcolor=0xFCD34D:x=195:y=155[withHeader];` +
-      `[withHeader][logo]overlay=48:105[withLogo];` +
-      `[withLogo]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
-      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3[outv]`;
+      `[darkBg][fgBox]overlay=40:370[withFg];` +
+      // Üst Başlık (y: 170 - 350)
+      `[withFg]drawbox=x=40:y=170:w=1000:h=180:color=0x0F172A@0.92:t=fill,` +
+      `drawbox=x=40:y=170:w=1000:h=180:color=0xF59E0B@0.5:t=2,` +
+      `drawbox=x=670:y=200:w=340:h=60:color=0xB45309@0.95:t=fill,` +
+      `drawbox=x=670:y=200:w=340:h=60:color=0xFCD34D@0.9:t=2,` +
+      `drawtext=fontfile='${font}':text='KULIS VE ANALIZ':fontsize=26:fontcolor=white:x=690:y=216,` +
+      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=38:fontcolor=white:x=205:y=200,` +
+      `drawtext=fontfile='${font}':text='PAPARA PARK GUNDEMI':fontsize=24:fontcolor=0xFCD34D:x=205:y=255[withHeader];` +
+      `[withHeader][logo]overlay=58:195[withLogo];` +
+      // Ticker
+      `[withLogo]drawbox=x=60:y=390:w=440:h=50:color=0xB45309@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='PAPARA PARK TRABZON':fontsize=24:fontcolor=white:x=85:y=404,` +
+      // Alt Altyazı Sahnesi
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0xF59E0B@0.65:t=3,` +
+      `drawbox=x=60:y=1180:w=260:h=40:color=0xB45309@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='KULIS HABERI':fontsize=22:fontcolor=white:x=95:y=1190[outv]`;
   } else {
     s3Filter = 
       `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=15:5[blurBg];` +
       `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];` +
-      `[0:v]scale=1020:760:force_original_aspect_ratio=increase,crop=1020:760[fgCrop];` +
-      `[fgCrop]drawbox=x=0:y=0:w=1020:h=760:color=0xF59E0B@0.85:t=4[fgBox];` +
-      `[darkBg][fgBox]overlay=30:310[withFg];` +
-      `[withFg]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
-      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3[outv]`;
+      `[0:v]scale=1000:770:force_original_aspect_ratio=increase,crop=1000:770[fgCrop];` +
+      `[fgCrop]drawbox=x=0:y=0:w=1000:h=770:color=0xF59E0B@0.95:t=4[fgBox];` +
+      `[darkBg][fgBox]overlay=40:370[withFg];` +
+      `[withFg]drawbox=x=40:y=1160:w=1000:h=360:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0xF59E0B@0.65:t=3[outv]`;
   }
 
   slide3Args.push('-filter_complex', s3Filter, '-map', '[outv]', '-vframes', '1', slide3Path);
@@ -297,7 +304,7 @@ export async function composeReelSlides(
   slidePaths.push(slide4Path);
 
   const outroQuestion = scriptData.scenes[3]?.subtitle || 'Sizce bu gelişme Trabzonspor için nasıl sonuçlanır?';
-  const outroLines = wrapTextToLines(outroQuestion, 24, 3);
+  const outroLines = wrapTextToLines(outroQuestion, 24, 2);
   const outroTextFile = path.join(tempDir, `bm_outro_${timestamp}.txt`);
   fs.writeFileSync(outroTextFile, outroLines.join('\n'), 'utf8');
   tempFilesToClean.push(outroTextFile);
@@ -313,31 +320,31 @@ export async function composeReelSlides(
       `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:10[blurBg];` +
       `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.75:t=fill[darkBg];` +
       // Orta Tartışma Penceresi
-      `[darkBg]drawbox=x=30:y=310:w=1020:h=760:color=0x0F172A@0.92:t=fill,` +
-      `drawbox=x=30:y=310:w=1020:h=760:color=0xF59E0B@0.8:t=4,` +
-      `drawbox=x=260:y=370:w=560:h=70:color=0xF59E0B@0.95:t=fill,` +
-      `drawtext=fontfile='${font}':text='SIZIN GORUSUNUZ NE?':fontsize=34:fontcolor=black:x=(w-text_w)/2:y=390,` +
-      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(outroTextFile)}':fontsize=46:fontcolor=white:x=(w-text_w)/2:y=520:line_spacing=18[withQuestion];` +
-      // Üst Başlık
+      `[darkBg]drawbox=x=40:y=370:w=1000:h=770:color=0x0F172A@0.92:t=fill,` +
+      `drawbox=x=40:y=370:w=1000:h=770:color=0xF59E0B@0.85:t=4,` +
+      `drawbox=x=250:y=430:w=580:h=70:color=0xF59E0B@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='SIZIN GORUSUNUZ NE?':fontsize=34:fontcolor=black:x=(w-text_w)/2:y=450,` +
+      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(outroTextFile)}':fontsize=46:fontcolor=white:x=(w-text_w)/2:y=580:line_spacing=18[withQuestion];` +
+      // Üst Başlık (y: 170 - 350)
       `[1:v]scale=130:130[logo];` +
-      `[withQuestion]drawbox=x=30:y=60:w=1020:h=220:color=0x0F172A@0.90:t=fill,` +
-      `drawbox=x=30:y=60:w=1020:h=220:color=0xF59E0B@0.4:t=2,` +
-      `drawbox=x=660:y=90:w=360:h=60:color=0xDC2626@0.95:t=fill,` +
-      `drawtext=fontfile='${font}':text='TARTISMA KANALI':fontsize=28:fontcolor=white:x=685:y=105,` +
-      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=36:fontcolor=white:x=195:y=100,` +
-      `drawtext=fontfile='${font}':text='TARAFTAR KORSESI':fontsize=24:fontcolor=0xF59E0B:x=195:y=155[withHeader];` +
-      `[withHeader][logo]overlay=48:105[withLogo];` +
+      `[withQuestion]drawbox=x=40:y=170:w=1000:h=180:color=0x0F172A@0.92:t=fill,` +
+      `drawbox=x=40:y=170:w=1000:h=180:color=0xF59E0B@0.5:t=2,` +
+      `drawbox=x=670:y=200:w=340:h=60:color=0xDC2626@0.95:t=fill,` +
+      `drawtext=fontfile='${font}':text='TARTISMA KANALI':fontsize=28:fontcolor=white:x=695:y=215,` +
+      `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=38:fontcolor=white:x=205:y=200,` +
+      `drawtext=fontfile='${font}':text='TARAFTAR KORSESI':fontsize=24:fontcolor=0xF59E0B:x=205:y=255[withHeader];` +
+      `[withHeader][logo]overlay=58:195[withLogo];` +
       // Alt CTA Kartı
-      `[withLogo]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
-      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3,` +
-      `drawbox=x=220:y=1400:w=640:h=80:color=0x781324@0.95:t=fill,` +
+      `[withLogo]drawbox=x=40:y=1160:w=1000:h=360:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0xF59E0B@0.65:t=3,` +
+      `drawbox=x=200:y=1400:w=680:h=80:color=0x781324@0.95:t=fill,` +
       `drawtext=fontfile='${font}':text='FIKRINI YORUMLARDA YAZ!':fontsize=34:fontcolor=white:x=(w-text_w)/2:y=1422[outv]`;
   } else {
     s4Filter = 
       `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:10[blurBg];` +
       `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.75:t=fill[darkBg];` +
-      `[darkBg]drawbox=x=30:y=1120:w=1020:h=400:color=0x070B14@0.92:t=fill,` +
-      `drawbox=x=30:y=1120:w=1020:h=400:color=0xF59E0B@0.65:t=3[outv]`;
+      `[darkBg]drawbox=x=40:y=1160:w=1000:h=360:color=0x070B14@0.92:t=fill,` +
+      `drawbox=x=40:y=1160:w=1000:h=360:color=0xF59E0B@0.65:t=3[outv]`;
   }
 
   slide4Args.push('-filter_complex', s4Filter, '-map', '[outv]', '-vframes', '1', slide4Path);

@@ -81,23 +81,32 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
     const t2 = +(sceneDuration * 2).toFixed(2);
     const t3 = +(sceneDuration * 3).toFixed(2);
 
-    // Her sahne için taşmaları kesin önleyen UTF-8 altyazı dosyaları hazırla (Satır başı maks 24 karakter)
-    const subLines2 = wrapTextToLines(scriptData.scenes[1]?.subtitle || scriptData.title, 24, 2);
-    const subFile2 = path.join(tempDir, `bm_sub_2_${timestamp}.txt`);
-    fs.writeFileSync(subFile2, subLines2.join('\n'), 'utf8');
-    filesToClean.push(subFile2);
+    // 4. Seslendirme ile 100% Senkronize Dinamik Altyazı Cueları
+    const cues = audioResult.cues && audioResult.cues.length > 0
+      ? audioResult.cues
+      : [
+          { text: scriptData.title, startTime: 0, endTime: t1 },
+          { text: scriptData.scenes[1]?.subtitle || scriptData.title, startTime: t1, endTime: t2 },
+          { text: scriptData.scenes[2]?.subtitle || params.summary || 'Detaylar bültende', startTime: t2, endTime: t3 },
+          { text: scriptData.scenes[3]?.subtitle || 'Fikirlerinizi yorumlarda belirtin!', startTime: t3, endTime: totalDuration }
+        ];
 
-    const subLines3 = wrapTextToLines(scriptData.scenes[2]?.subtitle || params.summary || 'Detaylar bültende', 24, 2);
-    const subFile3 = path.join(tempDir, `bm_sub_3_${timestamp}.txt`);
-    fs.writeFileSync(subFile3, subLines3.join('\n'), 'utf8');
-    filesToClean.push(subFile3);
+    let subtitleFilters = '';
+    cues.forEach((cue, idx) => {
+      const cueLines = wrapTextToLines(cue.text, 24, 2);
+      const cueFile = path.join(tempDir, `bm_cue_${timestamp}_${idx}.txt`);
+      fs.writeFileSync(cueFile, cueLines.join('\n'), 'utf8');
+      filesToClean.push(cueFile);
 
-    const subLines4 = wrapTextToLines(scriptData.scenes[3]?.subtitle || 'Fikirlerinizi yorumlarda belirtin!', 24, 2);
-    const subFile4 = path.join(tempDir, `bm_sub_4_${timestamp}.txt`);
-    fs.writeFileSync(subFile4, subLines4.join('\n'), 'utf8');
-    filesToClean.push(subFile4);
+      const filterPart = `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(cueFile)}':fontsize=46:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1270:line_spacing=14:enable='between(t,${cue.startTime.toFixed(2)},${cue.endTime.toFixed(2)})'`;
+      if (subtitleFilters) {
+        subtitleFilters += `,${filterPart}`;
+      } else {
+        subtitleFilters = filterPart;
+      }
+    });
 
-    // FFmpeg Filtre Grafiği: 4 Slayt Geçişi + Kurumsal Altyazı Sahnesi + Seslendirme
+    // FFmpeg Filtre Grafiği: 4 Slayt Geçişi + Canlı Senkronize Altyazı Sahnesi + Seslendirme
     const ffmpegArgs: string[] = [
       '-y',
       // Girdi 0: Slayt 1 (0 -> t1)
@@ -115,11 +124,8 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       '-filter_complex',
       // 4 Video parçasını kesintisiz ardışık bağla
       `[0:v][1:v][2:v][3:v]concat=n=4:v=1:a=0[vRaw];` +
-      // Güvenli alan altyazılarını alt cam kartın içine tam ortala (y=1260, altın sarı metin)
-      `[vRaw]` +
-      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(subFile2)}':fontsize=46:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1260:line_spacing=14:enable='between(t,${t1},${t2})',` +
-      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(subFile3)}':fontsize=46:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1260:line_spacing=14:enable='between(t,${t2},${t3})',` +
-      `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(subFile4)}':fontsize=46:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1260:line_spacing=14:enable='gte(t,${t3})'[vOut];` +
+      // Seslendirme ile tam senkronize altyazıları alt cam kartın içine yerleştir
+      `[vRaw]${subtitleFilters}[vOut];` +
       // Seslendirme + Ambiyans Miksi (Konuşma kristal net, ambiyans -26dB)
       `[5:a]volume=0.02[ambience];` +
       `[4:a][ambience]amix=inputs=2:duration=first:dropout_transition=2[aOut]`,

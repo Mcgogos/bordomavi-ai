@@ -6,16 +6,23 @@ import { spawn } from 'child_process';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const ffmpegPath = require('ffmpeg-static');
 
+export interface SubtitleCue {
+  text: string;
+  startTime: number;
+  endTime: number;
+}
+
 export interface SynthesizedAudioResult {
   audioPath: string;
   durationSeconds: number;
   buffer: Buffer;
+  cues: SubtitleCue[];
 }
 
 /**
- * Uzun metinleri Türkçe cümle ve virgül sınırlarına göre Google TTS limitine (<180 karakter) böler.
+ * Uzun metinleri Türkçe cümle ve virgül sınırlarına göre akıcı altyazı dilimlerine (<85 karakter) böler.
  */
-function splitTextIntoTTSChunks(text: string, maxLength: number = 160): string[] {
+function splitTextIntoTTSChunks(text: string, maxLength: number = 80): string[] {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (clean.length <= maxLength) return [clean];
 
@@ -129,6 +136,20 @@ export async function synthesizeTurkishSpeech(narrationText: string): Promise<Sy
       throw new Error("Tüm seslendirme parçaları başarısız oldu.");
     }
 
+    // Her ses parçasının 1.20x hızındaki süresini ve altyazı zamanlamasını hesapla
+    const cues: SubtitleCue[] = [];
+    let currentTime = 0;
+    for (let i = 0; i < chunkPaths.length; i++) {
+      const chunkFile = chunkPaths[i];
+      const chunkText = chunks[i];
+      const rawDur = await getAudioDurationSeconds(chunkFile);
+      const effDur = +(rawDur / 1.20).toFixed(2);
+      const start = currentTime;
+      const end = +(currentTime + effDur).toFixed(2);
+      currentTime = end;
+      cues.push({ text: chunkText, startTime: start, endTime: end });
+    }
+
     // Parçaları FFmpeg ile kesintisiz birleştir
     const concatListFile = path.join(tempDir, `bm_concat_${timestamp}.txt`);
     const fileContent = chunkPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n');
@@ -163,12 +184,18 @@ export async function synthesizeTurkishSpeech(narrationText: string): Promise<Sy
     const duration = await getAudioDurationSeconds(finalAudioPath);
     const audioBuffer = fs.readFileSync(finalAudioPath);
 
-    console.log(`[AudioSynthesizer] ✅ Turkish Voiceover generated successfully: ${audioBuffer.length} bytes, Duration: ${duration}s`);
+    // Son altyazı zamanını toplam ses süresine uyarla
+    if (cues.length > 0) {
+      cues[cues.length - 1].endTime = Math.max(cues[cues.length - 1].endTime, duration);
+    }
+
+    console.log(`[AudioSynthesizer] ✅ Turkish Voiceover & ${cues.length} Cues generated: ${audioBuffer.length} bytes, Duration: ${duration}s`);
 
     return {
       audioPath: finalAudioPath,
       durationSeconds: duration,
-      buffer: audioBuffer
+      buffer: audioBuffer,
+      cues
     };
 
   } finally {
