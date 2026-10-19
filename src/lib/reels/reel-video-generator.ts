@@ -106,6 +106,13 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       }
     });
 
+    // Girdi 5: Habere uygun televizyon haber yayını ve spor ambiyansı arka plan müziği
+    const customBgm = path.join(process.cwd(), 'public', 'assets', 'audio', 'sports_broadcast_bed.mp3');
+    const hasCustomBgm = fs.existsSync(customBgm);
+    const bgmInputs = hasCustomBgm
+      ? ['-stream_loop', '-1', '-i', customBgm]
+      : ['-f', 'lavfi', '-i', `anoisesrc=color=pink:sample_rate=44100:amplitude=0.01:duration=${totalDuration}`];
+
     // FFmpeg Filtre Grafiği: 4 Slayt Geçişi + Canlı Senkronize Altyazı Sahnesi + Seslendirme
     const ffmpegArgs: string[] = [
       '-y',
@@ -117,17 +124,17 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       '-loop', '1', '-t', String(sceneDuration), '-i', slide3,
       // Girdi 3: Slayt 4 (t3 -> totalDuration)
       '-loop', '1', '-t', String(+(totalDuration - t3).toFixed(2)), '-i', slide4,
-      // Girdi 4: Türkçe Seslendirme Dosyası (1.20x tempolu)
+      // Girdi 4: Türkçe Seslendirme Dosyası
       '-i', audioResult.audioPath,
-      // Girdi 5: Dinamik spor ambiyans fısıltısı (Düşük sesli dolgu)
-      '-f', 'lavfi', '-i', `sine=frequency=110:duration=${totalDuration}`,
+      // Girdi 5: Habere uygun spor ambiyans müziği
+      ...bgmInputs,
       '-filter_complex',
       // 4 Video parçasını kesintisiz ardışık bağla
       `[0:v][1:v][2:v][3:v]concat=n=4:v=1:a=0[vRaw];` +
       // Seslendirme ile tam senkronize altyazıları alt cam kartın içine yerleştir
       `[vRaw]${subtitleFilters}[vOut];` +
-      // Seslendirme + Ambiyans Miksi (Konuşma kristal net, ambiyans -26dB)
-      `[5:a]volume=0.02[ambience];` +
+      // Seslendirme + TV Haber Ambiyansı Miksi (Seslendirme kristal net, arka plan -22dB dengeli)
+      `[5:a]volume=0.08[ambience];` +
       `[4:a][ambience]amix=inputs=2:duration=first:dropout_transition=2[aOut]`,
       '-map', '[vOut]',
       '-map', '[aOut]',

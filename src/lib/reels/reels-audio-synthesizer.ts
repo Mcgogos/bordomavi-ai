@@ -18,6 +18,7 @@ export interface SynthesizedAudioResult {
   durationSeconds: number;
   buffer: Buffer;
   cues: SubtitleCue[];
+  engine?: string;
 }
 
 interface BoundaryItem {
@@ -51,13 +52,78 @@ export async function getAudioDurationSeconds(audioFilePath: string): Promise<nu
 }
 
 /**
+ * F5-TTS gibi tam metin klonlama motorlarında metni akıcı, taşmayan 1-2 satırlık altyazı kartlarına böler
+ * ve ses süresiyle orantılı kusursuz zamanlama oluşturur.
+ */
+function generateProportionalCues(
+  narrationText: string,
+  totalDuration: number,
+  maxChars: number = 44
+): SubtitleCue[] {
+  const clean = narrationText.replace(/\s+/g, ' ').trim();
+  const sentences = clean.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+  const rawCues: string[] = [];
+
+  for (const s of sentences) {
+    if (s.length <= maxChars) {
+      rawCues.push(s);
+    } else {
+      const phrases = s.split(/(?<=[,;:])\s+/);
+      let cur = '';
+      for (const p of phrases) {
+        if ((cur + ' ' + p).trim().length <= maxChars) {
+          cur = (cur + ' ' + p).trim();
+        } else {
+          if (cur) rawCues.push(cur);
+          if (p.length <= maxChars) {
+            cur = p;
+          } else {
+            const words = p.split(' ');
+            cur = '';
+            for (const w of words) {
+              if ((cur + ' ' + w).trim().length <= maxChars) {
+                cur = (cur + ' ' + w).trim();
+              } else {
+                if (cur) rawCues.push(cur);
+                cur = w;
+              }
+            }
+          }
+        }
+      }
+      if (cur) rawCues.push(cur);
+    }
+  }
+
+  const totalChars = rawCues.reduce((acc, c) => acc + c.length, 0);
+  const cues: SubtitleCue[] = [];
+  let currentTime = 0.05;
+
+  for (let i = 0; i < rawCues.length; i++) {
+    const cueText = rawCues[i];
+    const ratio = cueText.length / Math.max(1, totalChars);
+    const dur = +(ratio * Math.max(1, totalDuration - 0.2)).toFixed(2);
+    const start = currentTime;
+    const end = +(currentTime + dur).toFixed(2);
+    currentTime = end;
+    cues.push({ text: cueText, startTime: start, endTime: end });
+  }
+
+  if (cues.length > 0) {
+    cues[cues.length - 1].endTime = Math.max(cues[cues.length - 1].endTime, totalDuration);
+  }
+
+  return cues;
+}
+
+/**
  * Microsoft Neural TTS sınırlarını (Word & Sentence Boundaries)
- * TV yayını kalitesinde, ekranda taşma yapmayan 1-2 satırlık akıcı altyazı dilimlerine dönüştürür.
+ * TV yayını kalitesinde altyazı dilimlerine dönüştürür.
  */
 function buildCuesFromBoundaries(
   sentences: BoundaryItem[],
   words: BoundaryItem[],
-  maxCueLength: number = 46
+  maxCueLength: number = 44
 ): SubtitleCue[] {
   if (!sentences || sentences.length === 0) {
     return [];
@@ -72,7 +138,6 @@ function buildCuesFromBoundaries(
       continue;
     }
 
-    // Bu cümlenin zaman aralığına denk gelen kelimeleri eşleştir
     const sWords = words.filter(w => w.start >= s.start - 0.15 && w.end <= s.end + 0.15);
     if (sWords.length <= 1) {
       cues.push({ text, startTime: s.start, endTime: s.end });
@@ -87,7 +152,6 @@ function buildCuesFromBoundaries(
       const wordLen = w.text.length + 1;
       const isPunctuation = /[,;:]$/.test(w.text);
 
-      // Uzunluk limitini aşıyorsa veya virgül/noktalı virgül ile mantıklı duraklama varsa böl
       if (currentWords.length > 0 && (currentLength + wordLen > maxCueLength || (isPunctuation && currentLength >= 20))) {
         currentWords.push(w);
         const chunkText = currentWords.map(x => x.text).join(' ');
@@ -114,7 +178,6 @@ function buildCuesFromBoundaries(
     }
   }
 
-  // Bitişik altyazı dilimleri arasında anlamsız milisaniyelik boşlukları yumuşat
   for (let i = 0; i < cues.length - 1; i++) {
     if (cues[i + 1].startTime >= cues[i].endTime && cues[i + 1].startTime - cues[i].endTime < 0.35) {
       cues[i].endTime = cues[i + 1].startTime;
@@ -125,20 +188,95 @@ function buildCuesFromBoundaries(
 }
 
 /**
- * Birincil Seslendirme Motoru:
- * Microsoft Azure / Edge Neural Türkçe Haber Spikeri (tr-TR-AhmetNeural).
- * Tamamen doğal, nefes ve tonlama içeren stüdyo kalitesinde insan sesi üretir.
- * Word/Sentence metadata ile milisaniyelik altyazı senkronizasyonu sağlar.
+ * 1. BİRİNCİL SESLENDİRME MOTORU: SWivid/F5-TTS Ses Klonlama Motoru
+ * Kullanıcının yüklediği referans ses tonunu (reference_clip.wav) baz alarak
+ * Flow Matching DiT mimarisiyle özel ses klonlama yapar.
+ */
+async function synthesizeWithF5TTS(
+  narrationText: string,
+  finalAudioPath: string,
+  timeoutMs: number = 180000 // CPU üzerinde tam sentez için 180 saniye
+): Promise<{ duration: number; buffer: Buffer; cues: SubtitleCue[] }> {
+  const refClipPath = path.join(process.cwd(), 'public', 'assets', 'audio', 'reference_clip.wav');
+  if (!fs.existsSync(refClipPath)) {
+    throw new Error(`F5-TTS referans ses dosyası bulunamadı: ${refClipPath}`);
+  }
+
+  const refText = "Trabzonspor'da teknik direktör Fatih Tekke ile yolları ayırdı. Kulüp tarafından yapılan açıklamada karşılıklı olarak anlaşıldığı belirtildi.";
+  const scriptPath = path.join(process.cwd(), 'scripts', 'f5_tts_synthesize.py');
+
+  return new Promise((resolve, reject) => {
+    const tempTextFile = path.join(os.tmpdir(), `bm_f5_text_${Date.now()}.txt`);
+    fs.writeFileSync(tempTextFile, narrationText, 'utf8');
+
+    const outputWav = finalAudioPath.replace(/\.mp3$/, '.wav');
+
+    const child = spawn('python', [
+      scriptPath,
+      '--text_file', tempTextFile,
+      '--ref_audio', refClipPath,
+      '--ref_text', refText,
+      '--output_file', outputWav,
+      '--nfe_step', '12',
+      '--speed', '1.05'
+    ]);
+
+    let stdout = '';
+    let stderr = '';
+    let isDone = false;
+
+    const timer = setTimeout(() => {
+      if (!isDone) {
+        isDone = true;
+        child.kill();
+        try { fs.unlinkSync(tempTextFile); } catch {}
+        reject(new Error(`F5-TTS sentez süresi zaman aşımına uğradı (${timeoutMs / 1000}s).`));
+      }
+    }, timeoutMs);
+
+    child.stdout.on('data', d => stdout += d.toString());
+    child.stderr.on('data', d => stderr += d.toString());
+
+    child.on('close', async (code) => {
+      clearTimeout(timer);
+      try { fs.unlinkSync(tempTextFile); } catch {}
+      if (isDone) return;
+      isDone = true;
+
+      if (code === 0 && fs.existsSync(outputWav) && fs.statSync(outputWav).size > 1000) {
+        // Convert to mp3 if needed
+        await new Promise((resConvert, rejConvert) => {
+          const conv = spawn(ffmpegPath, ['-y', '-i', outputWav, '-b:a', '192k', finalAudioPath]);
+          conv.on('close', (c) => c === 0 ? resConvert(true) : rejConvert(new Error('WAV to MP3 failed')));
+        });
+
+        try { fs.unlinkSync(outputWav); } catch {}
+
+        const duration = await getAudioDurationSeconds(finalAudioPath);
+        const buffer = fs.readFileSync(finalAudioPath);
+        const cues = generateProportionalCues(narrationText, duration, 44);
+
+        resolve({ duration, buffer, cues });
+      } else {
+        reject(new Error(`F5-TTS çalıştırılamadı (exit ${code}): ${stderr || stdout || 'Bilinmeyen hata'}`));
+      }
+    });
+  });
+}
+
+/**
+ * 2. İKİNCİL MOTOR: Microsoft Neural Spiker (tr-TR-EmelNeural / tr-TR-AhmetNeural)
+ * Kullanıcının yüklediği kadın spiker tonunu tr-TR-EmelNeural ile birebir korur.
  */
 async function synthesizeWithNeuralTTS(
   narrationText: string,
-  finalAudioPath: string
+  finalAudioPath: string,
+  voiceName: string = 'tr-TR-EmelNeural'
 ): Promise<{ duration: number; buffer: Buffer; cues: SubtitleCue[] }> {
   const tts = new MsEdgeTTS();
 
   try {
-    // tr-TR-AhmetNeural: Doğal Türkçe erkek haber spikeri tonu (TRT Spor / beIN Sports ayarında)
-    await tts.setMetadata('tr-TR-AhmetNeural', OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3, {
+    await tts.setMetadata(voiceName, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3, {
       wordBoundaryEnabled: true,
       sentenceBoundaryEnabled: true
     });
@@ -146,7 +284,6 @@ async function synthesizeWithNeuralTTS(
     const sentences: BoundaryItem[] = [];
     const words: BoundaryItem[] = [];
 
-    // +16% hız: Doğal insan haber temposu (robotik ses germe algoritması olmadan, doğrudan neural model hızında)
     const { audioStream, metadataStream } = tts.toStream(narrationText, { rate: '+16%' });
 
     if (metadataStream) {
@@ -190,7 +327,7 @@ async function synthesizeWithNeuralTTS(
     fs.writeFileSync(finalAudioPath, audioBuffer);
     const duration = await getAudioDurationSeconds(finalAudioPath);
 
-    const cues = buildCuesFromBoundaries(sentences, words, 46);
+    const cues = buildCuesFromBoundaries(sentences, words, 44);
     if (cues.length > 0) {
       cues[cues.length - 1].endTime = Math.max(cues[cues.length - 1].endTime, duration);
     }
@@ -206,8 +343,7 @@ async function synthesizeWithNeuralTTS(
 }
 
 /**
- * İkincil Yedek Motor (Google TTS Fail-Safe):
- * Ağ kesintisi veya rate limit durumunda sistemin asla durmaması için yedek ses üretir.
+ * 3. ÜÇÜNCÜL YEDEK MOTOR: Google TTS Fail-Safe
  */
 async function synthesizeWithGoogleTTSFallback(
   narrationText: string,
@@ -294,35 +430,57 @@ async function synthesizeWithGoogleTTSFallback(
 }
 
 /**
- * Ana Seslendirme Fonksiyonu:
- * Önce insan doğallığındaki Neural Spiker (tr-TR-AhmetNeural) ile sentezler.
- * Herhangi bir ağ probleminde sıfır kesinti için otomatik Google TTS yedek motorunu devreye sokar.
+ * Ana Seslendirme Girişi:
+ * 1. F5-TTS (Kullanıcının yüklediği referans ses tonuyla klonlama).
+ * 2. tr-TR-EmelNeural (Aynı kadın spiker tonunu sağlayan sıfır gecikmeli neural motor).
+ * 3. Google TTS Fail-Safe.
  */
 export async function synthesizeTurkishSpeech(narrationText: string): Promise<SynthesizedAudioResult> {
   const tempDir = os.tmpdir();
   const timestamp = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const finalAudioPath = path.join(tempDir, `bm_tts_final_${timestamp}.mp3`);
 
-  console.log(`[AudioSynthesizer] 🎙️ Starting Human-like Neural Voiceover synthesis (${narrationText.length} chars)...`);
+  console.log(`[AudioSynthesizer] 🎙️ Seslendirme başlatılıyor (${narrationText.length} karakter)...`);
 
+  // 1. F5-TTS ile Kullanıcının Referans Ses Tonunu Klonlamayı Dene
   try {
-    const result = await synthesizeWithNeuralTTS(narrationText, finalAudioPath);
-    console.log(`[AudioSynthesizer] ✅ Human Neural Voiceover (tr-TR-AhmetNeural) ready: ${result.buffer.length} bytes, Duration: ${result.duration}s, Cues: ${result.cues.length}`);
+    console.log(`[AudioSynthesizer] 🚀 1. Motor: F5-TTS Referans Ses Klonlama deneniyor...`);
+    const f5Result = await synthesizeWithF5TTS(narrationText, finalAudioPath);
+    console.log(`[AudioSynthesizer] ✅ F5-TTS Klonlama Başarılı! Süre: ${f5Result.duration}s, Cues: ${f5Result.cues.length}`);
     return {
       audioPath: finalAudioPath,
-      durationSeconds: result.duration,
-      buffer: result.buffer,
-      cues: result.cues
+      durationSeconds: f5Result.duration,
+      buffer: f5Result.buffer,
+      cues: f5Result.cues,
+      engine: 'F5-TTS (Cloned Voice)'
     };
-  } catch (err: any) {
-    console.warn(`[AudioSynthesizer] ⚠️ Primary Neural TTS failed (${err.message}), engaging fail-safe fallback...`);
-    const fallbackResult = await synthesizeWithGoogleTTSFallback(narrationText, finalAudioPath);
-    console.log(`[AudioSynthesizer] ✅ Fallback Voiceover ready: ${fallbackResult.buffer.length} bytes, Duration: ${fallbackResult.duration}s`);
-    return {
-      audioPath: finalAudioPath,
-      durationSeconds: fallbackResult.duration,
-      buffer: fallbackResult.buffer,
-      cues: fallbackResult.cues
-    };
+  } catch (f5Err: any) {
+    console.warn(`[AudioSynthesizer] ⚠️ F5-TTS devrede değil veya zaman aşımı (${f5Err.message}). 2. Motor: tr-TR-EmelNeural (Kadın Haber Spikeri) devreye giriyor...`);
   }
+
+  // 2. İkincil Motor: tr-TR-EmelNeural (Kullanıcının yüklediği kadın spiker tonunu birebir yansıtır)
+  try {
+    const neuralResult = await synthesizeWithNeuralTTS(narrationText, finalAudioPath, 'tr-TR-EmelNeural');
+    console.log(`[AudioSynthesizer] ✅ Neural Kadın Spiker (tr-TR-EmelNeural) hazır: ${neuralResult.buffer.length} bayt, Süre: ${neuralResult.duration}s, Cues: ${neuralResult.cues.length}`);
+    return {
+      audioPath: finalAudioPath,
+      durationSeconds: neuralResult.duration,
+      buffer: neuralResult.buffer,
+      cues: neuralResult.cues,
+      engine: 'Microsoft Neural (tr-TR-EmelNeural)'
+    };
+  } catch (neuralErr: any) {
+    console.warn(`[AudioSynthesizer] ⚠️ Neural TTS ulaşılamadı (${neuralErr.message}), 3. Motor (Google TTS) devreye giriyor...`);
+  }
+
+  // 3. Üçüncül Motor: Google TTS
+  const fallbackResult = await synthesizeWithGoogleTTSFallback(narrationText, finalAudioPath);
+  console.log(`[AudioSynthesizer] ✅ Fallback Voiceover hazır: ${fallbackResult.buffer.length} bayt, Süre: ${fallbackResult.duration}s`);
+  return {
+    audioPath: finalAudioPath,
+    durationSeconds: fallbackResult.duration,
+    buffer: fallbackResult.buffer,
+    cues: fallbackResult.cues,
+    engine: 'Google TTS Fallback'
+  };
 }

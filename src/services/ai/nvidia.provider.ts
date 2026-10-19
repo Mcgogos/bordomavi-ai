@@ -171,7 +171,37 @@ export class NvidiaProvider implements AIProvider {
       throw new Error('[NvidiaProvider] NVIDIA or OpenRouter API key is missing or invalid');
     }
 
-    const prompt = 'Aşağıdaki Trabzonspor haberini analiz et ve SADECE JSON formatında yanıt dön. Haber: ' + JSON.stringify(newsData) + ' Beklenen JSON formatı: { "importanceScore": 85, "credibilityScore": 90, "trabzonsporRelevanceScore": 95, "discussionPotentialScore": 80, "sharePotentialScore": 85, "viralPotentialScore": 88, "recommendedContentType": "NEWS", "recommendedAction": "CREATE_CONTENT", "shortSummary": "Haberin özeti", "keyPoints": ["Madde 1", "Madde 2"], "riskLevel": "LOW", "confidenceLevel": "VERIFIED" } ÖNEMLİ: SADECE GEÇERLİ JSON DÖNDÜR, HİÇBİR FAZLADAN METİN VEYA MARKDOWN EKLEME.';
+    const prompt = `Aşağıdaki Trabzonspor haberini analiz et ve SADECE JSON formatında yanıt dön.
+
+Haber: ${JSON.stringify(newsData)}
+
+Puanlama Kuralları (Önem Skoru Dağılımı):
+- Flaş / Resmi KAP / Teknik Direktör Ayrılığı / Şampiyonluk / Kriz: 88 - 96 puan
+- Büyük Derbi (FB, GS, BJK) / Kritik Maç Kararları: 80 - 87 puan
+- Sıcak Transfer Anlaşması / Resmi İmza: 76 - 84 puan
+- Standart Lig Maçı / Kadro / Taktik Analiz: 66 - 75 puan
+- Rutin İdman / Hazırlık Raporu: 50 - 64 puan
+- Sosyal / Doğum Günü / Ziyaret / Taziye: 35 - 48 puan
+- Trabzonspor ile Alakasız Genel Süper Lig: 15 - 30 puan
+
+DİKKAT: Bütün haberlere 70-80 arasında tekdüze puan VERME. Haberin gerçek etkisine göre yukarıdaki baremlere sadık kal.
+
+Beklenen JSON Şablonu:
+{
+  "importanceScore": 82,
+  "credibilityScore": 90,
+  "trabzonsporRelevanceScore": 95,
+  "discussionPotentialScore": 80,
+  "sharePotentialScore": 84,
+  "viralPotentialScore": 86,
+  "recommendedContentType": "NEWS",
+  "recommendedAction": "CREATE_CONTENT",
+  "shortSummary": "Haberin özeti",
+  "keyPoints": ["Madde 1", "Madde 2"],
+  "riskLevel": "LOW",
+  "confidenceLevel": "VERIFIED"
+}
+ÖNEMLİ: SADECE GEÇERLİ JSON DÖNDÜR, HİÇBİR AÇIKLAMA VEYA MARKDOWN EKLEME.`;
 
     const raw = await this.generateContent(prompt);
     let clean = (raw || '').trim();
@@ -192,28 +222,30 @@ export class NvidiaProvider implements AIProvider {
     try {
       return JSON.parse(clean);
     } catch (parseError) {
-      console.warn('[NvidiaProvider] JSON parse warning, calculating dynamic multi-factor score:', parseError);
+      console.warn('[NvidiaProvider] JSON parse warning, calculating dynamic tiered multi-factor score:', parseError);
       const text = typeof newsData === 'string' ? newsData : `${newsData.title || ''} ${newsData.summary || ''}`;
       const lower = text.toLocaleLowerCase('tr-TR');
       const isTs = lower.includes('trabzonspor') || lower.includes('bordo mavi') || lower.includes('fırtına');
 
-      let dynScore = isTs ? 68 : 30;
-      if (lower.includes('derbi') || lower.includes('beşiktaş') || lower.includes('fenerbahçe') || lower.includes('galatasaray')) dynScore += 16;
-      if (lower.includes('transfer') || lower.includes('imza') || lower.includes('bonservis')) dynScore += 14;
-      if (lower.includes('son dakika') || lower.includes('flaş') || lower.includes('resmi')) dynScore += 8;
-      if (lower.includes('antrenman') || lower.includes('idman')) dynScore -= 16;
-      const hashMod = (text.split('').reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0) % 5) - 2;
-      const finalImp = Math.min(96, Math.max(45, dynScore + hashMod));
+      let dynScore = isTs ? 60 : 25;
+      if (lower.includes('son dakika') || lower.includes('flaş') || lower.includes('resmi açıklama') || lower.includes('yollar ayrıldı')) dynScore += 26;
+      else if (lower.includes('derbi') || lower.includes('beşiktaş') || lower.includes('fenerbahçe') || lower.includes('galatasaray')) dynScore += 20;
+      else if (lower.includes('transfer') || lower.includes('imza') || lower.includes('bonservis') || lower.includes('kap')) dynScore += 16;
+      else if (lower.includes('idman') || lower.includes('antrenman')) dynScore -= 10;
+      else if (lower.includes('doğum günü') || lower.includes('taziye') || lower.includes('ziyaret')) dynScore -= 18;
+
+      const hashMod = (text.split('').reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0) % 9) - 4;
+      const finalImp = Math.min(96, Math.max(35, dynScore + hashMod));
 
       return {
         importanceScore: finalImp,
         credibilityScore: 88,
-        trabzonsporRelevanceScore: isTs ? 92 : 25,
-        discussionPotentialScore: Math.min(95, Math.max(50, finalImp - 3)),
-        sharePotentialScore: Math.min(92, Math.max(45, finalImp - 5)),
-        viralPotentialScore: Math.min(95, Math.max(45, finalImp + 2)),
+        trabzonsporRelevanceScore: isTs ? 92 : 20,
+        discussionPotentialScore: Math.min(95, Math.max(30, finalImp - 2)),
+        sharePotentialScore: Math.min(92, Math.max(30, finalImp - 4)),
+        viralPotentialScore: Math.min(95, Math.max(25, finalImp + 2)),
         recommendedContentType: (lower.includes('transfer') ? 'TRANSFER' : lower.includes('derbi') || lower.includes('maç') ? 'MATCH_PREVIEW' : 'NEWS'),
-        recommendedAction: finalImp >= 70 ? 'CREATE_CONTENT' : 'MONITOR',
+        recommendedAction: finalImp >= 85 ? 'URGENT' : finalImp >= 66 ? 'CREATE_CONTENT' : 'MONITOR',
         shortSummary: text.slice(0, 180),
         keyPoints: [typeof newsData === 'string' ? newsData : newsData.title || 'Trabzonspor Gündemi'],
         riskLevel: 'LOW',

@@ -1,7 +1,7 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 import NewsClientPage from './client-page';
-
+import { deduplicateNewsBatch } from '@/lib/news/news-similarity-engine';
 
 export default async function NewsPage() {
   const newsRecords = await prisma.news.findMany({
@@ -13,11 +13,14 @@ export default async function NewsPage() {
     orderBy: [
       { publishedAt: 'desc' }
     ],
-    take: 100,
+    take: 120,
     include: { source: true }
   });
 
-  const formattedNews = newsRecords.map((n) => ({
+  // Konu ve semantik benzerlik motoru ile aynı olayı anlatan mükerrer haberleri tekilleştir
+  const { uniqueNews } = deduplicateNewsBatch(newsRecords);
+
+  const formattedNews = uniqueNews.map((n) => ({
     id: n.id,
     title: n.title,
     source: n.source.name,

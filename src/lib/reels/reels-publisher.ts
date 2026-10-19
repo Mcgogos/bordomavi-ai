@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db';
 import { FacebookService } from '@/services/facebook.service';
 import { generateCompleteReelVideo, GeneratedReelResult } from './reel-video-generator';
-import { checkAgainstPublishedHistory, isNewsTooOld } from '@/lib/news/news-similarity-engine';
+import { checkAgainstPublishedHistory, isNewsTooOld, deduplicateNewsBatch } from '@/lib/news/news-similarity-engine';
 import { stripExternalSources } from '@/lib/content/content-generator';
 import fs from 'fs';
 
@@ -151,8 +151,11 @@ export async function runAutonomousReelWorkflow(options?: {
         take: 20
       });
 
+      // Konu, varlık ve semantik benzerlik motoru ile aday havuzunu tekilleştir (Aynı konudan birden fazla haber alınmaz)
+      const { uniqueNews: distinctCandidates } = deduplicateNewsBatch(candidates);
+
       // Geçmiş yayın, mükerrerlik ve görsel geçerlilik kontrolü uygula
-      for (const item of candidates) {
+      for (const item of distinctCandidates) {
         // Görsel materyali yetersiz veya sahte linkli haberleri kesinlikle alma (Kural 2)
         if (!item.imageUrl || !item.imageUrl.startsWith('http') || item.imageUrl.length < 15) {
           continue;

@@ -68,28 +68,31 @@ export async function generateReelScript(params: {
     badgeTitle = 'SON DAKİKA';
   }
 
-  // 1. AI ile Habere Özel Orijinal ve Akıcı Seslendirme Metni Üret
+  // 1. AI ile Habere Özel Orijinal, Doğal ve Akıcı Seslendirme Metni Üret
   let aiNarration = '';
   try {
     const aiProvider = AIFactory.getRouter("CONTENT_GENERATION");
     const prompt = `
-Aşağıdaki Trabzonspor haberini 9:16 dikey Facebook Reels videosu için profesyonel bir TRT Spor / beIN Sports spiker anlatımına dönüştür.
+Aşağıdaki Trabzonspor haberini 9:16 dikey Facebook Reels videosu için profesyonel bir kadın haber spikerinin seslendireceği dinamik, kurumsal ve akıcı bir TV bülten metnine dönüştür.
 
 Haber Başlığı: ${cleanTitle}
 Haber Detayı: ${cleanSummary}
 Kategori: ${badgeTitle}
 
 ZORUNLU KURALLAR:
-1. Kesinlikle dış haber ajansı veya kaynak adı (Günebakış, Haber61, 61saat vb.) KULLANMA.
-2. DİL VE ANLATIM: Cümleler akıcı, tam dilbilgisine uygun, net ve profesyonel Türkçe ile yazılmalıdır. ASLA anlamsız, mantıksız, devrik veya yarım kalan cümleler kurma.
-3. "Bordo-Mavili kulüpte sıcak saatler yaşanıyor" gibi bayat şablon kalıplar KULLANMA. Haberin öznesine doğrudan gir.
-4. Toplam 50-65 kelime uzunluğunda, tempolu ve net bir spiker metni oluştur.
-5. Anlatım yapısı:
-   - Giriş: Haberin ana gelişmesini doğrudan aktaran net bir cümle.
-   - Gelişme: Kulüp, teknik heyet veya oyuncu açısından önemi ve arka planı.
-   - Kapanış: Takipçilerin fikrini soran net ve kısa bir soruyla bitsin (Örn: "Sizce bu gelişme takıma nasıl yansır? Yorumlarda buluşalım.").
-6. Hiçbir yerde parantez, sahne yönlendirmesi, emoji veya markdown yıldız (**) KULLANMA.
-7. YALNIZCA spikerin mikrofonda doğrudan okuyacağı düz Türkçe metni ver.`;
+1. HABER KAYNAĞI YASAK: Kesinlikle dış haber ajansı veya kaynak adı (Günebakış, Haber61, 61saat vb.) KULLANMA.
+2. SESLENDİRME UYUMLULUĞU: 
+   - Tüm sayıları, skorları ve tarihleri doğrudan OKUNUŞLARIYLA (yazıyla) yaz (Örn: "iki bir", "üçüncü hafta", "yirmi beş milyon euro").
+   - Kısaltma KULLANMA; açıkça yaz (Örn: "teknik direktör", "dakika").
+3. AKICI VE DOĞAL DİLBİLGİSİ:
+   - Cümleler devrik veya anlamsız olmamalı; tam ve kurallı Türkçe spiker cümleleri kur.
+   - "Sıcak saatler yaşanıyor", "bomba gelişme" gibi klişeler yerine doğrudan konunun özüne odaklan.
+4. METİN UZUNLUĞU: Toplam 35-48 kelime arasında, ~18-24 saniyede rahatça okunacak ideal Facebook Reels temposunda olsun.
+5. METİN AKIŞI:
+   - Kanca: Haberin en kritik gelişmesini ilk cümlede net ver.
+   - Detay: Teknik heyet, yönetim veya oyuncunun reaksiyonunu açıkla.
+   - Etkileşim: İzleyicinin fikrini soran tek ve samimi bir soruyla bitir (Örn: "Sizce bu karar fırtınanın gidişatını nasıl etkiler? Yorumlarınızı bekliyoruz.").
+6. Yalnızca mikrofonda doğrudan okunacak yalın metni ver. Parantez, sahne yönergesi, tırnak, emoji veya markdown KULLANMA.`;
 
     const generated = await aiProvider.generateContent(prompt);
     aiNarration = sanitizePlainText(generated || '');
