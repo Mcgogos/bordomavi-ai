@@ -26,6 +26,16 @@ export interface ReelScriptData {
  * akıcı ve dinamik bir Türkçe seslendirme senaryosu üretir.
  * Statik şablonları asla tekrar etmez; yapay zeka ile habere özgü metin hazırlar.
  */
+function cleanNewsForScript(title: string, rawText: string): string {
+  let cleaned = rawText
+    .replace(/(İşte detaylar|ayrıntılar|foto galeri|tıklayınız|tıklayın|muhabirimiz|haber merkezi|kaynak).*$/gi, '')
+    .replace(/\b(AA|DHA|İHA|IHA)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned.length < 20) cleaned = title;
+  return cleaned;
+}
+
 export async function generateReelScript(params: {
   title: string;
   summary?: string | null;
@@ -33,7 +43,8 @@ export async function generateReelScript(params: {
   category?: string | null;
 }): Promise<ReelScriptData> {
   const cleanTitle = sanitizePlainText(params.title || '');
-  const cleanSummary = sanitizePlainText(params.body || params.summary || '');
+  const rawBodyOrSummary = sanitizePlainText(params.body || params.summary || '');
+  const cleanSummary = cleanNewsForScript(cleanTitle, rawBodyOrSummary);
   const lowerText = `${cleanTitle} ${cleanSummary}`.toLocaleLowerCase('tr-TR');
 
   // Kategori Tespiti
@@ -42,42 +53,43 @@ export async function generateReelScript(params: {
 
   if (lowerText.includes('transfer') || lowerText.includes('imza') || lowerText.includes('bonservis') || lowerText.includes('anlaşma')) {
     category = 'TRANSFER';
-    badgeTitle = '🔥 TRANSFER MASASI';
+    badgeTitle = 'TRANSFER MASASI';
   } else if (lowerText.includes('derbi') || lowerText.includes('beşiktaş') || lowerText.includes('fenerbahçe') || lowerText.includes('galatasaray') || lowerText.includes('maç günü')) {
     category = 'MATCH_PREVIEW';
-    badgeTitle = '🏟️ DERBİ GÜNDEMİ';
+    badgeTitle = 'DERBİ GÜNDEMİ';
   } else if (lowerText.includes('sakat') || lowerText.includes('tedavi') || lowerText.includes('ameliyat') || lowerText.includes('revir')) {
     category = 'INJURY';
-    badgeTitle = '⚠️ SAĞLIK RAPORU';
+    badgeTitle = 'SAĞLIK RAPORU';
   } else if (lowerText.includes('ertuğrul doğan') || lowerText.includes('yönetim') || lowerText.includes('başkan') || lowerText.includes('sponsor')) {
     category = 'MANAGEMENT';
-    badgeTitle = '🏛️ KULÜP KULİSİ';
+    badgeTitle = 'KULÜP KULİSİ';
   } else if (lowerText.includes('son dakika') || lowerText.includes('flaş') || lowerText.includes('resmi')) {
     category = 'BREAKING';
-    badgeTitle = '🚨 SON DAKİKA';
+    badgeTitle = 'SON DAKİKA';
   }
 
-  // 1. AI ile Habere Özel Orijinal Seslendirme Metni Üret
+  // 1. AI ile Habere Özel Orijinal ve Akıcı Seslendirme Metni Üret
   let aiNarration = '';
   try {
     const aiProvider = AIFactory.getRouter("CONTENT_GENERATION");
     const prompt = `
-Aşağıdaki Trabzonspor haberini 9:16 dikey Facebook Reels videosu için 25-35 saniyede akıcı ve dinamik biçimde seslendirilecek profesyonel bir Türkçe spiker anlatımına dönüştür.
+Aşağıdaki Trabzonspor haberini 9:16 dikey Facebook Reels videosu için profesyonel bir TRT Spor / beIN Sports spiker anlatımına dönüştür.
 
 Haber Başlığı: ${cleanTitle}
-Haber Detayı: ${cleanSummary || cleanTitle}
+Haber Detayı: ${cleanSummary}
 Kategori: ${badgeTitle}
 
-Kurallar:
-1. Kesinlikle dış haber ajansı veya kaynak adı (Günebakış, Haber61, 61saat vb.) KULLANMA. Haberin kaynağı 'Bordo Mavi Haber Merkezi'dir.
-2. "Bordo-Mavili kulüpte sıcak saatler yaşanıyor" gibi beylik ve tekrarlayan şablon cümleler KESİNLİKLE KULLANMA. Haberin öznesine (oyuncuya, maça veya karara) doğrudan ve çarpıcı bir açılışla başla.
-3. Toplam 60-75 kelime uzunluğunda, spikerin tek nefeste akıcı biçimde okuyacağı tek parça bir paragraf olsun.
-4. Anlatım yapısı:
-   - İlk 1-2 cümle: Dikkat çekici açılış kancası ve olayın ne olduğu.
-   - Orta bölüm: Haberin perde arkası, teknik detayları ve takım üzerindeki etkisi.
-   - Son cümle: Takipçileri yorum yazmaya ve fikrini belirtmeye teşvik eden net bir etkileşim sorusu.
-5. KESİNLİKLE hiçbir yerde parantez içi sahne yönlendirmeleri (Sahne 1, Müzik, Giriş vb.) veya markdown yıldız işareti (**) KULLANMA.
-6. Yanıt olarak YALNIZCA spikerin mikrofonda doğrudan okuyacağı düz Türkçe metni ver.`;
+ZORUNLU KURALLAR:
+1. Kesinlikle dış haber ajansı veya kaynak adı (Günebakış, Haber61, 61saat vb.) KULLANMA.
+2. DİL VE ANLATIM: Cümleler akıcı, tam dilbilgisine uygun, net ve profesyonel Türkçe ile yazılmalıdır. ASLA anlamsız, mantıksız, devrik veya yarım kalan cümleler kurma.
+3. "Bordo-Mavili kulüpte sıcak saatler yaşanıyor" gibi bayat şablon kalıplar KULLANMA. Haberin öznesine doğrudan gir.
+4. Toplam 50-65 kelime uzunluğunda, tempolu ve net bir spiker metni oluştur.
+5. Anlatım yapısı:
+   - Giriş: Haberin ana gelişmesini doğrudan aktaran net bir cümle.
+   - Gelişme: Kulüp, teknik heyet veya oyuncu açısından önemi ve arka planı.
+   - Kapanış: Takipçilerin fikrini soran net ve kısa bir soruyla bitsin (Örn: "Sizce bu gelişme takıma nasıl yansır? Yorumlarda buluşalım.").
+6. Hiçbir yerde parantez, sahne yönlendirmesi, emoji veya markdown yıldız (**) KULLANMA.
+7. YALNIZCA spikerin mikrofonda doğrudan okuyacağı düz Türkçe metni ver.`;
 
     const generated = await aiProvider.generateContent(prompt);
     aiNarration = sanitizePlainText(generated || '');
@@ -107,9 +119,9 @@ Kurallar:
   // 2. Metni 4 Eşzamanlı Sahneye Böl (Altyazı ve Görsel Zamanlaması İçin)
   const sentences = aiNarration.split(/(?<=[.?!])\s+/).filter(s => s.trim().length > 0);
   
-  // Ortalama konuşma hızı: ~2.5 kelime/saniye
+  // Ortalama konuşma hızı: ~2.8 kelime/saniye (1.32x tempolu okuma)
   const wordCount = aiNarration.split(/\s+/).length;
-  const estimatedDuration = Math.max(22, Math.min(42, Math.round(wordCount / 2.3)));
+  const estimatedDuration = Math.max(20, Math.min(38, Math.round(wordCount / 2.7)));
 
   const sceneDuration = +(estimatedDuration / 4).toFixed(1);
 
@@ -152,7 +164,8 @@ Kurallar:
     }
   ];
 
-  const facebookCaption = `🎬 BORDO MAVİ REELS | ${cleanTitle}\n\n${cleanSummary}\n\n💬 ${scenes[3].subtitle}\n\n#Trabzonspor #BordoMavi #Reels #Shorts #Fırtına #SüperLig`;
+  // Haber açıklaması ile seslendirme metnini 100% aynı yap ve "✍️ Editör" olarak imzala
+  const facebookCaption = `🎬 ${cleanTitle}\n\n${aiNarration}\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #Reels #Fırtına`;
 
   return {
     title: cleanTitle,

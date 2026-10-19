@@ -22,7 +22,7 @@ export interface SynthesizedAudioResult {
 /**
  * Uzun metinleri Türkçe cümle ve virgül sınırlarına göre akıcı altyazı dilimlerine (<85 karakter) böler.
  */
-function splitTextIntoTTSChunks(text: string, maxLength: number = 80): string[] {
+function splitTextIntoTTSChunks(text: string, maxLength: number = 70): string[] {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (clean.length <= maxLength) return [clean];
 
@@ -136,14 +136,14 @@ export async function synthesizeTurkishSpeech(narrationText: string): Promise<Sy
       throw new Error("Tüm seslendirme parçaları başarısız oldu.");
     }
 
-    // Her ses parçasının 1.20x hızındaki süresini ve altyazı zamanlamasını hesapla
+    // Her ses parçasının 1.32x hızındaki süresini ve altyazı zamanlamasını hesapla
     const cues: SubtitleCue[] = [];
     let currentTime = 0;
     for (let i = 0; i < chunkPaths.length; i++) {
       const chunkFile = chunkPaths[i];
       const chunkText = chunks[i];
       const rawDur = await getAudioDurationSeconds(chunkFile);
-      const effDur = +(rawDur / 1.20).toFixed(2);
+      const effDur = +(rawDur / 1.32).toFixed(2);
       const start = currentTime;
       const end = +(currentTime + effDur).toFixed(2);
       currentTime = end;
@@ -155,14 +155,14 @@ export async function synthesizeTurkishSpeech(narrationText: string): Promise<Sy
     const fileContent = chunkPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n');
     fs.writeFileSync(concatListFile, fileContent);
 
-    // Parçaları FFmpeg ile birleştir ve 1.20x profesyonel haber temposuna hızlandır
+    // Parçaları FFmpeg ile birleştir ve 1.32x profesyonel haber temposuna hızlandır
     await new Promise((resolve, reject) => {
       const args = [
         '-y',
         '-f', 'concat',
         '-safe', '0',
         '-i', concatListFile,
-        '-filter:a', 'atempo=1.20',
+        '-filter:a', 'atempo=1.32',
         '-c:a', 'libmp3lame',
         '-b:a', '192k',
         finalAudioPath

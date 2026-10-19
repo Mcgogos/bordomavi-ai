@@ -93,12 +93,12 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
 
     let subtitleFilters = '';
     cues.forEach((cue, idx) => {
-      const cueLines = wrapTextToLines(cue.text, 24, 2);
+      const cueLines = wrapTextToLines(cue.text, 22, 2);
       const cueFile = path.join(tempDir, `bm_cue_${timestamp}_${idx}.txt`);
       fs.writeFileSync(cueFile, cueLines.join('\n'), 'utf8');
       filesToClean.push(cueFile);
 
-      const filterPart = `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(cueFile)}':fontsize=46:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1270:line_spacing=14:enable='between(t,${cue.startTime.toFixed(2)},${cue.endTime.toFixed(2)})'`;
+      const filterPart = `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(cueFile)}':fontsize=46:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1430:line_spacing=14:enable='between(t,${cue.startTime.toFixed(2)},${cue.endTime.toFixed(2)})'`;
       if (subtitleFilters) {
         subtitleFilters += `,${filterPart}`;
       } else {
