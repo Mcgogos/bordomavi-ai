@@ -88,15 +88,15 @@ export async function runAutonomousReelWorkflow(options?: {
     }
 
     // 2. OTOMATİK HABER SEÇİMİ (Kural 2)
-    // Mevcut AI analiz motorunun önem (>=75) ve viral skorunu kullanır
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Mevcut AI analiz motorunun önem (>=70) ve viral skorunu kullanır
+    const candidateLookback = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
     let candidateNews: any = null;
 
     if (options?.targetNewsId) {
       candidateNews = await prisma.news.findUnique({
         where: { id: options.targetNewsId },
-        include: { source: true }
+        include: { source: true, content: true }
       });
     } else {
       // Otomatik havuzdan en kaliteli taze haberi seç
@@ -108,20 +108,24 @@ export async function runAutonomousReelWorkflow(options?: {
             { isTrabzonsporRelated: null }
           ],
           aiRecommendedAction: { in: ['CREATE_CONTENT', 'URGENT'] },
-          importanceScore: { gte: 75 },
-          publishedAt: { gte: twentyFourHoursAgo },
-          content: null // Henüz içerik üretilmemiş haberler
+          importanceScore: { gte: 70 },
+          publishedAt: { gte: candidateLookback }
         },
-        include: { source: true },
+        include: { source: true, content: true },
         orderBy: [
           { importanceScore: 'desc' },
           { viralScore: 'desc' }
         ],
-        take: 10
+        take: 15
       });
 
-      // Geçmiş yayın ve görsel kontrolü uygula
+      // Geçmiş yayın ve mükerrerlik kontrolü uygula
       for (const item of candidates) {
+        // Eğer bu haber zaten bir REELS olarak yayınlanmışsa atla
+        if (item.content?.type === 'REELS_SCRIPT' && item.content?.status === 'PUBLISHED') {
+          continue;
+        }
+
         // Son 7 günde yayınlananlarla benzerlik kontrolü
         const history = await checkAgainstPublishedHistory(
           { id: item.id, title: item.title, summary: item.summary || item.aiSummary },
@@ -138,7 +142,7 @@ export async function runAutonomousReelWorkflow(options?: {
       console.log("[ReelsPublisher] No suitable high-scoring candidate news found for Reels.");
       return {
         ...result,
-        skippedReason: "Yayınlanmaya uygun yüksek puanlı (75+) taze haber bulunamadı. Zorla içerik üretilmedi."
+        skippedReason: "Yayınlanmaya uygun yüksek puanlı (70+) taze haber bulunamadı. Zorla içerik üretilmedi."
       };
     }
 
@@ -155,19 +159,35 @@ export async function runAutonomousReelWorkflow(options?: {
     console.log(`[ReelsPublisher] ✅ STEP 1: SEÇİLDİ -> "${candidateNews.title}" (Score: ${candidateNews.importanceScore})`);
     result.step = 'SEÇİLDİ';
 
-    // Geçici İçerik Kaydı Oluştur (State Machine takibi için)
-    let contentRecord = await prisma.content.create({
-      data: {
-        title: stripExternalSources(candidateNews.title),
-        body: candidateNews.summary || candidateNews.aiSummary || candidateNews.title,
-        type: 'REELS_SCRIPT',
-        status: 'DRAFT',
-        sourceNewsId: candidateNews.id,
-        qualityScore: candidateNews.importanceScore || 85,
-        viralScore: candidateNews.viralScore || 85,
-        aiReasoning: 'DURUM: SEÇİLDİ -> Senaryo oluşturuluyor...'
-      }
-    });
+    // Geçici İçerik Kaydı Oluştur veya Mevcut Kaydı Güncelle (State Machine takibi için)
+    let contentRecord: any;
+    if (candidateNews.content && candidateNews.content.id) {
+      contentRecord = await prisma.content.update({
+        where: { id: candidateNews.content.id },
+        data: {
+          title: stripExternalSources(candidateNews.title),
+          body: candidateNews.summary || candidateNews.aiSummary || candidateNews.title,
+          type: 'REELS_SCRIPT',
+          status: 'DRAFT',
+          qualityScore: candidateNews.importanceScore || 85,
+          viralScore: candidateNews.viralScore || 85,
+          aiReasoning: 'DURUM: SEÇİLDİ -> Senaryo oluşturuluyor...'
+        }
+      });
+    } else {
+      contentRecord = await prisma.content.create({
+        data: {
+          title: stripExternalSources(candidateNews.title),
+          body: candidateNews.summary || candidateNews.aiSummary || candidateNews.title,
+          type: 'REELS_SCRIPT',
+          status: 'DRAFT',
+          sourceNewsId: candidateNews.id,
+          qualityScore: candidateNews.importanceScore || 85,
+          viralScore: candidateNews.viralScore || 85,
+          aiReasoning: 'DURUM: SEÇİLDİ -> Senaryo oluşturuluyor...'
+        }
+      });
+    }
     result.contentId = contentRecord.id;
 
     // DURUM: SENARYO HAZIRLANIYOR & VİDEO ÜRETİLİYOR
