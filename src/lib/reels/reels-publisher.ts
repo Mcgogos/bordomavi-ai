@@ -28,6 +28,27 @@ export interface ReelPublishWorkflowResult {
  * en yüksek etkileşim potansiyeline sahip haberi seçer, profesyonel dikey 9:16
  * video üretir, kalite testlerini yapar ve Facebook Reels olarak yayınlar.
  */
+async function tryScrapeArticleImage(articleUrl?: string | null): Promise<string | null> {
+  if (!articleUrl || !articleUrl.startsWith('http')) return null;
+  try {
+    const res = await fetch(articleUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) BordoMaviNews/2.0' },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const match = html.match(/<meta\s+(?:property|name)=["'](?:og:image|twitter:image)["']\s+content=["']([^"']+)["']/i) ||
+                    html.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["'](?:og:image|twitter:image)["']/i);
+      if (match && match[1] && match[1].startsWith('http')) {
+        return match[1];
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[ReelsPublisher] Could not scrape image from ${articleUrl}:`, err.message);
+  }
+  return null;
+}
+
 export async function runAutonomousReelWorkflow(options?: {
   force?: boolean;
   targetNewsId?: string;
@@ -98,8 +119,18 @@ export async function runAutonomousReelWorkflow(options?: {
         where: { id: options.targetNewsId },
         include: { source: true, content: true }
       });
+      if (candidateNews && (!candidateNews.imageUrl || !candidateNews.imageUrl.startsWith('http'))) {
+        const scrapedImg = await tryScrapeArticleImage(candidateNews.url);
+        if (scrapedImg) {
+          candidateNews.imageUrl = scrapedImg;
+          await prisma.news.update({
+            where: { id: candidateNews.id },
+            data: { imageUrl: scrapedImg }
+          });
+        }
+      }
     } else {
-      // Otomatik havuzdan en kaliteli taze haberi seç
+      // Otomatik havuzdan görsel materyali tam, en kaliteli taze haberi seç (Kural 2)
       const candidates = await prisma.news.findMany({
         where: {
           isProcessed: true,
@@ -109,18 +140,24 @@ export async function runAutonomousReelWorkflow(options?: {
           ],
           aiRecommendedAction: { in: ['CREATE_CONTENT', 'URGENT'] },
           importanceScore: { gte: 70 },
-          publishedAt: { gte: candidateLookback }
+          publishedAt: { gte: candidateLookback },
+          imageUrl: { not: null }
         },
         include: { source: true, content: true },
         orderBy: [
           { importanceScore: 'desc' },
           { viralScore: 'desc' }
         ],
-        take: 15
+        take: 20
       });
 
-      // Geçmiş yayın ve mükerrerlik kontrolü uygula
+      // Geçmiş yayın, mükerrerlik ve görsel geçerlilik kontrolü uygula
       for (const item of candidates) {
+        // Görsel materyali yetersiz veya sahte linkli haberleri kesinlikle alma (Kural 2)
+        if (!item.imageUrl || !item.imageUrl.startsWith('http') || item.imageUrl.length < 15) {
+          continue;
+        }
+
         // Eğer bu haber zaten bir REELS olarak yayınlanmışsa atla
         if (item.content?.type === 'REELS_SCRIPT' && item.content?.status === 'PUBLISHED') {
           continue;

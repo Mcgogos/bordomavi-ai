@@ -122,12 +122,11 @@ export async function composeReelSlides(
     if (hasNewsImg) tempFilesToClean.push(downloadedNewsImg);
   }
 
-  // 2. Yedek Stadyum Görseli
-  const downloadedStadiumImg = path.join(tempDir, `bm_stadium_${timestamp}.jpg`);
-  const hasStadiumImg = await downloadImageSafe(CURATED_REEL_BACKGROUNDS.stadium, downloadedStadiumImg);
-  if (hasStadiumImg) tempFilesToClean.push(downloadedStadiumImg);
+  if (!hasNewsImg) {
+    throw new Error(`Habere ait özgün ve geçerli bir görsel indirilemedi (${sourceImageUrl || 'Görsel URL bulunamadı'}). Kural 2 gereği haberle ilgisiz generic görsel ile Reels üretilemez.`);
+  }
 
-  const heroPhotoPath = hasNewsImg ? downloadedNewsImg : (hasStadiumImg ? downloadedStadiumImg : null);
+  const heroPhotoPath = downloadedNewsImg;
 
   // Kategoriye göre rozet başlığı
   const rawBadge = (scriptData.badgeTitle || 'BORDO MAVI OZEL').replace(/[':]/g, '').trim();
@@ -230,9 +229,8 @@ export async function composeReelSlides(
   tempFilesToClean.push(slide3Path);
   slidePaths.push(slide3Path);
 
-  const stadiumPhoto = hasStadiumImg ? downloadedStadiumImg : heroPhotoPath;
   const slide3Args: string[] = ['-y'];
-  if (stadiumPhoto) slide3Args.push('-i', stadiumPhoto);
+  if (heroPhotoPath) slide3Args.push('-i', heroPhotoPath);
   else slide3Args.push('-f', 'lavfi', '-i', 'color=c=0x0F172A:s=1080x1920:d=1:r=1');
   if (logoPath) slide3Args.push('-i', logoPath);
 
