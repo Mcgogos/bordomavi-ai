@@ -119,17 +119,38 @@ ZORUNLU KURALLAR (2026 META REELS ALGORİTMA STANDARDI):
     console.warn("[ReelScriptGenerator] AI script generation warning, using dynamic fallback:", err.message);
   }
 
-  // Eğer AI metni oluşturulamadıysa dinamik habere özel kural sentezi uygula
-  if (!aiNarration || aiNarration.length < 50) {
-    let hook = `Trabzonspor'da ${cleanTitle} haberi gündeme damgasını vurdu.`;
-    let detail = cleanSummary.length > 30 ? cleanSummary : 'Bordo-Mavili teknik heyet ve yönetimin konuyla ilgili planlamalarını titizlikle sürdürdüğü öğrenildi.';
+  // 2026 Meta Algoritma Standardı: İdeal video süresi 18-28 sn (45-60 kelime)
+  const currentWordCount = aiNarration.split(/\s+/).filter(Boolean).length;
+  if (!aiNarration || currentWordCount < 35 || aiNarration.length < 200) {
+    let hook = `Trabzonspor gündeminde ${cleanTitle} gelişmesi dikkatleri üzerine çekti.`;
+    const firstSentences = cleanSummary.split(/(?<=[.?!])\s+/).filter(Boolean);
+    const shortDetail = firstSentences.slice(0, 2).join(' ').trim();
+    let detail = shortDetail.length >= 30 && shortDetail.length <= 220
+      ? shortDetail
+      : (shortDetail.slice(0, 200).replace(/\s+\S*$/, '') + '.');
+    if (detail.length < 30) {
+      detail = 'Bordo-Mavili teknik heyet ve yönetimin konuyla ilgili planlamalarını titizlikle sürdürdüğü, gelişmelerin yakından takip edildiği bildirildi.';
+    }
+
     let cta = category === 'TRANSFER' 
-      ? 'Sizce bu transfer hamlesi takıma sınıf atlatır mı? Fikirlerinizi yorumlarda buluşturun!'
+      ? 'Sizce bu transfer hamlesi takıma sınıf atlatır mı? Görüşlerinizi ve yorumlarınızı bekliyoruz!'
       : category === 'MATCH_PREVIEW'
-      ? 'Bu kritik mücadele öncesi skor tahmininiz nedir? Yorumlarda buluşalım!'
-      : 'Peki siz bu gelişmeyi nasıl değerlendiriyorsunuz? Yorumunuzu bırakmayı unutmayın!';
+      ? 'Bu kritik mücadele öncesi takımın performansını nasıl değerlendiriyorsunuz? Yorumlarda buluşalım!'
+      : 'Peki siz bu son gelişmeyi nasıl değerlendiriyorsunuz? Fikirlerinizi yorumlarda paylaşmayı unutmayın!';
 
     aiNarration = `${hook} ${detail} ${cta}`;
+  }
+
+  // Maksimum 60 kelime tavanı (18-28 saniye tatlı noktasını korumak için)
+  if (aiNarration.split(/\s+/).filter(Boolean).length > 60) {
+    const allSentences = aiNarration.split(/(?<=[.?!])\s+/).filter(Boolean);
+    let bounded = '';
+    for (const s of allSentences) {
+      if ((bounded + ' ' + s).trim().split(/\s+/).length <= 58) {
+        bounded = (bounded + ' ' + s).trim();
+      } else break;
+    }
+    aiNarration = bounded || allSentences.slice(0, 3).join(' ');
   }
 
   // 2. Etkileşim ve Dwell Time Artırıcı Anket (Poll Card) Sorusu & Seçenekleri

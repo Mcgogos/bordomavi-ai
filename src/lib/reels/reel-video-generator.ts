@@ -133,7 +133,6 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       '-b:a', '128k',
       '-ar', '44100',
       '-t', String(totalDuration),
-      '-shortest',
       outputVideoPath
     ];
 

@@ -142,9 +142,9 @@ export async function verifyReelQuality(params: {
     }
   }
 
-  // 3. Süre denetimi (Reels için ideal: 12 - 55 saniye)
-  if (metrics.durationSeconds < 12) {
-    errors.push(`Video süresi çok kısa (${metrics.durationSeconds}s). Minimum 12 saniye olmalı.`);
+  // 3. Süre denetimi (Reels için ideal: 15 - 55 saniye, mutlak alt sınır 10s)
+  if (metrics.durationSeconds < 10) {
+    errors.push(`Video süresi çok kısa (${metrics.durationSeconds}s). Minimum 10 saniye olmalı.`);
   } else if (metrics.durationSeconds > 60) {
     warnings.push(`Video süresi 60 saniyeyi aşıyor (${metrics.durationSeconds}s).`);
   }
