@@ -19,6 +19,9 @@ export interface ReelScriptData {
   estimatedDurationSeconds: number;
   scenes: ReelScriptScene[];
   facebookCaption: string;
+  pollQuestion: string;
+  pollOption1: string;
+  pollOption2: string;
 }
 
 /**
@@ -70,6 +73,8 @@ export async function generateReelScript(params: {
 
   // 1. AI ile Habere Özel Orijinal, Doğal ve Akıcı Seslendirme Metni Üret
   let aiNarration = '';
+  let customPollQuestion = '';
+
   try {
     const aiProvider = AIFactory.getRouter("CONTENT_GENERATION");
     const prompt = `
@@ -79,7 +84,7 @@ Haber Başlığı: ${cleanTitle}
 Haber Detayı: ${cleanSummary}
 Kategori: ${badgeTitle}
 
-ZORUNLU KURALLAR:
+ZORUNLU KURALLAR (2026 META REELS ALGORİTMA STANDARDI):
 1. HABER KAYNAĞI YASAK: Kesinlikle dış haber ajansı veya kaynak adı (Günebakış, Haber61, 61saat vb.) KULLANMA.
 2. SESLENDİRME UYUMLULUĞU: 
    - Tüm sayıları, skorları ve tarihleri doğrudan OKUNUŞLARIYLA (yazıyla) yaz (Örn: "iki bir", "üçüncü hafta", "yirmi beş milyon euro").
@@ -87,17 +92,25 @@ ZORUNLU KURALLAR:
 3. AKICI VE DOĞAL DİLBİLGİSİ:
    - Cümleler devrik veya anlamsız olmamalı; tam ve kurallı Türkçe spiker cümleleri kur.
    - "Sıcak saatler yaşanıyor", "bomba gelişme" gibi klişeler yerine doğrudan konunun özüne odaklan.
-4. METİN UZUNLUĞU: Toplam 35-48 kelime arasında, ~18-24 saniyede rahatça okunacak ideal Facebook Reels temposunda olsun.
+4. METİN UZUNLUĞU: Toplam 45-60 kelime arasında, ~18-24 saniyede rahatça okunacak ideal Facebook Reels temposunda olsun.
 5. METİN AKIŞI:
    - Kanca: Haberin en kritik gelişmesini ilk cümlede net ver.
    - Detay: Teknik heyet, yönetim veya oyuncunun reaksiyonunu açıkla.
    - Etkileşim: İzleyicinin fikrini soran tek ve samimi bir soruyla bitir (Örn: "Sizce bu karar fırtınanın gidişatını nasıl etkiler? Yorumlarınızı bekliyoruz.").
-6. Yalnızca mikrofonda doğrudan okunacak yalın metni ver. Parantez, sahne yönergesi, tırnak, emoji veya markdown KULLANMA.`;
+6. ANKET ÇIKARTMASI: Metnin sonuna ayrı bir satırda "ANKET: <4-6 kelimelik soru>" şeklinde ekranda gösterilecek anket kartı sorusunu yaz (Örn: "ANKET: Sizce bu transfer doğru mu?").
+7. Yalnızca mikrofonda doğrudan okunacak yalın metni ver. Parantez, sahne yönergesi, tırnak veya emoji KULLANMA.`;
 
     const generated = await aiProvider.generateContent(prompt);
-    aiNarration = sanitizePlainText(generated || '');
-    // Parantez veya sahne kalıntılarını temizle
-    aiNarration = aiNarration
+    let rawTextOutput = sanitizePlainText(generated || '');
+
+    // Anket sorusunu ayıkla
+    const pollMatch = rawTextOutput.match(/ANKET:\s*([^\n\r]+)/i);
+    if (pollMatch && pollMatch[1]) {
+      customPollQuestion = pollMatch[1].replace(/[?"']/g, '').trim() + '?';
+      rawTextOutput = rawTextOutput.replace(/ANKET:\s*[^\n\r]+/gi, '').trim();
+    }
+
+    aiNarration = rawTextOutput
       .replace(/\[.*?\]/g, '')
       .replace(/\(.*?\)/g, '')
       .replace(/^(Sahne|Kanca|Seslendirme|Metin|Spiker)\s*\d*:\s*/gim, '')
@@ -119,12 +132,39 @@ ZORUNLU KURALLAR:
     aiNarration = `${hook} ${detail} ${cta}`;
   }
 
-  // 2. Metni 4 Eşzamanlı Sahneye Böl (Altyazı ve Görsel Zamanlaması İçin)
+  // 2. Etkileşim ve Dwell Time Artırıcı Anket (Poll Card) Sorusu & Seçenekleri
+  let pollQuestion = customPollQuestion || 'Sizce bu gelişme doğru mu?';
+  let pollOption1 = 'Evet, tam isabet';
+  let pollOption2 = 'Hayır, gereksiz';
+
+  if (category === 'TRANSFER') {
+    pollQuestion = customPollQuestion || 'Sizce bu transfer doğru mu?';
+    pollOption1 = 'Evet, tam isabet';
+    pollOption2 = 'Hayır, gereksiz';
+  } else if (category === 'MATCH_PREVIEW') {
+    pollQuestion = customPollQuestion || 'Trabzonspor bu maçı kazanır mı?';
+    pollOption1 = 'Evet, kazanırız';
+    pollOption2 = 'Zor maç, puan kaybı';
+  } else if (category === 'MANAGEMENT') {
+    pollQuestion = customPollQuestion || 'Yönetimin bu kararı doğru mu?';
+    pollOption1 = 'Evet, sonuna kadar';
+    pollOption2 = 'Hayır, yanlış karar';
+  } else if (category === 'INJURY') {
+    pollQuestion = customPollQuestion || 'Bu sakatlık takımı nasıl etkiler?';
+    pollOption1 = 'Yerini doldururuz';
+    pollOption2 = 'Ciddi kayıp yaşarız';
+  } else if (category === 'BREAKING') {
+    pollQuestion = customPollQuestion || 'Bu son dakika kararını destekliyor musunuz?';
+    pollOption1 = 'Evet, katılıyorum';
+    pollOption2 = 'Hayır, katılmıyorum';
+  }
+
+  // 3. Metni Cümlelere Böl (Altyazı ve Görsel Zamanlaması İçin)
   const sentences = aiNarration.split(/(?<=[.?!])\s+/).filter(s => s.trim().length > 0);
   
   // Ortalama konuşma hızı: ~2.8 kelime/saniye (1.32x tempolu okuma)
   const wordCount = aiNarration.split(/\s+/).length;
-  const estimatedDuration = Math.max(20, Math.min(38, Math.round(wordCount / 2.7)));
+  const estimatedDuration = Math.max(18, Math.min(32, Math.round(wordCount / 2.7)));
 
   const sceneDuration = +(estimatedDuration / 4).toFixed(1);
 
@@ -167,8 +207,13 @@ ZORUNLU KURALLAR:
     }
   ];
 
-  // Haber açıklaması ile seslendirme metnini 100% aynı yap ve "✍️ Editör" olarak imzala
-  const facebookCaption = `🎬 ${cleanTitle}\n\n${aiNarration}\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #Reels #Fırtına`;
+  // 4. Meta 2026 Algoritma Standartlarında Facebook Reels Açıklaması:
+  // - Engagement bait yok
+  // - Doğal spiker anlatımı
+  // - Yalnızca "✍️ Editör" imzası
+  // - 3 ila 5 CamelCase hashtag
+  const categoryTag = category === 'TRANSFER' ? '#TransferHaberleri' : category === 'MATCH_PREVIEW' ? '#MaçGünü' : '#SonDakika';
+  const facebookCaption = `🎬 ${cleanTitle}\n\n${aiNarration}\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #SüperLig ${categoryTag} #Reels`;
 
   return {
     title: cleanTitle,
@@ -177,6 +222,9 @@ ZORUNLU KURALLAR:
     fullNarration: aiNarration,
     estimatedDurationSeconds: estimatedDuration,
     scenes,
-    facebookCaption
+    facebookCaption,
+    pollQuestion,
+    pollOption1,
+    pollOption2
   };
 }

@@ -248,7 +248,8 @@ export async function runAutonomousReelWorkflow(options?: {
         body: candidateNews.summary || candidateNews.aiSummary,
         imageUrl: candidateNews.imageUrl,
         sourceNewsId: candidateNews.id,
-        category: candidateNews.aiRecommendedContentType
+        category: candidateNews.aiRecommendedContentType,
+        skipHistoryCheck: force
       });
     } catch (genErr: any) {
       result.step = 'HATA';

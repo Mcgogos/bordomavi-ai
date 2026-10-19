@@ -1,11 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { spawn } from 'child_process';
+import sharp from 'sharp';
 import { ReelScriptData } from './reels-script-generator';
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const ffmpegPath = require('ffmpeg-static');
 
 export const CURATED_REEL_BACKGROUNDS = {
   stadium: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1080&h=1920&q=80',
@@ -15,6 +12,7 @@ export const CURATED_REEL_BACKGROUNDS = {
 };
 
 export interface ComposedSlidesResult {
+  baseFramePath: string;
   slidePaths: string[];
   tempFilesToClean: string[];
 }
@@ -49,9 +47,9 @@ export function escapeFFmpegPath(filePath: string): string {
 }
 
 /**
- * Uzun başlıkları satırlara böler (taşmaları önlemek için).
+ * Uzun altyazı ve başlıkları satırlara böler (taşmaları önlemek için).
  */
-export function wrapTextToLines(text: string, maxCharsPerLine: number = 24, maxLines: number = 2): string[] {
+export function wrapTextToLines(text: string, maxCharsPerLine: number = 44, maxLines: number = 2): string[] {
   const words = text.split(' ');
   const lines: string[] = [];
   let currentLine = '';
@@ -91,13 +89,20 @@ async function downloadImageSafe(url: string, outputPath: string): Promise<boole
 }
 
 /**
- * 4 Sahneli, Profesyonel TV Yayını Standardında 1080x1920 Dikey Görseller Üretir.
+ * Kullanıcının referans tasarımına (media_1792400395682_1211e684.jpg) ve 
+ * 2026 Meta Facebook Reels algoritma optimizasyonuna %100 uyumlu,
+ * Sharp destekli ultra net 1080x1920 dikey yayın şablonu oluşturur.
  * 
- * Güvenli Alan Mimarisi:
- * - Üst Header (y: 170 - 350): Telefon çentiği ve Facebook üst butonlarının ALTINDA tam görünür alan.
- * - Orta Görsel (y: 370 - 1140): 1000x770 Altın Çerçeveli HD Haber Fotoğrafı.
- * - Alt Altyazı Sahnesi (y: 1160 - 1520): 1000x360 Koyu Cam Konteyner (Sesle senkronize altyazılar buraya oturur).
- * - Alt Arayüz Alanı (y: 1530 - 1920): Facebook mobil arayüzü ile sıfır çakışma için boş bırakılır.
+ * Görsel Mimarisi:
+ * - Üst Header (y: 0 - 275): Bembeyaz arka plan ve ortalanmış dairesel Bordo Mavi kulüp logosu.
+ * - Orta Bölüm (y: 275 - 1372): 1008x1088 ebatlarında, 32px yuvarlatılmış köşeli HD haber fotoğrafı.
+ * - Alt Koyu Lacivert Gövde (y: 1372 - 1920, #0F233E):
+ *    - y: 1372 - 1520: Dinamik, konuşmayla senkronize kalın beyaz altyazı alanı.
+ *    - y: 1520 - 1846: Beyaz yuvarlatılmış interaktif Anket / Quiz çıkartma kartı:
+ *        * Soru Başlığı (Örn: "Sizce bu transfer doğru mu?")
+ *        * Sol Buton: Yumuşak yeşil [✔ Evet, tam isabet]
+ *        * Sağ Buton: Yumuşak gri [✖ Hayır, gereksiz]
+ *    - y: 1846 - 1920: Facebook mobil arayüzü ile sıfır çakışma sağlayan 74px güvenlik payı.
  */
 export async function composeReelSlides(
   scriptData: ReelScriptData,
@@ -105,14 +110,11 @@ export async function composeReelSlides(
 ): Promise<ComposedSlidesResult> {
   const tempDir = os.tmpdir();
   const timestamp = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const slidePaths: string[] = [];
-  const tempFilesToClean: string[] = [];
+  const baseFramePath = path.join(tempDir, `bm_base_frame_${timestamp}.png`);
+  const tempFilesToClean: string[] = [baseFramePath];
 
-  // Kulüp logosu tespiti
-  const brandLogo = path.join(process.cwd(), 'public', 'assets', 'brand', 'bordomavi-logo.png');
-  const fallbackLogo = path.join(process.cwd(), 'public', 'logo.png');
-  const logoPath = fs.existsSync(brandLogo) ? brandLogo : (fs.existsSync(fallbackLogo) ? fallbackLogo : null);
-  const font = getAvailableFontPath();
+  const width = 1080;
+  const height = 1920;
 
   // 1. Haber Görselini İndir
   const downloadedNewsImg = path.join(tempDir, `bm_news_img_${timestamp}.jpg`);
@@ -126,148 +128,110 @@ export async function composeReelSlides(
     throw new Error(`Habere ait özgün ve geçerli bir görsel indirilemedi (${sourceImageUrl || 'Görsel URL bulunamadı'}). Kural 2 gereği haberle ilgisiz generic görsel ile Reels üretilemez.`);
   }
 
-  const heroPhotoPath = downloadedNewsImg;
+  // 2. Kulüp Logosu Tespiti & Hazırlığı
+  const brandLogo = path.join(process.cwd(), 'public', 'assets', 'brand', 'bordomavi-logo.png');
+  const fallbackLogo = path.join(process.cwd(), 'public', 'logo.png');
+  const logoPath = fs.existsSync(brandLogo) ? brandLogo : (fs.existsSync(fallbackLogo) ? fallbackLogo : null);
 
-  // Kategoriye göre rozet başlığı
-  const rawBadge = (scriptData.badgeTitle || 'BORDO MAVI OZEL').replace(/[':]/g, '').trim();
+  let logoBuf: Buffer | null = null;
+  let logoX = 425;
+  let logoY = 48;
 
-  // Outro sorusu için metin dosyası hazırla
-  const outroQuestion = scriptData.scenes[3]?.subtitle || 'Sizce bu gelişme Trabzonspor için nasıl sonuçlanır?';
-  const outroLines = wrapTextToLines(outroQuestion, 24, 2);
-  const outroTextFile = path.join(tempDir, `bm_outro_${timestamp}.txt`);
-  fs.writeFileSync(outroTextFile, outroLines.join('\n'), 'utf8');
-  tempFilesToClean.push(outroTextFile);
-
-  /**
-   * Kurumsal, sade, gereksiz çizgilerden arındırılmış 100% 9:16 TV haber şablonu filtresi.
-   * Görselin hiçbir kısmını kırpmaz (force_original_aspect_ratio=decrease),
-   * renk karmaşası yapmadan tek ton şık koyu cam tasarım uygular.
-   */
-  const buildSlideFilter = (isOutro: boolean = false) => {
-    let filter = 
-      // 1. Arka plan: 1080x1920 ekranı doldur, derin blur ve koyulaştırma
-      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=25:10[blurBg];` +
-      `[blurBg]drawbox=x=0:y=0:w=1080:h=1920:color=0x070B14@0.65:t=fill[darkBg];`;
-
-    if (!isOutro) {
-      // 2. Ana Haber Görseli: 1000x960 alanına en-boy oranını bozmadan ve kesmeden tam sığdır
-      filter += 
-        `[0:v]scale=1000:960:force_original_aspect_ratio=decrease[fgScaled];` +
-        `[fgScaled]pad=1000:960:(1000-iw)/2:(960-ih)/2:color=black@0[fgCentered];` +
-        `[darkBg][fgCentered]overlay=40:340[withFg];`;
-    } else {
-      // Slayt 4 (Outro): Görsel yerine temiz koyu cam tartışma kartı
-      filter += 
-        `[darkBg]drawbox=x=40:y=340:w=1000:h=960:color=0x070B14@0.90:t=fill,` +
-        `drawtext=fontfile='${font}':text='SIZIN GORUSUNUZ NE?':fontsize=36:fontcolor=0xFCD34D:x=(w-text_w)/2:y=450,` +
-        `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(outroTextFile)}':fontsize=46:fontcolor=white:x=(w-text_w)/2:y=580:line_spacing=18,` +
-        `drawbox=x=240:y=860:w=600:h=75:color=0x781324@0.95:t=fill,` +
-        `drawtext=fontfile='${font}':text='YORUMLARDA BULUSALIM':fontsize=32:fontcolor=white:x=(w-text_w)/2:y=882[withFg];`;
+  if (logoPath) {
+    try {
+      logoBuf = await sharp(logoPath).resize({ width: 230, height: 190, fit: 'inside' }).toBuffer();
+      const meta = await sharp(logoBuf).metadata();
+      logoX = Math.round((width - (meta.width || 230)) / 2);
+    } catch (e: any) {
+      console.warn('[VisualComposer] Logo processing error, proceeding without logo:', e.message);
     }
+  }
 
-    // 3. Üst Başlık Kartı (y: 160 - 310, telefon çentiğinin altında, sade koyu cam)
-    if (logoPath) {
-      filter += 
-        `[1:v]scale=105:105[logo];` +
-        `[withFg]drawbox=x=40:y=160:w=1000:h=150:color=0x070B14@0.92:t=fill[withHeaderCard];` +
-        `[withHeaderCard][logo]overlay=60:182[withLogo];` +
-        `[withLogo]drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=38:fontcolor=white:x=185:y=190,` +
-        `drawtext=fontfile='${font}':text='HABER MERKEZI':fontsize=22:fontcolor=0x94A3B8:x=185:y=242,` +
-        `drawbox=x=720:y=205:w=290:h=56:color=0x781324@0.95:t=fill,` +
-        `drawtext=fontfile='${font}':text='${rawBadge}':fontsize=24:fontcolor=white:x=740:y=220[withHeader];`;
-    } else {
-      filter += 
-        `[withFg]drawbox=x=40:y=160:w=1000:h=150:color=0x070B14@0.92:t=fill,` +
-        `drawtext=fontfile='${font}':text='BORDO MAVI HABER':fontsize=38:fontcolor=white:x=60:y=190,` +
-        `drawtext=fontfile='${font}':text='HABER MERKEZI':fontsize=22:fontcolor=0x94A3B8:x=60:y=242,` +
-        `drawbox=x=720:y=205:w=290:h=56:color=0x781324@0.95:t=fill,` +
-        `drawtext=fontfile='${font}':text='${rawBadge}':fontsize=24:fontcolor=white:x=740:y=220[withHeader];`;
-    }
+  // 3. Yuvarlatılmış Köşeli Haber Görseli (1008x1088, rx: 32)
+  const photoW = 1008;
+  const photoH = 1088;
+  const photoX = 36;
+  const photoY = 275;
 
-    // 4. Alt Altyazı Sahnesi (y: 1330 - 1630, sade koyu cam, gereksiz renkli çizgi yok)
-    filter += 
-      `[withHeader]drawbox=x=40:y=1330:w=1000:h=300:color=0x070B14@0.90:t=fill,` +
-      `drawtext=fontfile='${font}':text='CANLI BULTEN':fontsize=22:fontcolor=0x94A3B8:x=70:y=1355[outv]`;
+  const roundedMask = Buffer.from(`
+    <svg width="${photoW}" height="${photoH}">
+      <rect width="${photoW}" height="${photoH}" rx="32" ry="32" fill="white"/>
+    </svg>
+  `);
 
-    return filter;
-  };
+  const photoBuf = await sharp(downloadedNewsImg)
+    .resize(photoW, photoH, { fit: 'cover', position: 'center' })
+    .composite([{ input: roundedMask, blend: 'dest-in' }])
+    .toBuffer();
 
-  // -------------------------------------------------------------
-  // SLAYT 1: Kapak & Ana Haber Tanıtımı (1080x1920)
-  // -------------------------------------------------------------
-  const slide1Path = path.join(tempDir, `bm_slide_1_${timestamp}.png`);
-  tempFilesToClean.push(slide1Path);
-  slidePaths.push(slide1Path);
+  // 4. Temel Arka Plan (Üst Beyaz + Alt Koyu Lacivert #0F233E)
+  const bgSvg = Buffer.from(`
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${width}" height="1372" fill="#FFFFFF"/>
+      <rect y="1372" width="${width}" height="548" fill="#0F233E"/>
+    </svg>
+  `);
 
-  const slide1Args: string[] = ['-y'];
-  if (heroPhotoPath) slide1Args.push('-i', heroPhotoPath);
-  else slide1Args.push('-f', 'lavfi', '-i', 'color=c=0x3D040E:s=1080x1920:d=1:r=1');
-  if (logoPath) slide1Args.push('-i', logoPath);
+  // 5. İnteraktif Anket (Poll Card) & Çıkartma Kartı
+  const cardW = 996;
+  const cardH = 326;
+  const cardX = 42;
+  const cardY = 1520;
 
-  slide1Args.push('-filter_complex', buildSlideFilter(false), '-map', '[outv]', '-vframes', '1', slide1Path);
-  await runFFmpeg(slide1Args);
+  const btnW = 444;
+  const btnH = 88;
+  const btnY = cardY + 185;
+  const btn1X = cardX + 36;
+  const btn2X = cardX + cardW - 36 - btnW;
 
-  // -------------------------------------------------------------
-  // SLAYT 2: Olayın Gelişimi & Detay Kartı
-  // -------------------------------------------------------------
-  const slide2Path = path.join(tempDir, `bm_slide_2_${timestamp}.png`);
-  tempFilesToClean.push(slide2Path);
-  slidePaths.push(slide2Path);
+  const pollQuestion = (scriptData.pollQuestion || 'Sizce bu gelişme doğru mu?').replace(/[<>&"']/g, '');
+  const pollOption1 = (scriptData.pollOption1 || 'Evet, tam isabet').replace(/[<>&"']/g, '');
+  const pollOption2 = (scriptData.pollOption2 || 'Hayır, gereksiz').replace(/[<>&"']/g, '');
 
-  const slide2Args: string[] = ['-y'];
-  if (heroPhotoPath) slide2Args.push('-i', heroPhotoPath);
-  else slide2Args.push('-f', 'lavfi', '-i', 'color=c=0x1E1B4B:s=1080x1920:d=1:r=1');
-  if (logoPath) slide2Args.push('-i', logoPath);
+  const cardSvg = Buffer.from(`
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="120%">
+          <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.22"/>
+        </filter>
+      </defs>
 
-  slide2Args.push('-filter_complex', buildSlideFilter(false), '-map', '[outv]', '-vframes', '1', slide2Path);
-  await runFFmpeg(slide2Args);
+      <!-- White Poll Card -->
+      <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="36" ry="36" fill="#FFFFFF" filter="url(#cardShadow)"/>
 
-  // -------------------------------------------------------------
-  // SLAYT 3: Papara Park & Taktik / Kulis Sahnesi
-  // -------------------------------------------------------------
-  const slide3Path = path.join(tempDir, `bm_slide_3_${timestamp}.png`);
-  tempFilesToClean.push(slide3Path);
-  slidePaths.push(slide3Path);
+      <!-- Question -->
+      <text x="${width / 2}" y="${cardY + 92}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="bold">${pollQuestion}</text>
 
-  const slide3Args: string[] = ['-y'];
-  if (heroPhotoPath) slide3Args.push('-i', heroPhotoPath);
-  else slide3Args.push('-f', 'lavfi', '-i', 'color=c=0x0F172A:s=1080x1920:d=1:r=1');
-  if (logoPath) slide3Args.push('-i', logoPath);
+      <!-- Left Button (Soft Green) -->
+      <rect x="${btn1X}" y="${btnY}" width="${btnW}" height="${btnH}" rx="44" ry="44" fill="#A4D9B3"/>
+      <text x="${btn1X + btnW / 2}" y="${btnY + 56}" text-anchor="middle" fill="#175128" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="bold">✔  ${pollOption1}</text>
 
-  slide3Args.push('-filter_complex', buildSlideFilter(false), '-map', '[outv]', '-vframes', '1', slide3Path);
-  await runFFmpeg(slide3Args);
+      <!-- Right Button (Soft Gray) -->
+      <rect x="${btn2X}" y="${btnY}" width="${btnW}" height="${btnH}" rx="44" ry="44" fill="#C6CBD3"/>
+      <text x="${btn2X + btnW / 2}" y="${btnY + 56}" text-anchor="middle" fill="#334155" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="bold">✖  ${pollOption2}</text>
+    </svg>
+  `);
 
-  // -------------------------------------------------------------
-  // SLAYT 4: Tartışma ve Yorum Çağrısı (Outro CTA)
-  // -------------------------------------------------------------
-  const slide4Path = path.join(tempDir, `bm_slide_4_${timestamp}.png`);
-  tempFilesToClean.push(slide4Path);
-  slidePaths.push(slide4Path);
+  // 6. Sharp ile Tüm Katmanları Birleştir
+  const compositeLayers: any[] = [
+    { input: photoBuf, left: photoX, top: photoY },
+    { input: cardSvg, left: 0, top: 0 }
+  ];
 
-  const slide4Args: string[] = ['-y'];
-  if (heroPhotoPath) slide4Args.push('-i', heroPhotoPath);
-  else slide4Args.push('-f', 'lavfi', '-i', 'color=c=0x1E1B4B:s=1080x1920:d=1:r=1');
-  if (logoPath) slide4Args.push('-i', logoPath);
+  if (logoBuf) {
+    compositeLayers.unshift({ input: logoBuf, left: logoX, top: logoY });
+  }
 
-  slide4Args.push('-filter_complex', buildSlideFilter(true), '-map', '[outv]', '-vframes', '1', slide4Path);
-  await runFFmpeg(slide4Args);
+  await sharp(bgSvg)
+    .composite(compositeLayers)
+    .png()
+    .toFile(baseFramePath);
 
-  console.log(`[VisualComposer] ✅ 4 Corporate Broadcast 1080x1920 slides generated successfully!`);
+  console.log(`[VisualComposer] ✅ 1080x1920 Reference Card Template generated: ${baseFramePath}`);
 
   return {
-    slidePaths,
+    baseFramePath,
+    slidePaths: [baseFramePath],
     tempFilesToClean
   };
-}
-
-function runFFmpeg(args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(ffmpegPath, args);
-    let stderr = '';
-    child.stderr.on('data', d => stderr += d.toString());
-    child.on('close', code => {
-      if (code === 0) resolve();
-      else reject(new Error(`FFmpeg visual composer error (code ${code}): ${stderr.slice(-300)}`));
-    });
-  });
 }

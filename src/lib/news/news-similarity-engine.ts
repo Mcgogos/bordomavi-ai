@@ -448,15 +448,18 @@ export async function checkAgainstPublishedHistory(
       }
 
       // 24 saatlik aynı şahıs / konu koruması:
-      // Eğer son 24 saat içinde bu futbolcu/yönetici/özne hakkında bir paylaşım yapıldıysa
+      // Eğer son 24 saat içinde bu futbolcu/yönetici/spesifik özne hakkında bir paylaşım yapıldıysa
       // ve ortak bir olay veya ortak 2+ kelime varsa veya benzerlik >= 0.28 ise
       // takipçileri aynı konuya boğmamak ve Facebook algoritmasını korumak için mükerrer say!
+      // (NOT: Papara Park, stadyum, sponsor veya hakem gibi genel mekânsal varlıklar tek başına mükerrerlik tetiklemez)
       const postTimestamp = post.publishedAt || post.createdAt;
       const isWithin24h = postTimestamp 
         ? (Date.now() - new Date(postTimestamp).getTime()) < 24 * 60 * 60 * 1000 
         : true;
 
-      if (isWithin24h && simResult.sharedEntities.length > 0) {
+      const specificEntities = simResult.sharedEntities.filter(e => !['papara_park', 'hakem_tff', 'sponsorluk_finans'].includes(e));
+
+      if (isWithin24h && specificEntities.length > 0) {
         if (simResult.sharedEvents.length > 0 || simResult.sharedTokens.length >= 2 || simResult.similarity >= 0.28) {
           return {
             isDuplicate: true,
@@ -467,7 +470,7 @@ export async function checkAgainstPublishedHistory(
               publishedAt: post.publishedAt,
               facebookPostId: post.facebookPostId
             },
-            reason: `Son 24 saat içinde aynı özne (${simResult.sharedEntities.join(', ')}) hakkında zaten bir gönderi yayınlandı: "${post.title}". Sayfa kalitesini ve etkileşim oranını korumak için mükerrer sayıldı.`
+            reason: `Son 24 saat içinde aynı özne (${specificEntities.join(', ')}) hakkında zaten bir gönderi yayınlandı: "${post.title}". Sayfa kalitesini ve etkileşim oranını korumak için mükerrer sayıldı.`
           };
         }
       }

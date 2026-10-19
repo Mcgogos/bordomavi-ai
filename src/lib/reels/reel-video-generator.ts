@@ -18,6 +18,7 @@ export interface GenerateReelParams {
   category?: string | null;
   sourceNewsId?: string;
   durationSeconds?: number;
+  skipHistoryCheck?: boolean;
 }
 
 export interface GeneratedReelResult {
@@ -69,36 +70,28 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
 
     console.log(`[ReelVideoGenerator] Audio ready: ${speechDuration}s -> Total video target: ${totalDuration}s`);
 
-    // 3. 4 Sahneli Canva Kalitesinde 1080x1920 Görselleri Oluştur
+    // 3. Canva / Referans Kalitesinde 1080x1920 Şablon Görselini Oluştur
     const composedSlides = await composeReelSlides(scriptData, params.imageUrl);
     filesToClean.push(...composedSlides.tempFilesToClean);
-
-    const [slide1, slide2, slide3, slide4] = composedSlides.slidePaths;
-
-    // 4. Senkronize Altyazı ve Dinamik Sahne Geçişleri
-    const font = getAvailableFontPath();
-    const t1 = sceneDuration;
-    const t2 = +(sceneDuration * 2).toFixed(2);
-    const t3 = +(sceneDuration * 3).toFixed(2);
+    const baseFrame = composedSlides.baseFramePath;
 
     // 4. Seslendirme ile 100% Senkronize Dinamik Altyazı Cueları
+    const font = getAvailableFontPath();
     const cues = audioResult.cues && audioResult.cues.length > 0
       ? audioResult.cues
       : [
-          { text: scriptData.title, startTime: 0, endTime: t1 },
-          { text: scriptData.scenes[1]?.subtitle || scriptData.title, startTime: t1, endTime: t2 },
-          { text: scriptData.scenes[2]?.subtitle || params.summary || 'Detaylar bültende', startTime: t2, endTime: t3 },
-          { text: scriptData.scenes[3]?.subtitle || 'Fikirlerinizi yorumlarda belirtin!', startTime: t3, endTime: totalDuration }
+          { text: scriptData.title, startTime: 0, endTime: totalDuration }
         ];
 
     let subtitleFilters = '';
     cues.forEach((cue, idx) => {
-      const cueLines = wrapTextToLines(cue.text, 22, 2);
+      const cueLines = wrapTextToLines(cue.text, 44, 2);
       const cueFile = path.join(tempDir, `bm_cue_${timestamp}_${idx}.txt`);
       fs.writeFileSync(cueFile, cueLines.join('\n'), 'utf8');
       filesToClean.push(cueFile);
 
-      const filterPart = `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(cueFile)}':fontsize=46:fontcolor=0xFCD34D:x=(w-text_w)/2:y=1430:line_spacing=14:enable='between(t,${cue.startTime.toFixed(2)},${cue.endTime.toFixed(2)})'`;
+      // Koyu lacivert başlık/altyazı alanına (y: 1372 - 1520) dikey ortalı, beyaz bold spiker yazısı
+      const filterPart = `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(cueFile)}':fontsize=40:fontcolor=white:x=(w-text_w)/2:y=1375+(145-text_h)/2:line_spacing=12:enable='between(t,${cue.startTime.toFixed(2)},${cue.endTime.toFixed(2)})'`;
       if (subtitleFilters) {
         subtitleFilters += `,${filterPart}`;
       } else {
@@ -106,36 +99,28 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       }
     });
 
-    // Girdi 5: Habere uygun televizyon haber yayını ve spor ambiyansı arka plan müziği
+    // Girdi 2: Habere uygun televizyon haber yayını ve spor ambiyansı arka plan müziği
     const customBgm = path.join(process.cwd(), 'public', 'assets', 'audio', 'sports_broadcast_bed.mp3');
     const hasCustomBgm = fs.existsSync(customBgm);
     const bgmInputs = hasCustomBgm
       ? ['-stream_loop', '-1', '-i', customBgm]
       : ['-f', 'lavfi', '-i', `anoisesrc=color=pink:sample_rate=44100:amplitude=0.01:duration=${totalDuration}`];
 
-    // FFmpeg Filtre Grafiği: 4 Slayt Geçişi + Canlı Senkronize Altyazı Sahnesi + Seslendirme
+    // FFmpeg Filtre Grafiği: 1080x1920 Referans Şablon + Canlı Senkronize Altyazı + Seslendirme & Spor Ambiyansı
     const ffmpegArgs: string[] = [
       '-y',
-      // Girdi 0: Slayt 1 (0 -> t1)
-      '-loop', '1', '-t', String(t1), '-i', slide1,
-      // Girdi 1: Slayt 2 (t1 -> t2)
-      '-loop', '1', '-t', String(sceneDuration), '-i', slide2,
-      // Girdi 2: Slayt 3 (t2 -> t3)
-      '-loop', '1', '-t', String(sceneDuration), '-i', slide3,
-      // Girdi 3: Slayt 4 (t3 -> totalDuration)
-      '-loop', '1', '-t', String(+(totalDuration - t3).toFixed(2)), '-i', slide4,
-      // Girdi 4: Türkçe Seslendirme Dosyası
+      // Girdi 0: 1080x1920 Şablon Görseli
+      '-loop', '1', '-t', String(totalDuration), '-i', baseFrame,
+      // Girdi 1: Türkçe Seslendirme Dosyası
       '-i', audioResult.audioPath,
-      // Girdi 5: Habere uygun spor ambiyans müziği
+      // Girdi 2: Habere uygun spor ambiyans müziği
       ...bgmInputs,
       '-filter_complex',
-      // 4 Video parçasını kesintisiz ardışık bağla
-      `[0:v][1:v][2:v][3:v]concat=n=4:v=1:a=0[vRaw];` +
-      // Seslendirme ile tam senkronize altyazıları alt cam kartın içine yerleştir
-      `[vRaw]${subtitleFilters}[vOut];` +
-      // Seslendirme + TV Haber Ambiyansı Miksi (Seslendirme kristal net, arka plan -22dB dengeli)
-      `[5:a]volume=0.08[ambience];` +
-      `[4:a][ambience]amix=inputs=2:duration=first:dropout_transition=2[aOut]`,
+      // Seslendirme ile tam senkronize altyazıları alt koyu lacivert alana yerleştir
+      `[0:v]${subtitleFilters}[vOut];` +
+      // Seslendirme + TV Haber Ambiyansı Miksi (Seslendirme kristal net, arka plan dengeli)
+      `[2:a]volume=0.08[ambience];` +
+      `[1:a][ambience]amix=inputs=2:duration=first:dropout_transition=2[aOut]`,
       '-map', '[vOut]',
       '-map', '[aOut]',
       '-c:v', 'libx264',
@@ -152,7 +137,7 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       outputVideoPath
     ];
 
-    console.log(`[ReelVideoGenerator] Rendering 1080x1920 MP4 (${totalDuration}s, 4 scenes)...`);
+    console.log(`[ReelVideoGenerator] Rendering 1080x1920 MP4 (${totalDuration}s)...`);
     const startTime = Date.now();
 
     await new Promise((resolve, reject) => {
@@ -176,7 +161,8 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       videoFilePath: outputVideoPath,
       title: params.title,
       summary: params.summary || undefined,
-      sourceNewsId: params.sourceNewsId
+      sourceNewsId: params.sourceNewsId,
+      skipHistoryCheck: params.skipHistoryCheck
     });
 
     if (!qualityResult.passed) {
