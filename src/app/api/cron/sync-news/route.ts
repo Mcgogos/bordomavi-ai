@@ -5,6 +5,7 @@ import { generateAutomatedContent } from '@/lib/content/content-generator';
 import { checkContentQuality } from '@/lib/content/content-quality-checker';
 import { publishReadyContent, syncPublishedPostsStats } from '@/lib/content/content-publisher';
 import { SmartPublisher } from '@/lib/content/smart-publisher';
+import { runAutonomousReelWorkflow } from '@/lib/reels/reels-publisher';
 import { auth } from '@/lib/auth';
 
 export const maxDuration = 60;
@@ -59,7 +60,7 @@ async function handleSync(request: Request) {
     console.log("[CRON] Phase 4: Checking content quality...");
     const qualityResult = await checkContentQuality(3);
 
-    // 5. Facebook'ta Yayınla — Algoritmik Pacing (20dk cooldown) & Günlük Tavan (24 post) denetimi
+    // 5. Facebook'ta Yayınla — Algoritmik Pacing (3 saat cooldown) & Günlük Tavan (5 post) denetimi
     const forcePublish = searchParams.get('force') === 'true';
     const quotaInfo = await SmartPublisher.getPublishingQuota();
     console.log(`[CRON] Phase 5: Publishing to Facebook (${quotaInfo.windowName} - Kota: ${quotaInfo.quota}, Force: ${forcePublish})...`);
@@ -70,6 +71,16 @@ async function handleSync(request: Request) {
       publishResult = await publishReadyContent(quotaToUse, forcePublish);
     } else {
       console.log(`[CRON] Phase 5 (PASSED): ${quotaInfo.reason}`);
+    }
+
+    // 5b. Otomatik AI Reels Üretim ve Yayın Döngüsü (Günlük maks 3, 3 saatlik soğuma, 75+ AI skoru)
+    console.log("[CRON] Phase 5b: Checking Autonomous AI Reels pipeline...");
+    let reelResult: any = null;
+    try {
+      reelResult = await runAutonomousReelWorkflow({ force: forcePublish });
+      console.log(`[CRON] Phase 5b Reels Status: ${reelResult.success ? 'PUBLISHED' : (reelResult.skippedReason || reelResult.error || 'SKIPPED')}`);
+    } catch (reelErr: any) {
+      console.warn("[CRON] Phase 5b Reels non-blocking error:", reelErr.message);
     }
 
     // 6. Canlı Facebook İstatistiklerini Senkronize Et (Son 5 Gönderi)
@@ -93,6 +104,7 @@ async function handleSync(request: Request) {
       },
       qualityCheck: qualityResult,
       publish: publishResult,
+      reelPublish: reelResult,
       statsSync: statsResult
     }, { status: 200 });
 
