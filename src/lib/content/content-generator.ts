@@ -39,30 +39,75 @@ export function sanitizePlainText(text: string): string {
 
 export function generateSmartFallbackPost(news: any): string {
   const cleanTitle = sanitizePlainText(news.title || '');
-  let cleanSummary = sanitizePlainText(news.summary || news.aiSummary || '');
+  let rawSummary = sanitizePlainText(news.summary || news.aiSummary || '');
+  const lowerText = `${cleanTitle} ${rawSummary}`.toLocaleLowerCase('tr-TR');
 
-  // Eğer özet çok kısaysa zengin ve doyurucu bir haber gövdesi oluştur
-  if (cleanSummary.length < 120) {
-    cleanSummary = `Bordo-Mavili kulüpte sıcak saatler yaşanıyor. Trabzonspor teknik heyeti ve yönetimi, takımın başarısı ve şampiyonluk yolundaki hedefleri doğrultusunda çalışmalarını aralıksız sürdürüyor. Yaşanan bu son gelişme camiada ve taraftarlar arasında büyük yankı uyandırırken, kulüp yetkililerinin konuyla ilgili planlamalarını titizlikle yürüttüğü öğrenildi.`;
+  // Konu ve Kategori Tespiti
+  const isTransfer = lowerText.includes('transfer') || lowerText.includes('imza') || lowerText.includes('bonservis') || lowerText.includes('anlaşma') || lowerText.includes('teklif') || lowerText.includes('görüşme') || lowerText.includes('talip');
+  const isDerbyMatch = lowerText.includes('derbi') || lowerText.includes('beşiktaş') || lowerText.includes('fenerbahçe') || lowerText.includes('galatasaray') || lowerText.includes('maç') || lowerText.includes('karşılaşma') || lowerText.includes('rakip');
+  const isInjury = lowerText.includes('sakat') || lowerText.includes('tedavi') || lowerText.includes('revir') || lowerText.includes('ameliyat') || lowerText.includes('yırtık');
+  const isReferee = lowerText.includes('hakem') || lowerText.includes('mhk') || lowerText.includes('tff') || lowerText.includes('var') || lowerText.includes('ceza') || lowerText.includes('pfdk');
+  const isManagement = lowerText.includes('ertuğrul doğan') || lowerText.includes('yönetim') || lowerText.includes('başkan') || lowerText.includes('sponsor') || lowerText.includes('divan');
+
+  // Rozet / Kategori Başlığı
+  let badge = 'BORDO MAVİ ÖZEL HABER';
+  if (isTransfer) badge = 'BORDO MAVİ TRANSFER MASASI';
+  else if (isDerbyMatch) badge = 'FIRTINA MAÇ VE DERBİ GÜNDEMİ';
+  else if (isInjury) badge = 'BORDO MAVİ SAĞLIK RAPORU';
+  else if (isReferee) badge = 'BORDO MAVİ HAKEM VE TFF DOSYASI';
+  else if (isManagement) badge = 'BORDO MAVİ YÖNETİM & KULİS';
+
+  // Dinamik Giriş Kancası (Statik şablon kaldırıldı, başlığa göre değişken açılış)
+  const hooks = [
+    `Bordo-Mavili renklere gönül verenlerin yakından takip ettiği sıcak gelişme gündeme bomba gibi düştü.`,
+    `Trabzonspor Haber Merkezi'nin kulüp kulislerinden edindiği bilgilere göre camiada hareketli saatler yaşanıyor.`,
+    `Fırtına'da kritik viraja girilirken önemli bir gelişme netlik kazanma noktasına geldi.`,
+    `Trabzonspor'da teknik heyet ve yönetimin ajandasındaki en kritik dosya masaya yatırıldı.`
+  ];
+  const hookIndex = Math.abs(cleanTitle.split('').reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0)) % hooks.length;
+  const selectedHook = hooks[hookIndex];
+
+  // Haber Gövdesi Sentezi
+  let bodyParagraphs = '';
+  if (rawSummary && rawSummary.length > 50) {
+    bodyParagraphs = rawSummary;
+  } else {
+    bodyParagraphs = `${cleanTitle}. Yaşanan bu gelişmeyle ilgili olarak Bordo-Mavili teknik heyet ve yönetimin yol haritasını belirlediği bildirildi.`;
   }
 
-  const category = (news.category || news.aiRecommendedContentType || '').toUpperCase();
-  let badge = 'BORDO MAVİ ÖZEL HABER';
-  if (category.includes('TRANSFER')) badge = 'BORDO MAVİ TRANSFER GELİŞMESİ';
-  else if (category.includes('MATCH')) badge = 'TRABZONSPOR MAÇ GÜNDEMİ';
-  else if (category.includes('ANALYSIS')) badge = 'BORDO MAVİ ÖZEL ANALİZ';
+  // Kategoriye Özel Derinlemesine Detay Paragrafı
+  let categoryDetail = '';
+  if (isTransfer) {
+    categoryDetail = 'Bordo-Mavili transfer komitesi, oyuncunun takıma katkısı ve kulübün bütçe dengeleri üzerinde kapsamlı bir inceleme yürütüyor. Teknik direktörün sunduğu rapor doğrultusunda temasların hız kazanması ve resmi adımların atılması bekleniyor.';
+  } else if (isDerbyMatch) {
+    categoryDetail = 'Teknik heyet, zorlu karşılaşma öncesi oyuncularını hem taktiksel varyasyonlar hem de yüksek konsantrasyonla maça hazırlıyor. Taraftarların vereceği itici güçle birlikte sahadan mutlak 3 puanla ayrılmak hedefleniyor.';
+  } else if (isInjury) {
+    categoryDetail = 'Kulüp sağlık heyetinin oyuncunun tedavi sürecini anbean takip ettiği ve sahalara dönüş sürecinin en sağlıklı şekilde tamamlanması adına özel bir rehabilitasyon programı uyguladığı öğrenildi.';
+  } else if (isReferee) {
+    categoryDetail = 'Bordo-Mavili camia sahada adaletin sağlanması adına gelişmeleri çok yakından izlerken, kulüp yönetiminin hakem performansları ve federasyon kararları konusunda kararlı bir duruş sergilediği belirtiliyor.';
+  } else if (isManagement) {
+    categoryDetail = 'Trabzonspor Yönetim Kurulu, kulübün hem ekonomik geleceğini garanti altına almak hem de sahada yarışmacı kimliğini en üst seviyede tutmak amacıyla stratejik hamlelerini sürdürüyor.';
+  } else {
+    categoryDetail = 'Teknik heyet ve yönetim, Trabzonspor’un hedeflerine yakışır bir mücadele ortaya koyması için tüm kulis ve idari çalışmaları eksiksiz biçimde yürütüyor.';
+  }
 
-  const fanQuestions = [
-    '📌 Bordo-Mavili renklere gönül verenler ses veriyor: Sizce bu karar Trabzonspor’un hedeflerini nasıl etkiler? (1-10 arası puanınızı yorumlara yazın!)',
-    '🔥 Trabzonspor taraftarı ne diyor? Bu hamleyi canı gönülden destekliyor musunuz? (EVET / HAYIR) Fikirlerinizi yorumlarda paylaşın!',
-    '⚽ Sizce ilk 11’in değişilmezi mi olmalı, yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek) Yorumlarda buluşalım!',
-    '🗣️ Fırtına camiası kenetleniyor! Bu sıcak gelişme hakkındaki net görüşünüz nedir? Herkes tek cümleyle yorumunu bıraksın! 👇',
-    '⚡ Teknik heyetin ve yönetimin bu tercihini doğru buluyor musunuz? (KATILIYORUM / KATILMIYORUM) Görüşlerinizi bekliyoruz!',
-    '🏆 Şampiyonluk ve zirve yarışında bu hamle kilit rol oynar mı? Bordo-Mavili taraftarlar yorumlarda tartışıyor! 🔴🔵'
-  ];
-  const selectedQuestion = fanQuestions[Math.floor(Math.random() * fanQuestions.length)];
+  // Konuya Özel İnteraktif Taraftar Sorusu
+  let fanQuestion = '';
+  if (isTransfer) {
+    fanQuestion = '🔥 Trabzonspor taraftarı ne diyor? Sizce bu transfer hamlesi takıma sınıf atlatır mı? (1-10 arası puanınızı yorumlara yazın!)';
+  } else if (isDerbyMatch) {
+    fanQuestion = '⚽ Büyük karşılaşma öncesi skor tahmininiz nedir? Sizce galibiyetin anahtarı hangi oyuncumuzda? Yorumlarda buluşalım! 👇';
+  } else if (isInjury) {
+    fanQuestion = '📌 Bu mevkide teknik heyetin forma şansı vermesi gereken isim sizce kim olmalı? Fikirlerinizi yorumlarda paylaşın!';
+  } else if (isReferee) {
+    fanQuestion = '🗣️ Bu hakem ve federasyon kararı hakkında Bordo-Mavili camianın görüşü ne? (ADİL / YANLI) Yorumunuzu bırakın!';
+  } else if (isManagement) {
+    fanQuestion = '⚡ Yönetimin bu adımını canı gönülden destekliyor musunuz? (KATILIYORUM / KATILMIYORUM) Yorumlarda tartışalım!';
+  } else {
+    fanQuestion = '📢 Fırtına taraftarı ses veriyor! Bu sıcak gelişme hakkındaki net görüşünüz nedir? Herkes yorumunu bıraksın! 👇';
+  }
 
-  let post = `${badge}\n\n${cleanTitle}\n\n${cleanSummary}\n\n${selectedQuestion}\n\n#Trabzonspor #BordoMavi #Fırtına #SüperLig`;
+  const post = `${badge}\n\n${cleanTitle}\n\n${selectedHook}\n\n${bodyParagraphs}\n\n${categoryDetail}\n\n${fanQuestion}\n\n#Trabzonspor #BordoMavi #Fırtına #SüperLig`;
 
   return sanitizePlainText(post);
 }
@@ -196,7 +241,8 @@ Kurallar:
 5. Gönderinin sonuna takipçileri YORUM YAPMAYA, OYLAMAYA ve TARTIŞMAYA teşvik edecek net ve etkileşim patlatıcı bir soru veya A/B tercihi ekle (Örn: 'Sizce ilk 11 başlamalı mı yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek)', 'Bu kararı destekliyor musunuz? (EVET / HAYIR)', 'Bu hamleyi 1-10 arası puanlayın!'). Sonuna 'Fikrinizi yorumlarda belirtin!' veya 'Yorumlarda buluşalım!' çağrısı ekle.
 6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
 7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.
-8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).`;
+8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).
+9. KESİNLİKLE 'Bordo-Mavili kulüpte sıcak saatler yaşanıyor' gibi beylik, genel geçer veya tekrarlayan kalıp girişlerle başlama! Haberin öznesine, maçına veya olayına doğrudan ve özgün bir üslupla giriş yap. Her haberin açılış cümlesi birbirinden tamamen farklı ve o habere özel olmalıdır.`;
 
         const generatedText = await aiProvider.generateContent(prompt);
 
@@ -313,7 +359,8 @@ Kurallar:
 5. Gönderinin sonuna takipçileri YORUM YAPMAYA, OYLAMAYA ve TARTIŞMAYA teşvik edecek net ve etkileşim patlatıcı bir soru veya A/B tercihi ekle (Örn: 'Sizce ilk 11 başlamalı mı yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek)', 'Bu kararı destekliyor musunuz? (EVET / HAYIR)', 'Bu hamleyi 1-10 arası puanlayın!'). Sonuna 'Fikrinizi yorumlarda belirtin!' veya 'Yorumlarda buluşalım!' çağrısı ekle.
 6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
 7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.
-8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).`;
+8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).
+9. KESİNLİKLE 'Bordo-Mavili kulüpte sıcak saatler yaşanıyor' gibi beylik, genel geçer veya tekrarlayan kalıp girişlerle başlama! Haberin öznesine, maçına veya olayına doğrudan ve özgün bir üslupla giriş yap. Her haberin açılış cümlesi birbirinden tamamen farklı ve o habere özel olmalıdır.`;
 
     let cleanBody = '';
     try {

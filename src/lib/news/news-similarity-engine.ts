@@ -37,13 +37,25 @@ const TURKISH_STOPWORDS = new Set([
 const KNOWN_ENTITIES: Record<string, string[]> = {
   // Teknik Heyet & Yönetim
   'thomas_reis': ['thomas reis', 'thomas', 'reis'],
-  'ertugrul_dogan': ['ertuğrul doğan', 'ertugrul dogan', 'doğan', 'dogan', 'baskan', 'başkan'],
+  'ertugrul_dogan': ['ertuğrul doğan', 'ertugrul dogan', 'doğan', 'dogan', 'baskan', 'başkan', 'yonetim kurulu', 'yönetim kurulu'],
   'fatih_tekke': ['fatih tekke', 'tekke'],
   'senol_gunes': ['şenol güneş', 'senol gunes', 'şenol hoca', 'gunes', 'güneş'],
   'abdullah_avci': ['abdullah avcı', 'abdullah avci', 'avcı', 'avci'],
   'nevzat_aydin': ['nevzat aydın', 'nevzat aydin', 'nevzat'],
   'ahmet_agaoglu': ['ahmet ağaoğlu', 'ahmet agaoglu', 'ağaoğlu', 'agaoglu'],
   
+  // Süper Lig Rakipleri & Derbiler (Konu çeşitliliği için kritik)
+  'rakip_besiktas': ['beşiktaş', 'besiktas', 'bjk', 'siyah beyaz', 'kara kartal', 'kartal'],
+  'rakip_fenerbahce': ['fenerbahçe', 'fenerbahce', 'fb', 'sarı lacivert', 'kanarya'],
+  'rakip_galatasaray': ['galatasaray', 'cimbom', 'gs', 'sarı kırmızı', 'aslan'],
+  'rakip_basaksehir': ['başakşehir', 'basaksehir'],
+  'rakip_samsunspor': ['samsunspor', 'samsun'],
+  'rakip_rizespor': ['çaykur rizespor', 'rizespor', 'rize'],
+  'rakip_antalyaspor': ['antalyaspor', 'antalya'],
+  'rakip_konyaspor': ['konyaspor', 'konya'],
+  'rakip_goztepe': ['göztepe', 'goztepe'],
+  'rakip_eyupspor': ['eyüpspor', 'eyupspor'],
+
   // Kaleciler
   'ugurcan_cakir': ['uğurcan çakır', 'ugurcan cakir', 'uğurcan', 'ugurcan', 'kaptan'],
   'muhammet_taha_tepe': ['muhammet taha tepe', 'taha tepe'],
@@ -61,6 +73,8 @@ const KNOWN_ENTITIES: Record<string, string[]> = {
   'rayyan_baniya': ['rayyan baniya', 'baniya'],
   'stefano_denswil': ['stefano denswil', 'denswil'],
   'ali_sahin_yilmaz': ['ali şahin', 'ali sahin'],
+  'ahmetcan_kaplan': ['ahmetcan kaplan', 'ahmetcan'],
+  'taha_altikardes': ['taha altıkardeş', 'taha altikardes'],
   
   // Orta Saha
   'batista_mendy': ['batista mendy', 'mendy'],
@@ -72,7 +86,7 @@ const KNOWN_ENTITIES: Record<string, string[]> = {
   'enis_bardhi': ['enis bardhi', 'bardhi'],
   'salih_malkocoglu': ['salih malkoçoğlu', 'salih malkocoglu'],
   
-  // Hücum
+  // Hücum & Transfer Hedefleri
   'simon_banza': ['simon banza', 'banza'],
   'edin_visca': ['edin vişça', 'edin visca', 'vişça', 'visca'],
   'anthony_nwakaeme': ['anthony nwakaeme', 'nwakaeme', 'tony'],
@@ -83,13 +97,29 @@ const KNOWN_ENTITIES: Record<string, string[]> = {
   'paul_onuachu': ['paul onuachu', 'onuachu'],
   'danylo_sikan': ['danylo sikan', 'sikan'],
   'mustafa_eskihellac': ['mustafa eskihellaç', 'eskihellaç', 'eskihellac'],
-  'marco_asensio': ['marco asensio', 'asensio']
+  'marco_asensio': ['marco asensio', 'asensio'],
+  'ruslan_malinovskyi': ['ruslan malinovskyi', 'malinovskyi', 'malinovsky', 'malinovski'],
+  'oleksandr_zubkov': ['oleksandr zubkov', 'zubkov'],
+  'felipe_augusto': ['felipe augusto', 'augusto'],
+  'folcarelli': ['folcarelli', 'timothee folcarelli'],
+  'corentin_tolisso': ['corentin tolisso', 'tolisso'],
+  'umut_bozok': ['umut bozok', 'bozok'],
+
+  // TFF, MHK & Hakem Gündemi
+  'hakem_tff': ['mhk', 'tff', 'hacıosmanoğlu', 'haciosmanoglu', 'hakem', 'var hakemi', 'orta hakem', 'düdük', 'pfdk', 'tahkim'],
+
+  // Tesisler & Finans
+  'papara_park': ['papara park', 'akyazı', 'akyazi', 'stadyum'],
+  'sponsorluk_finans': ['sponsor', 'anlaşma', 'sermaye artırımı', 'bedelli', 'kap bildirimi', 'borç tablosu', 'sponsorluk']
 };
 
 /**
  * Olay ve konu kategorileri (semantic topic markers).
  */
 const EVENT_CATEGORIES: Record<string, string[]> = {
+  'derbi': [
+    'derbi', 'derbisi', 'derbiye', 'derbide', 'dev maç', 'büyük maç', 'zirve yarışı', 'kritik 90 dakika'
+  ],
   'sakatlik': [
     'sakat', 'sakatlik', 'sakatlık', 'sakatlandi', 'sakatlandı', 'tedavi', 'mri', 'mr',
     'ameliyat', 'yirtik', 'yırtık', 'capraz bag', 'çapraz bağ', 'doktor', 'sakatligi', 'revir'
@@ -97,22 +127,25 @@ const EVENT_CATEGORIES: Record<string, string[]> = {
   'transfer': [
     'transfer', 'imza', 'sozlesme', 'sözleşme', 'anlasma', 'anlaşma', 'bonservis', 'kiralik',
     'kiralık', 'teklif', 'masada', 'gorusme', 'görüşme', 'kap', 'vedalasti', 'ayrildi', 'ayrıldı',
-    'talip', 'imzayi atti', 'imzayı attı'
+    'talip', 'imzayi atti', 'imzayı attı', 'resmi teklif'
   ],
   'kadro': [
     'kadro disi', 'kadro dışı', 'affedildi', 'kadroya alinmadi', 'kadroya alınmadı', 'kamp',
-    'ilk 11', '11i', 'yedek', 'kafile', 'kadrosu'
+    'ilk 11', '11i', 'yedek', 'kafile', 'kadrosu', 'muhtemel 11'
+  ],
+  'idman_taktik': [
+    'antrenman', 'idman', 'taktik', 'salonda çalıştı', 'mehmet ali yılmaz', 'tesisler', 'hazırlıklar sürdü', 'idman raporu'
   ],
   'ceza_hakem': [
     'kirmizi kart', 'kırmızı kart', 'sari kart', 'sarı kart', 'pfdk', 'tff', 'ceza',
-    'disiplin', 'hakem', 'var', 'itiraz', 'sevk edildi', 'tahkim'
+    'disiplin', 'hakem', 'var', 'itiraz', 'sevk edildi', 'tahkim', 'hata', 'düdük astı'
   ],
-  'bilet': [
+  'bilet_tribun': [
     'bilet', 'passolig', 'satisa cikti', 'satışa çıktı', 'tukendi', 'tükendi', 'kombine',
-    'deplasman tribunu', 'tribün'
+    'deplasman tribunu', 'tribün', 'taraftar rekoru'
   ],
   'mac_sonuc': [
-    'galibiyet', 'maglubiyet', 'mağlubiyet', 'beraberlik', '3 puan', 'puan kaybi', 'skor'
+    'galibiyet', 'maglubiyet', 'mağlubiyet', 'beraberlik', '3 puan', 'puan kaybi', 'skor', 'maç sonucu'
   ]
 };
 
@@ -459,26 +492,76 @@ export async function checkAgainstPublishedHistory(
   }
 }
 
+export interface FocalClusterInfo {
+  primaryEntity: string | null;
+  primaryEvent: string | null;
+  clusterKey: string;
+}
+
+/**
+ * Haberin odaklandığı ana özneyi (rakip takım, oyuncu, hoca, başkan vb.) ve olay tipini tespit eder.
+ * Böylece aynı konuda peş peşe haber üretilmesi engellenir.
+ */
+export function getNewsFocalCluster(title: string, summary?: string | null): FocalClusterInfo {
+  const fullText = `${title} ${summary || ''}`;
+  const { entities, events } = extractEntitiesAndEvents(fullText);
+
+  const primaryEntity = entities.length > 0 ? entities[0] : null;
+  const primaryEvent = events.length > 0 ? events[0] : null;
+
+  let clusterKey = 'genel_gundem';
+  if (primaryEntity && primaryEvent) {
+    clusterKey = `${primaryEntity}_${primaryEvent}`;
+  } else if (primaryEntity) {
+    clusterKey = `${primaryEntity}_genel`;
+  } else if (primaryEvent) {
+    clusterKey = `genel_${primaryEvent}`;
+  }
+
+  return {
+    primaryEntity,
+    primaryEvent,
+    clusterKey
+  };
+}
+
 /**
  * Birden çok kaynaktan aynı anda gelen aday haber listesini (batch) kendi içinde tekilleştirir.
- * Aynı olayı anlatan haberlerden sadece en yüksek önem puanına sahip olanı seçer, diğerlerini eler.
+ * Hem metin benzerliğini hem de konu/özne kümesini denetler:
+ * Aynı olayı veya aynı kişiyi/derbiyi anlatan haberlerden sadece en yüksek puanlı olanı seçer, diğerlerini eler.
  */
 export function deduplicateNewsBatch<T extends { id?: string; title: string; summary?: string | null; importanceScore?: number | null }>(
   newsList: T[]
 ): { uniqueNews: T[]; duplicateNews: Array<{ item: T; duplicateOf: T; similarity: number }> } {
   const uniqueNews: T[] = [];
   const duplicateNews: Array<{ item: T; duplicateOf: T; similarity: number }> = [];
+  const seenClusters = new Map<string, T>();
+  const seenEntities = new Map<string, T>();
 
   for (const item of newsList) {
     let duplicateMatch: { target: T; similarity: number } | null = null;
     const itemText = `${item.title} ${item.summary || ''}`;
+    const itemCluster = getNewsFocalCluster(item.title, item.summary);
 
+    // 1. Doğrudan semantik metin ve varlık benzerliği kontrolü
     for (const uniqueItem of uniqueNews) {
       const uniqueText = `${uniqueItem.title} ${uniqueItem.summary || ''}`;
       const sim = computeNewsSimilarity(itemText, uniqueText);
       if (sim.isDuplicate) {
         duplicateMatch = { target: uniqueItem, similarity: sim.similarity };
         break;
+      }
+    }
+
+    // 2. Konu Kümesi ve Odak Varlık Tekilleştirmesi (Aynı derbi, aynı oyuncu veya aynı olaydan sadece 1 haber seçilsin)
+    if (!duplicateMatch) {
+      if (itemCluster.clusterKey !== 'genel_gundem' && seenClusters.has(itemCluster.clusterKey)) {
+        const existing = seenClusters.get(itemCluster.clusterKey)!;
+        duplicateMatch = { target: existing, similarity: 0.85 };
+      } else if (itemCluster.primaryEntity && seenEntities.has(itemCluster.primaryEntity)) {
+        // Eğer aynı özne hakkında başka bir haber zaten seçilmişse (Örn: Beşiktaş maçı veya Banza veya Malinovskyi)
+        const existing = seenEntities.get(itemCluster.primaryEntity)!;
+        duplicateMatch = { target: existing, similarity: 0.80 };
       }
     }
 
@@ -490,6 +573,12 @@ export function deduplicateNewsBatch<T extends { id?: string; title: string; sum
       });
     } else {
       uniqueNews.push(item);
+      if (itemCluster.clusterKey !== 'genel_gundem') {
+        seenClusters.set(itemCluster.clusterKey, item);
+      }
+      if (itemCluster.primaryEntity) {
+        seenEntities.set(itemCluster.primaryEntity, item);
+      }
     }
   }
 
