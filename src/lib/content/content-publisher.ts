@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { FacebookService } from '@/services/facebook.service';
 import { isNewsTooOld, checkAgainstPublishedHistory } from '@/lib/news/news-similarity-engine';
 import { stripExternalSources } from '@/lib/content/content-generator';
+import { generateReelVideoBuffer } from '@/lib/reels/reel-video-generator';
 
 const publishingIds = new Set<string>();
 
@@ -16,8 +17,8 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
 
   try {
     // 1. Algoritmik Soğuma (Pacing Guard) Denetimi:
-    // İki otonom gönderi arası en az 120 dakika (2 saat) beklenir (Facebook spam cezası ve kısıtlamalarını önler)
-    const MIN_COOLDOWN_MINUTES = 120;
+    // İki otonom gönderi arası en az 180 dakika (3 saat) beklenir (Facebook EdgeRank spam cezası ve kısıtlamalarını kesin olarak önler)
+    const MIN_COOLDOWN_MINUTES = 180;
     const lastPublished = await prisma.content.findFirst({
       where: {
         status: 'PUBLISHED',
@@ -35,14 +36,14 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
           ...result,
           cooldownActive: true,
           minutesSinceLastPost: minutesSince,
-          reason: `Pacing koruması aktif: Son paylaşımdan sonra henüz ${minutesSince} dakika geçti (Minimum bekleme: 2 saat / ${MIN_COOLDOWN_MINUTES} dk).`
+          reason: `Pacing koruması aktif: Son paylaşımdan sonra henüz ${minutesSince} dakika geçti (Minimum bekleme: 3 saat / ${MIN_COOLDOWN_MINUTES} dk).`
         };
       }
     }
 
     // 2. Günlük Tavan Sınırı (Daily Cap Guard):
-    // Bir gün içinde otonom yayınlanan gönderi sayısı maksimum 8 olabilir (2 saatlik aralıkla gün içi ideal dağılım)
-    const MAX_DAILY_POSTS = 8;
+    // Bir gün içinde otonom yayınlanan gönderi sayısı maksimum 5 olabilir (3 saatlik aralıkla gün içi optimum dağılım)
+    const MAX_DAILY_POSTS = 5;
     const nowTurkey = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
     const startOfTodayTurkey = new Date(nowTurkey);
     startOfTodayTurkey.setHours(0, 0, 0, 0);
@@ -198,21 +199,50 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
           mediaUrl += `&imageUrl=${encodeURIComponent(content.sourceNews.imageUrl)}`;
         }
 
-        // Facebook'a hem metni hem de görseli (logo ile watermarklanmis) gonder.
-        const publishResponse = await FacebookService.publishPost(messageBody, mediaUrl);
+        // Facebook Reels Otomasyonu:
+        // İçerik REELS_SCRIPT tipinde ise veya yüksek viral skora (85+) sahipse
+        // otomatik 9:16 MP4 video üretilir ve Meta video_reels uç noktasına aktarılır.
+        let isReelCandidate = content.type === 'REELS_SCRIPT' || templateCategory === 'REELS';
+        if (!isReelCandidate && (content.viralScore ?? 0) >= 85 && (todayCount === 2 || todayCount === 3)) {
+          isReelCandidate = true;
+        }
+
+        let publishResponse: { success: boolean; postId: string; mockMode?: boolean };
+
+        if (isReelCandidate) {
+          try {
+            console.log(`[Content Publisher] Autonomous 9:16 Video Reel generation started for content ${content.id}...`);
+            const videoBuffer = await generateReelVideoBuffer({
+              title: cleanTitle,
+              imageUrl: content.sourceNews?.imageUrl || undefined,
+              durationSeconds: 8
+            });
+
+            const reelCaption = `🎬 BORDO MAVİ REELS | ${cleanTitle}\n\n${cleanBody}\n\n#Trabzonspor #BordoMavi #Reels #Shorts #Fırtına`;
+            publishResponse = await FacebookService.publishReel(videoBuffer, reelCaption);
+            console.log(`[Content Publisher] ✅ Real Facebook Reel successfully published: ${publishResponse.postId}`);
+          } catch (reelErr: any) {
+            console.warn(`[Content Publisher] Reel generation error, gracefully falling back to photo post: ${reelErr.message}`);
+            publishResponse = await FacebookService.publishPost(messageBody, mediaUrl);
+          }
+        } else {
+          // Standart kurumsal gönderi (Görsel + Metin)
+          publishResponse = await FacebookService.publishPost(messageBody, mediaUrl);
+        }
 
         await prisma.content.update({
           where: { id: content.id },
           data: {
             status: 'PUBLISHED',
+            type: isReelCandidate ? 'REELS_SCRIPT' : content.type,
             facebookPostId: publishResponse.postId,
             publishedAt: new Date()
           }
         });
 
         result.processed++;
-        result.results.push({ contentId: content.id, status: 'PUBLISHED', facebookPostId: publishResponse.postId, mockMode: publishResponse.mockMode });
-        console.log(`[Content Publisher] Done for ${content.id}: ${publishResponse.postId}`);
+        result.results.push({ contentId: content.id, status: 'PUBLISHED', isReel: isReelCandidate, facebookPostId: publishResponse.postId, mockMode: publishResponse.mockMode });
+        console.log(`[Content Publisher] Done for ${content.id}: ${publishResponse.postId} (Reel: ${isReelCandidate})`);
 
         // Facebook anti-spam: Çoklu paylaşımlar arasına 3 saniyelik güvenli bekleme ekle
         if (result.processed < limit) {

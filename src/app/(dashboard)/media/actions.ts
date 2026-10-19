@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { FacebookService } from "@/services/facebook.service";
 import { stripExternalSources } from "@/lib/content/content-generator";
 import { AIFactory } from "@/services/ai/ai.factory";
+import { generateReelVideoBuffer } from "@/lib/reels/reel-video-generator";
 
 export async function publishCanvaDesignAction(params: {
   title: string;
@@ -115,7 +116,21 @@ export async function publishReelAction(params: {
       mediaUrl += `&imageUrl=${encodeURIComponent(params.imageUrl)}`;
     }
 
-    const result = await FacebookService.publishPost(message, mediaUrl);
+    let result: { success: boolean; postId?: string; error?: string };
+    try {
+      console.log(`[MediaActions] Generating real 9:16 MP4 video for manual Reel...`);
+      const videoBuffer = await generateReelVideoBuffer({
+        title: cleanTitle,
+        imageUrl: params.imageUrl,
+        durationSeconds: 8
+      });
+      const reelRes = await FacebookService.publishReel(videoBuffer, message);
+      result = { success: reelRes.success, postId: reelRes.postId };
+    } catch (vidErr: any) {
+      console.warn(`[MediaActions] Video generation failed, falling back to static photo post: ${vidErr.message}`);
+      const photoRes = await FacebookService.publishPost(message, mediaUrl);
+      result = { success: photoRes.success, postId: photoRes.postId };
+    }
 
     if (result.success && result.postId) {
       await prisma.content.create({

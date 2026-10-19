@@ -32,7 +32,7 @@ export default async function handler(req: Request) {
   }
 }
 
-// Her 30 dakikada bir çalış
-export const config: Config = {
-  schedule: "*/30 * * * *",
-};
+// Netlify zamanlanmış görevi pasife alındı.
+// Tüm otonom yayın akışı EdgeRank koruması ve tekil soğuma denetimi için
+// merkezi Vercel Akıllı Yayıncısı (SmartPublisher) üzerinden yürütülmektedir.
+export const config: Config = {};

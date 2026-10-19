@@ -53,12 +53,12 @@ export function generateSmartFallbackPost(news: any): string {
   else if (category.includes('ANALYSIS')) badge = 'BORDO MAVİ ÖZEL ANALİZ';
 
   const fanQuestions = [
-    '📌 Sizce bu karar Trabzonspor’un hedeflerini nasıl etkiler? (1-10 arası puanlayın!)',
-    '🔥 Bordo-Mavi renklere gönül verenler: Bu hamleyi destekliyor musunuz? Katılanlar "BEĞEN" butonuna bassın, fikri olan yoruma yazsın!',
+    '📌 Bordo-Mavili renklere gönül verenler ses veriyor: Sizce bu karar Trabzonspor’un hedeflerini nasıl etkiler? (1-10 arası puanınızı yorumlara yazın!)',
+    '🔥 Trabzonspor taraftarı ne diyor? Bu hamleyi canı gönülden destekliyor musunuz? (EVET / HAYIR) Fikirlerinizi yorumlarda paylaşın!',
     '⚽ Sizce ilk 11’in değişilmezi mi olmalı, yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek) Yorumlarda buluşalım!',
-    '🗣️ Bordo-Mavili taraftarlar ses veriyor! Bu gelişme hakkındaki net görüşünüz nedir? Herkes tek cümleyle yazsın!',
-    '⚡ Fırtına zirveye kilitlendi! Teknik heyetin bu tercihini doğru buluyor musunuz? (EVET / HAYIR) Fikirlerinizi paylaşın!',
-    '🏆 Şampiyonluk yolunda kritik viraj! Bordo-Mavili renklere gönül verenler yorumlarda kenetleniyor! 👇'
+    '🗣️ Fırtına camiası kenetleniyor! Bu sıcak gelişme hakkındaki net görüşünüz nedir? Herkes tek cümleyle yorumunu bıraksın! 👇',
+    '⚡ Teknik heyetin ve yönetimin bu tercihini doğru buluyor musunuz? (KATILIYORUM / KATILMIYORUM) Görüşlerinizi bekliyoruz!',
+    '🏆 Şampiyonluk ve zirve yarışında bu hamle kilit rol oynar mı? Bordo-Mavili taraftarlar yorumlarda tartışıyor! 🔴🔵'
   ];
   const selectedQuestion = fanQuestions[Math.floor(Math.random() * fanQuestions.length)];
 

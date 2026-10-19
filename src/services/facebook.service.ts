@@ -198,6 +198,130 @@ export class FacebookService {
     }
   }
 
+  /**
+   * Facebook Sayfasına 9:16 Dikey Gerçek Video Reels Yayınlar
+   * Meta Graph API v21.0 video_reels 3 aşamalı (start -> binary upload -> finish) protokolünü yürütür.
+   */
+  static async publishReel(
+    videoBuffer: Buffer,
+    caption: string,
+    lockKey?: string
+  ): Promise<{ success: boolean; postId: string; mockMode?: boolean }> {
+    const isMock = process.env.FACEBOOK_MOCK_MODE === 'true';
+    if (isMock) {
+      await new Promise(r => setTimeout(r, 800));
+      return { success: true, postId: `mock-reel-${Date.now()}`, mockMode: true };
+    }
+
+    if (lockKey) {
+      if (publishingLock.has(lockKey)) throw new Error('Reels yayınlama zaten devam ediyor');
+      publishingLock.add(lockKey);
+    }
+
+    try {
+      const { token, pageId } = await resolvePageToken();
+      const sanitizedCaption = (caption || '')
+        .replace(/\*\*/g, '')
+        .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+        .trim();
+
+      console.log(`[FacebookService] Starting Reel upload to Page ${pageId} (${videoBuffer.length} bytes)...`);
+
+      // 1. Aşama: video_reels yükleme oturumu başlat
+      let videoId = '';
+      let uploadUrl = '';
+
+      try {
+        const initRes = await fetch(`${GRAPH_API_BASE}/${pageId}/video_reels`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            upload_phase: 'start',
+            access_token: token
+          }),
+          signal: AbortSignal.timeout(30_000)
+        });
+        const initData = await initRes.json();
+
+        if (initData.video_id && initData.upload_url) {
+          videoId = initData.video_id;
+          uploadUrl = initData.upload_url;
+        } else if (initData.error) {
+          console.warn('[FacebookService] video_reels init returned error:', initData.error.message);
+        }
+      } catch (initErr: any) {
+        console.warn('[FacebookService] video_reels init failed:', initErr.message);
+      }
+
+      // Oturum başarıyla açıldıysa:
+      if (videoId && uploadUrl) {
+        // 2. Aşama: Video binary verisini rupload sunucusuna yükle
+        console.log(`[FacebookService] Uploading video binary to rupload url for Reel ${videoId}...`);
+        await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `OAuth ${token}`,
+            'offset': '0',
+            'file_size': String(videoBuffer.length),
+            'Content-Type': 'application/octet-stream'
+          },
+          body: new Uint8Array(videoBuffer),
+          signal: AbortSignal.timeout(60_000)
+        });
+
+        // 3. Aşama: Reels'i yayınla (finish phase)
+        console.log(`[FacebookService] Finishing Reel publish for ${videoId}...`);
+        const finishRes = await fetch(`${GRAPH_API_BASE}/${pageId}/video_reels`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            upload_phase: 'finish',
+            access_token: token,
+            video_id: videoId,
+            video_state: 'PUBLISHED',
+            description: sanitizedCaption
+          }),
+          signal: AbortSignal.timeout(30_000)
+        });
+        const finishData = await finishRes.json();
+
+        if (finishData.success || finishData.id || finishData.video_id) {
+          const finalId = finishData.id || finishData.video_id || videoId;
+          console.log(`[FacebookService] ✅ Real Reel successfully published: ${finalId}`);
+          return { success: true, postId: finalId, mockMode: false };
+        } else if (finishData.error) {
+          console.warn('[FacebookService] Finish Reel returned error:', finishData.error.message);
+        }
+      }
+
+      // Yedek Aşama: Standart /{page-id}/videos uç noktası ile FormData üzerinden video yükleme
+      console.log('[FacebookService] Falling back to /{pageId}/videos endpoint...');
+      const formData = new FormData();
+      const videoBlob = new Blob([new Uint8Array(videoBuffer)], { type: 'video/mp4' });
+      formData.append('source', videoBlob, 'bordo-mavi-reel.mp4');
+      formData.append('description', sanitizedCaption);
+      formData.append('access_token', token);
+
+      const vidRes = await fetch(`${GRAPH_API_BASE}/${pageId}/videos`, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(60_000)
+      });
+      const vidData = await vidRes.json();
+
+      if (vidData.error) {
+        const safeError = maskToken(JSON.stringify(vidData.error), token);
+        throw new Error(safeError);
+      }
+
+      const publishedId = vidData.id || vidData.post_id;
+      console.log(`[FacebookService] ✅ Video/Reel successfully published via /videos: ${publishedId}`);
+      return { success: true, postId: publishedId, mockMode: false };
+    } finally {
+      if (lockKey) publishingLock.delete(lockKey);
+    }
+  }
+
   static async getPostStats(postId: string): Promise<{
     reactions: number;
     comments: number;

@@ -47,21 +47,21 @@ export class SmartPublisher {
     const { hour, minute } = this.getTurkeyTime();
     const timeDecimal = hour + minute / 60;
 
-    // 1. Gece Uyku Modu (23:45 - 08:00) -> 0 Paylaşım (Spam & Algoritma Koruma)
-    if (timeDecimal >= 23.75 || timeDecimal < 8.0) {
+    // 1. Gece Uyku Modu (23:00 - 08:30) -> 0 Paylaşım (Spam & Algoritma Koruma)
+    if (timeDecimal >= 23.0 || timeDecimal < 8.5) {
       return {
         hour,
         minute,
         quota: 0,
-        windowName: "Gece Uyku & Dinlenme Modu (23:45 - 08:00)",
-        efficiencyRate: "Düşük (%10)",
+        windowName: "Gece Uyku & Dinlenme Modu (23:00 - 08:30)",
+        efficiencyRate: "Düşük (%5)",
         delayMsBetweenPosts: 0,
-        reason: "Gece saatlerinde organik etkileşim düşüktür. Facebook algoritmasının sayfayı spama düşürmemesi ve EdgeRank'ı korumak için yayın bekletilir."
+        reason: "Gece saatlerinde organik etkileşim düşüktür. Facebook EdgeRank algoritmasının sayfayı spama düşürmemesi ve sayfa kalite puanını korumak için yayın bekletilir."
       };
     }
 
     try {
-      // 2. Algoritmik Soğuma (Pacing Guard) Denetimi: Facebook algoritmasını korumak için 2 saat (120 dk) beklenir
+      // 2. Algoritmik Soğuma (Pacing Guard) Denetimi: Facebook algoritmasını korumak için en az 3 saat (180 dk) beklenir
       const lastPublished = await prisma.content.findFirst({
         where: {
           status: 'PUBLISHED',
@@ -76,22 +76,22 @@ export class SmartPublisher {
         minutesSinceLastPost = Math.floor((Date.now() - new Date(lastPublished.publishedAt).getTime()) / (60 * 1000));
       }
 
-      const MIN_COOLDOWN_MINUTES = 120; // 2 saatte bir yayın
+      const MIN_COOLDOWN_MINUTES = 180; // 3 saatte bir yayın (EdgeRank en yüksek dağıtım kuralı)
       if (minutesSinceLastPost < MIN_COOLDOWN_MINUTES) {
         return {
           hour,
           minute,
           quota: 0,
-          windowName: "Algoritmik Pacing (2 Saatlik Soğuma)",
+          windowName: "Algoritmik Pacing (3 Saatlik Güvenli Soğuma)",
           efficiencyRate: "Durduruldu",
           delayMsBetweenPosts: 0,
           cooldownActive: true,
           minutesSinceLastPost,
-          reason: `Son paylaşımdan bu yana ${minutesSinceLastPost} dk geçti. Facebook spam filtresine takılmamak için iki gönderi arası 2 saat (${MIN_COOLDOWN_MINUTES} dk) bekleniyor. Kalan süre: ${MIN_COOLDOWN_MINUTES - minutesSinceLastPost} dk.`
+          reason: `Son paylaşımdan bu yana ${minutesSinceLastPost} dk geçti. Facebook spam filtresine takılmamak ve mevcut gönderinin keşfette yayılması için iki gönderi arası en az 3 saat (${MIN_COOLDOWN_MINUTES} dk) bekleniyor. Kalan süre: ${MIN_COOLDOWN_MINUTES - minutesSinceLastPost} dk.`
         };
       }
 
-      // 3. Günlük Tavan Sınırı (Daily Cap Guard): Maksimum 8 gönderi (2 saatlik aralıklarla dengeli dağılım)
+      // 3. Günlük Tavan Sınırı (Daily Cap Guard): Maksimum 5 gönderi (3 saatlik aralıklarla optimum dağılım)
       const nowTurkey = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
       const startOfTodayTurkey = new Date(nowTurkey);
       startOfTodayTurkey.setHours(0, 0, 0, 0);
@@ -103,7 +103,7 @@ export class SmartPublisher {
         }
       });
 
-      const MAX_DAILY_POSTS = 8;
+      const MAX_DAILY_POSTS = 5;
       if (todayCount >= MAX_DAILY_POSTS) {
         return {
           hour,
@@ -113,31 +113,45 @@ export class SmartPublisher {
           efficiencyRate: "Tamamlandı",
           delayMsBetweenPosts: 0,
           todayCount,
-          reason: `Bugün hedeflenen maksimum ${MAX_DAILY_POSTS} gönderi limitine ulaşıldı (${todayCount} paylaşıldı). Takipçi doygunluğunu önlemek için kalan içerikler ertesi güne aktarılıyor.`
+          reason: `Bugün hedeflenen maksimum ${MAX_DAILY_POSTS} gönderi limitine ulaşıldı (${todayCount} paylaşıldı). Takipçi doygunluğunu önlemek ve sayfa etkileşim oranını zirvede tutmak için kalan içerikler ertesi güne aktarılıyor.`
         };
       }
 
       // 4. Zaman Pencerelerine Göre Verimlilik Analizi (Her pencerede TAM 1 gönderi)
-      if (timeDecimal >= 19.5 && timeDecimal < 23.0) {
+      if (timeDecimal >= 20.0 && timeDecimal < 23.0) {
         return {
           hour,
           minute,
           quota: 1,
-          windowName: "Akşam Zirvesi & Primetime (19:30 - 23:00)",
-          efficiencyRate: "Çok Yüksek (%98)",
+          windowName: "Akşam Zirvesi & Primetime Tartışma (20:00 - 23:00)",
+          efficiencyRate: "Zirve (%99)",
           delayMsBetweenPosts: 0,
           minutesSinceLastPost,
           todayCount,
-          reason: `Optimum yayın penceresi: Son paylaşımdan bu yana ${minutesSinceLastPost} dk geçti. Günün ${todayCount + 1}. gönderisi için izin verildi.`
+          reason: `Optimum yayın penceresi: Son paylaşımdan bu yana ${minutesSinceLastPost} dk geçti. Günün ${todayCount + 1}. gönderisi (Akşam Primetime) onaylandı.`
         };
       }
 
-      if (timeDecimal >= 12.0 && timeDecimal < 14.0) {
+      if (timeDecimal >= 17.0 && timeDecimal < 19.5) {
         return {
           hour,
           minute,
           quota: 1,
-          windowName: "Öğle Molası Zirvesi (12:00 - 14:00)",
+          windowName: "İş Çıkışı & Sıcak Gündem (17:00 - 19:30)",
+          efficiencyRate: "Çok Yüksek (%92)",
+          delayMsBetweenPosts: 0,
+          minutesSinceLastPost,
+          todayCount,
+          reason: `İş çıkışı taraftar mobil trafiği zirvede. Günün ${todayCount + 1}. gönderisi onaylandı.`
+        };
+      }
+
+      if (timeDecimal >= 12.0 && timeDecimal < 14.5) {
+        return {
+          hour,
+          minute,
+          quota: 1,
+          windowName: "Öğle Molası Zirvesi (12:00 - 14:30)",
           efficiencyRate: "Yüksek (%88)",
           delayMsBetweenPosts: 0,
           minutesSinceLastPost,
@@ -165,11 +179,11 @@ export class SmartPublisher {
         minute,
         quota: 1,
         windowName: "Standart Gün İçi Penceresi",
-        efficiencyRate: "Orta (%65)",
+        efficiencyRate: "Orta (%70)",
         delayMsBetweenPosts: 0,
         minutesSinceLastPost,
         todayCount,
-        reason: `Düzenli aralık korundu (${minutesSinceLastPost} dk). Günün ${todayCount + 1}. gönderisi onaylandı.`
+        reason: `Düzenli 3 saatlik aralık korundu (${minutesSinceLastPost} dk). Günün ${todayCount + 1}. gönderisi onaylandı.`
       };
 
     } catch (err: any) {

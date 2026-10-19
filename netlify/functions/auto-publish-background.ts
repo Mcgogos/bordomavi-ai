@@ -245,9 +245,7 @@ export default async function handler(req: Request) {
       const generateResult = await generateContent(apiKey, 2);
       console.log("[BG] Üretim:", generateResult);
 
-      console.log("[BG] Aşama 4: Facebook'ta yayınlanıyor...");
-      const publishResult = await publishToFacebook(appUrl, 1);
-      console.log("[BG] Yayınlama:", publishResult);
+      console.log("[BG] Aşama 4: Facebook yayını merkezi Vercel SmartPublisher tarafından (EdgeRank 3 saatlik soğuma kuralıyla) yönetilmektedir. Netlify doğrudan yayın yapmaz.");
 
       console.log(`[BG] ===== Tamamlandı: ${new Date().toISOString()} =====`);
     } catch (e: any) {
