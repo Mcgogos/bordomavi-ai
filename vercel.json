@@ -1,3 +1,21 @@
 {
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/sync-news?secret=test_secret",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/sync-news?secret=test_secret",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/sync-news?secret=test_secret",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/sync-news?secret=test_secret",
+      "schedule": "30 17 * * *"
+    }
+  ]
 }

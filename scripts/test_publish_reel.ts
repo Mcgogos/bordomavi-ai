@@ -2,44 +2,31 @@ import { prisma } from '../src/lib/db';
 import { runAutonomousReelWorkflow } from '../src/lib/reels/reels-publisher';
 
 async function main() {
-  console.log('🚀 Starting Test Reel Generation & Publish Workflow...');
+  console.log('🚀 Starting Autonomous Reel Generation & Publish Workflow...');
 
-  // 1. Find the top candidate news
-  const candidates = await prisma.news.findMany({
+  // 1. Inspect all news in DB
+  const allNews = await prisma.news.findMany({
     where: {
       isProcessed: true,
-      imageUrl: { not: null },
-      importanceScore: { gte: 70 }
+      imageUrl: { not: null }
     },
-    orderBy: [
-      { importanceScore: 'desc' },
-      { viralScore: 'desc' },
-      { publishedAt: 'desc' }
-    ],
-    take: 5
+    include: { content: true },
+    orderBy: { createdAt: 'desc' },
+    take: 10
   });
 
-  if (candidates.length === 0) {
-    console.warn('No candidate news found with score >= 70. Fetching latest available news with image...');
-    const fallback = await prisma.news.findFirst({
-      where: { imageUrl: { not: null } },
-      orderBy: { createdAt: 'desc' }
-    });
-    if (!fallback) {
-      throw new Error('No news found in DB with an image.');
-    }
-    candidates.push(fallback);
+  console.log('--- DB Recent News with Images ---');
+  for (const n of allNews) {
+    const isReel = n.content?.type === 'REELS_SCRIPT' && n.content?.status === 'PUBLISHED';
+    console.log(`[${n.id}] Score: ${n.importanceScore} | Action: ${n.aiRecommendedAction} | ReelPublished: ${isReel} | Title: "${n.title}" | PubDate: ${n.publishedAt}`);
   }
 
-  const selectedNews = candidates[0];
-  console.log(`📌 Selected Candidate News: "${selectedNews.title}" (Score: ${selectedNews.importanceScore}, ID: ${selectedNews.id})`);
-  console.log(`🖼️ Image: ${selectedNews.imageUrl}`);
+  // Find candidate that is not yet published as Reel
+  const availableCandidate = allNews.find(n => !(n.content?.type === 'REELS_SCRIPT' && n.content?.status === 'PUBLISHED'));
 
-  // 2. Trigger the Autonomous Reel Workflow
-  console.log('\n⚙️ Executing runAutonomousReelWorkflow (force: true)...');
   const result = await runAutonomousReelWorkflow({
     force: true,
-    targetNewsId: selectedNews.id
+    targetNewsId: availableCandidate?.id
   });
 
   console.log('\n================ WORKFLOW RESULT ================');
@@ -47,11 +34,12 @@ async function main() {
 
   if (result.success) {
     console.log(`\n🎉 SUCCESS! Facebook Reel Published.`);
+    console.log(`📌 News Title: "${result.title}"`);
     console.log(`🔗 Facebook Post ID: ${result.facebookPostId}`);
     console.log(`⏱️ Duration: ${result.durationSeconds}s`);
   } else {
-    console.error(`\n❌ Workflow failed at step: ${result.step}`);
-    console.error(`Error: ${result.error || result.skippedReason}`);
+    console.error(`\n❌ Workflow did not publish: ${result.step}`);
+    console.error(`Reason: ${result.error || result.skippedReason}`);
   }
 }
 

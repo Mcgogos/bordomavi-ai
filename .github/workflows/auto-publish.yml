@@ -1,40 +1,66 @@
-name: 24/7 Autonomous News & Matchday Publish Cron
+name: 7-24 Cloud Autonomous Publisher (07:00, 11:00, 15:00, 20:30 TR)
 
 on:
   schedule:
-    # Her 20 dakikada bir otomatik calistir (Bulutta 7/24 Kesintisiz)
-    - cron: '*/20 * * * *'
-  workflow_dispatch: # Manuel olarak GitHub panelinden tetikleme imkani
+    # Türkiye Saati (UTC+3) Kesin Günlük Yayın Takvimi:
+    # 07:00 TR -> 04:00 UTC (Sabah Reels Bülteni)
+    - cron: '0 4 * * *'
+    # 11:00 TR -> 08:00 UTC (Gün Ortası Metin Haberi)
+    - cron: '0 8 * * *'
+    # 15:00 TR -> 12:00 UTC (Öğleden Sonra Reels Bülteni)
+    - cron: '0 12 * * *'
+    # 20:30 TR -> 17:30 UTC (Akşam Prime-Time Reels Bülteni)
+    - cron: '30 17 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: cloud-publisher-${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
-  trigger-publish:
-    name: Trigger News Sync & Matchday Automation
+  publish-slot:
+    name: 7/24 Cloud Autonomous Daily Slot Publisher
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
 
     steps:
-      - name: Trigger 20-Min News Sync & Auto-Publish
-        run: |
-          echo "Triggering 20-min auto publish on Vercel..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" --retry 3 --retry-delay 5 --max-time 120 "https://bordomavi-ai.vercel.app/api/cron/sync-news?secret=test_secret")
-          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          
-          echo "News Sync HTTP Status: $HTTP_STATUS"
-          echo "News Sync Response: $BODY"
-          
-          if [ "$HTTP_STATUS" -eq 200 ]; then
-            echo "News sync cycle completed successfully!"
-          else
-            echo "Warning: Received HTTP $HTTP_STATUS on news sync"
-          fi
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
 
-      - name: Trigger Matchday Live Automation Sync
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install System Dependencies (FFmpeg & DejaVu Fonts)
         run: |
-          echo "Triggering matchday live automation on Vercel..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 60 "https://bordomavi-ai.vercel.app/api/cron/sync-match?secret=test_secret")
-          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          
-          echo "Matchday Sync HTTP Status: $HTTP_STATUS"
-          echo "Matchday Sync Response: $BODY"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Trigger Vercel Production Cloud Sync (Redundancy 1)
+        run: |
+          echo "Pinging Vercel Production Cron Endpoint..."
+          curl -s -X POST -m 60 "https://bordomavi-ai.vercel.app/api/cron/sync-news?secret=test_secret" || echo "Vercel sync completed/timed out"
+
+      - name: Execute Cloud Slot Publisher on Ubuntu Runner (Redundancy 2)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          FACEBOOK_APP_ID: ${{ secrets.FACEBOOK_APP_ID }}
+          FACEBOOK_MOCK_MODE: "false"
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NEXT_PUBLIC_APP_URL: "https://bordomavi-ai.vercel.app"
+          CRON_SECRET: ${{ secrets.CRON_SECRET || 'test_secret' }}
+        run: |
+          echo "Starting 7/24 Cloud Autonomous Publisher for active schedule slot..."
+          npx tsx scripts/trigger_workflow.ts

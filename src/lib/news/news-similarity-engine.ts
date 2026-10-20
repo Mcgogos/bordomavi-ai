@@ -300,20 +300,21 @@ export function computeNewsSimilarity(
   const setB = new Set(tokensB);
   const sharedTokens = tokensA.filter(t => setB.has(t));
 
-  // Varlık skorlaması
+  // Varlık skorlaması (Genel terimler olan hakem_tff, papara_park ve sponsorluk_finans tek başına strong match yapamaz)
+  const specificSharedEntities = sharedEntities.filter(e => !['papara_park', 'hakem_tff', 'sponsorluk_finans'].includes(e));
   let entityMatchBonus = 0;
   let isStrongMatch = false;
 
-  if (sharedEntities.length > 0 && sharedEvents.length > 0) {
+  if (specificSharedEntities.length > 0 && sharedEvents.length > 0) {
     // Hem aynı futbolcu/özne hem de aynı olay (Örn: Banza + sakatlık veya Thomas Reis + kadro dışı)
     entityMatchBonus = 0.45;
     isStrongMatch = true;
-  } else if (sharedEntities.length > 0 && sharedTokens.length >= 2) {
+  } else if (specificSharedEntities.length > 0 && sharedTokens.length >= 2) {
     entityMatchBonus = 0.30;
     isStrongMatch = true;
-  } else if (sharedEntities.length > 0) {
+  } else if (specificSharedEntities.length > 0) {
     entityMatchBonus = 0.15;
-  } else if (sharedEvents.length > 0 && sharedTokens.length >= 2) {
+  } else if (sharedEvents.length > 0 && sharedTokens.length >= 3) {
     entityMatchBonus = 0.20;
   }
 

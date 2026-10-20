@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db';
 import { FacebookService } from '@/services/facebook.service';
 import { isNewsTooOld, checkAgainstPublishedHistory } from '@/lib/news/news-similarity-engine';
 import { stripExternalSources } from '@/lib/content/content-generator';
-import { generateReelVideoBuffer } from '@/lib/reels/reel-video-generator';
+import { SmartPublisher } from '@/lib/content/smart-publisher';
 
 const publishingIds = new Set<string>();
 
@@ -16,62 +16,29 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
   };
 
   try {
-    // 1. Algoritmik Soğuma (Pacing Guard) Denetimi:
-    // İki otonom gönderi arası en az 180 dakika (3 saat) beklenir (Facebook EdgeRank spam cezası ve kısıtlamalarını kesin olarak önler)
-    const MIN_COOLDOWN_MINUTES = 180;
-    const lastPublished = await prisma.content.findFirst({
-      where: {
-        status: 'PUBLISHED',
-        publishedAt: { not: null }
-      },
-      orderBy: { publishedAt: 'desc' },
-      select: { publishedAt: true, title: true }
-    });
+    // 1. Kesin Günlük Yayın Takvimi Denetimi:
+    // Metin haberi SADECE saat 11:00 diliminde (günde 1 kez) otomatik yayınlanır.
+    const quotaInfo = await SmartPublisher.getPublishingQuota();
 
-    if (!force && lastPublished?.publishedAt) {
-      const minutesSince = Math.floor((Date.now() - new Date(lastPublished.publishedAt).getTime()) / (60 * 1000));
-      if (minutesSince < MIN_COOLDOWN_MINUTES) {
-        console.log(`[Content Publisher] Pacing Guard: Last post "${lastPublished.title}" was published ${minutesSince}m ago (< ${MIN_COOLDOWN_MINUTES}m). Skipping auto-publish.`);
-        return {
-          ...result,
-          cooldownActive: true,
-          minutesSinceLastPost: minutesSince,
-          reason: `Pacing koruması aktif: Son paylaşımdan sonra henüz ${minutesSince} dakika geçti (Minimum bekleme: 3 saat / ${MIN_COOLDOWN_MINUTES} dk).`
-        };
-      }
-    }
-
-    // 2. Günlük Tavan Sınırı (Daily Cap Guard):
-    // Bir gün içinde otonom yayınlanan gönderi sayısı maksimum 5 olabilir (3 saatlik aralıkla gün içi optimum dağılım)
-    const MAX_DAILY_POSTS = 5;
-    const nowTurkey = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
-    const startOfTodayTurkey = new Date(nowTurkey);
-    startOfTodayTurkey.setHours(0, 0, 0, 0);
-
-    const todayCount = await prisma.content.count({
-      where: {
-        status: 'PUBLISHED',
-        publishedAt: { gte: startOfTodayTurkey }
-      }
-    });
-
-    if (!force && todayCount >= MAX_DAILY_POSTS) {
-      console.log(`[Content Publisher] Daily Cap Guard: Already published ${todayCount} posts today (Cap: ${MAX_DAILY_POSTS}).`);
+    if (!force && (quotaInfo.quota <= 0 || quotaInfo.allowedType !== 'TEXT')) {
+      console.log(`[Content Publisher] Takvim Koruması: Metin haberi sadece 11:00 diliminde yayınlanır. (${quotaInfo.reason})`);
       return {
         ...result,
-        dailyCapReached: true,
-        todayCount,
-        reason: `Günlük ${MAX_DAILY_POSTS} gönderi tavanına ulaşıldı (${todayCount}/${MAX_DAILY_POSTS}). Kalan içerikler ertesi güne aktarılıyor.`
+        cooldownActive: true,
+        minutesSinceLastPost: quotaInfo.minutesSinceLastPost,
+        todayCount: quotaInfo.todayCount,
+        reason: quotaInfo.reason
       };
     }
 
-    // Her otonom döngüde EN FAZLA 1 adet gönderi yayınlanır (erişim bölünmesini önler)
+    // Her otonom döngüde EN FAZLA 1 adet metin haberi yayınlanır
     const effectiveLimit = Math.min(limit, 1);
 
     const readyContents = await prisma.content.findMany({
       where: {
         status: 'READY_TO_PUBLISH',
         facebookPostId: null,
+        NOT: { type: 'REELS_SCRIPT' },
         // Kalite filtresi: Sadece yüksek puanlı (75+) içerikler otonom yayınlanır
         OR: [
           { qualityScore: { gte: 75 } },
@@ -80,11 +47,12 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
         ],
         AND: [
           {
+            createdAt: { gte: new Date(Date.now() - 36 * 60 * 60 * 1000) }
+          },
+          {
             OR: [
-              // Never failed yet (no retry text in aiReasoning)
               { aiReasoning: { equals: null } },
               { NOT: { aiReasoning: { contains: 'Yayinlama Hatasi' } } },
-              // OR failed, but at least 15 minutes ago
               { updatedAt: { lt: new Date(Date.now() - 15 * 60 * 1000) } }
             ]
           }
@@ -93,15 +61,15 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
       include: {
         sourceNews: true
       },
-      take: 5,
+      take: 25,
       orderBy: [
-        { qualityScore: 'desc' },
-        { createdAt: 'desc' }
+        { createdAt: 'desc' },
+        { qualityScore: 'desc' }
       ]
     });
 
     if (readyContents.length === 0) {
-      console.log("[Content Publisher] No qualified READY_TO_PUBLISH content found (score >= 75).");
+      console.log("[Content Publisher] No qualified READY_TO_PUBLISH text content found (score >= 75).");
       return result;
     }
 
@@ -110,7 +78,6 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
       if (publishingIds.has(content.id)) continue;
 
       // 1. Tazelik Denetimi (Anti-Stale Guard):
-      // İçerik veya kaynak haber 36 saatten eski ise Facebook'ta yayınlanmaz.
       const isNewsOld = isNewsTooOld(content.sourceNews?.publishedAt, 36);
       const isContentOld = isNewsTooOld(content.createdAt, 36);
 
@@ -127,7 +94,6 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
       }
 
       // 2. Mükerrer Yayın Denetimi (Anti-Duplicate Past Post Guard):
-      // Son 7 gün içinde Facebook'ta yayınlanmış gönderilerle başlık/konu kıyaslaması yap.
       const historyCheck = await checkAgainstPublishedHistory(
         { id: content.sourceNewsId || content.id, title: content.title, summary: content.body },
         7
@@ -148,7 +114,7 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
       publishingIds.add(content.id);
 
       try {
-        console.log(`[Content Publisher] Publishing content ID: ${content.id}`);
+        console.log(`[Content Publisher] Publishing 11:00 Text News content ID: ${content.id}`);
 
         const cleanTitle = stripExternalSources(content.title || '')
           .replace(/\*\*/g, '')
@@ -168,7 +134,6 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
           .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
           .trim();
 
-        // Dinamik görsel (Canva/OG Image) URL'sini 10 şablondan içerik türüne göre belirle.
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'https://bordomavi-ai.vercel.app';
         
         const combinedText = `${cleanTitle} ${cleanBody}`.toLowerCase();
@@ -187,8 +152,6 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
           templateCategory = 'RESULT';
         } else if (combinedText.includes('açıklama') && (combinedText.includes('thomas reis') || combinedText.includes('reis') || combinedText.includes('teknik direktör'))) {
           templateCategory = 'QUOTE';
-        } else if (content.type === 'REELS_SCRIPT' || combinedText.includes('reels')) {
-          templateCategory = 'REELS';
         } else if (combinedText.includes('kamuoyu') || combinedText.includes('resmi açıklama') || combinedText.includes('kulübümüz')) {
           templateCategory = 'OFFICIAL';
         }
@@ -199,50 +162,23 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
           mediaUrl += `&imageUrl=${encodeURIComponent(content.sourceNews.imageUrl)}`;
         }
 
-        // Facebook Reels Otomasyonu:
-        // İçerik REELS_SCRIPT tipinde ise veya yüksek viral skora (85+) sahipse
-        // otomatik 9:16 MP4 video üretilir ve Meta video_reels uç noktasına aktarılır.
-        let isReelCandidate = content.type === 'REELS_SCRIPT' || templateCategory === 'REELS';
-        if (!isReelCandidate && (content.viralScore ?? 0) >= 85 && (todayCount === 2 || todayCount === 3)) {
-          isReelCandidate = true;
-        }
-
-        let publishResponse: { success: boolean; postId: string; mockMode?: boolean };
-
-        if (isReelCandidate) {
-          try {
-            console.log(`[Content Publisher] Autonomous 9:16 Video Reel generation started for content ${content.id}...`);
-            const videoBuffer = await generateReelVideoBuffer({
-              title: cleanTitle,
-              imageUrl: content.sourceNews?.imageUrl || undefined,
-              durationSeconds: 8
-            });
-
-            const reelCaption = `🎬 BORDO MAVİ REELS | ${cleanTitle}\n\n${cleanBody}\n\n#Trabzonspor #BordoMavi #Reels #Shorts #Fırtına`;
-            publishResponse = await FacebookService.publishReel(videoBuffer, reelCaption);
-            console.log(`[Content Publisher] ✅ Real Facebook Reel successfully published: ${publishResponse.postId}`);
-          } catch (reelErr: any) {
-            console.warn(`[Content Publisher] Reel generation error, gracefully falling back to photo post: ${reelErr.message}`);
-            publishResponse = await FacebookService.publishPost(messageBody, mediaUrl);
-          }
-        } else {
-          // Standart kurumsal gönderi (Görsel + Metin)
-          publishResponse = await FacebookService.publishPost(messageBody, mediaUrl);
-        }
+        // 11:00 Metin Haberi Slotu -> Kurumsal Görsel + Metin Gönderisi
+        const publishResponse = await FacebookService.publishPost(messageBody, mediaUrl);
 
         await prisma.content.update({
           where: { id: content.id },
           data: {
             status: 'PUBLISHED',
-            type: isReelCandidate ? 'REELS_SCRIPT' : content.type,
             facebookPostId: publishResponse.postId,
             publishedAt: new Date()
           }
         });
 
+        await SmartPublisher.markSlotPublished('SLOT_1100_TEXT', quotaInfo.dateKey);
+
         result.processed++;
-        result.results.push({ contentId: content.id, status: 'PUBLISHED', isReel: isReelCandidate, facebookPostId: publishResponse.postId, mockMode: publishResponse.mockMode });
-        console.log(`[Content Publisher] Done for ${content.id}: ${publishResponse.postId} (Reel: ${isReelCandidate})`);
+        result.results.push({ contentId: content.id, status: 'PUBLISHED', isReel: false, facebookPostId: publishResponse.postId, mockMode: publishResponse.mockMode });
+        console.log(`[Content Publisher] Done for ${content.id}: ${publishResponse.postId} (11:00 Text News)`);
 
         // Facebook anti-spam: Çoklu paylaşımlar arasına 3 saniyelik güvenli bekleme ekle
         if (result.processed < limit) {

@@ -24,21 +24,14 @@ export interface GenerateReelParams {
 export interface GeneratedReelResult {
   videoBuffer: Buffer;
   videoFilePath: string;
+  baseFramePreviewPath?: string;
   durationSeconds: number;
   scriptData: ReelScriptData;
   qualityResult: ReelQualityCheckResult;
 }
 
 /**
- * 9:16 Dikey, 1080x1920 Çözünürlüklü, Tam Otomatik Profesyonel Facebook Reels Video Üreticisi
- * 
- * İş Akışı:
- * 1. Habere özel yapay zekâ seslendirme senaryosu oluşturur (Statik şablon içermez).
- * 2. Doğal Türkçe seslendirme (TTS) üretir ve net konuşma süresini milisaniyelik ölçer.
- * 3. 4 Sahneli, Canva kalitesinde 1080x1920 dikey görsel afişleri hazırlar.
- * 4. Senkronize Türkçe altyazıları mobil güvenli alana yerleştirir.
- * 5. FFmpeg ile görsel, ses ve altyazıları 1080x1920 dikey H.264/AAC MP4 olarak render eder.
- * 6. Otomatik Kalite Kontrolü (QA) yaparak videonun sağlamlığını teyit eder.
+ * 9:16 Dikey, 1080x1920 Çözünürlüklü, 25-30 Saniyelik Tam Haber İçerikli Broadcast Reels Video Üreticisi
  */
 export async function generateCompleteReelVideo(params: GenerateReelParams): Promise<GeneratedReelResult> {
   const tempDir = os.tmpdir();
@@ -46,97 +39,117 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
   const outputVideoPath = path.join(tempDir, `bm_final_reel_${timestamp}.mp4`);
   const filesToClean: string[] = [];
 
-  console.log(`[ReelVideoGenerator] 🎬 Starting Full Automated Reel Production for: "${params.title}"`);
+  console.log(`[ReelVideoGenerator] 🎬 Starting Viral Broadcast Reel Production for: "${params.title}"`);
 
   try {
-    // 1. Habere Özel Orijinal Senaryo Oluştur
+    // 1. Haberin Orijinal Kaynağından Tüm İçeriği Çekerek 25-30 Saniyelik Eksiksiz Senaryo Oluştur
     const scriptData = await generateReelScript({
       title: params.title,
       summary: params.summary,
       body: params.body,
-      category: params.category
+      category: params.category,
+      sourceNewsId: params.sourceNewsId
     });
 
-    console.log(`[ReelVideoGenerator] Script generated: "${scriptData.title}" (${scriptData.badgeTitle})`);
+    console.log(`[ReelVideoGenerator] Script generated (${scriptData.fullNarration.split(/\s+/).length} words): "${scriptData.title}"`);
 
-    // 2. Doğal Türkçe Seslendirme Üret
+    // 2. Doğal Türkçe TV Spikeri Seslendirmesi Üret
     const audioResult = await synthesizeTurkishSpeech(scriptData.fullNarration);
     filesToClean.push(audioResult.audioPath);
 
     const speechDuration = audioResult.durationSeconds;
-    // Toplam video süresi: Konuşma süresi + 1.2 saniye kapanış payı
-    const totalDuration = +(speechDuration + 1.2).toFixed(2);
-    const sceneDuration = +(totalDuration / 4).toFixed(2);
+    const totalDuration = +(speechDuration + 1.0).toFixed(2);
+    const totalFrames = Math.ceil(totalDuration * 30);
 
-    console.log(`[ReelVideoGenerator] Audio ready: ${speechDuration}s -> Total video target: ${totalDuration}s`);
+    console.log(`[ReelVideoGenerator] Audio ready: ${speechDuration}s (${audioResult.engine}) -> Total video target: ${totalDuration}s`);
 
-    // 3. Canva / Referans Kalitesinde 1080x1920 Şablon Görselini Oluştur
+    // 3. 1080x1920 Broadcast Görsel Katmanlarını Oluştur
     const composedSlides = await composeReelSlides(scriptData, params.imageUrl);
     filesToClean.push(...composedSlides.tempFilesToClean);
-    const baseFrame = composedSlides.baseFramePath;
 
-    // 4. Seslendirme ile 100% Senkronize Dinamik Altyazı Cueları
+    // 4. Seslendirme ile %100 Senkronize, Her Satırı Birebir Ortalanmış Altyazılar (y: 1085 - 1340 arası)
     const font = getAvailableFontPath();
     const cues = audioResult.cues && audioResult.cues.length > 0
       ? audioResult.cues
-      : [
-          { text: scriptData.title, startTime: 0, endTime: totalDuration }
-        ];
+      : [{ text: scriptData.title, startTime: 0, endTime: totalDuration }];
 
-    let subtitleFilters = '';
+    const filterParts: string[] = [];
     cues.forEach((cue, idx) => {
-      const cueLines = wrapTextToLines(cue.text, 44, 2);
-      const cueFile = path.join(tempDir, `bm_cue_${timestamp}_${idx}.txt`);
-      fs.writeFileSync(cueFile, cueLines.join('\n'), 'utf8');
-      filesToClean.push(cueFile);
+      const cueLines = wrapTextToLines(cue.text, 38, 2);
+      const startT = cue.startTime.toFixed(2);
+      const endT = (idx === cues.length - 1 ? totalDuration : cue.endTime).toFixed(2);
 
-      // Koyu lacivert başlık/altyazı alanına (y: 1372 - 1520) dikey ortalı, beyaz bold spiker yazısı
-      const filterPart = `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(cueFile)}':fontsize=40:fontcolor=white:x=(w-text_w)/2:y=1375+(145-text_h)/2:line_spacing=12:enable='between(t,${cue.startTime.toFixed(2)},${cue.endTime.toFixed(2)})'`;
-      if (subtitleFilters) {
-        subtitleFilters += `,${filterPart}`;
-      } else {
-        subtitleFilters = filterPart;
+      if (cueLines.length === 1) {
+        const lineFile = path.join(tempDir, `bm_cue_${timestamp}_${idx}_0.txt`);
+        fs.writeFileSync(lineFile, cueLines[0], 'utf8');
+        filesToClean.push(lineFile);
+
+        filterParts.push(
+          `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(lineFile)}':fontsize=39:fontcolor=white:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=1192:enable='between(t,${startT},${endT})'`
+        );
+      } else if (cueLines.length >= 2) {
+        const line1File = path.join(tempDir, `bm_cue_${timestamp}_${idx}_0.txt`);
+        const line2File = path.join(tempDir, `bm_cue_${timestamp}_${idx}_1.txt`);
+        fs.writeFileSync(line1File, cueLines[0], 'utf8');
+        fs.writeFileSync(line2File, cueLines[1], 'utf8');
+        filesToClean.push(line1File, line2File);
+
+        filterParts.push(
+          `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(line1File)}':fontsize=38:fontcolor=white:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=1160:enable='between(t,${startT},${endT})'`
+        );
+        filterParts.push(
+          `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(line2File)}':fontsize=38:fontcolor=0xFDE68A:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=1222:enable='between(t,${startT},${endT})'`
+        );
       }
     });
 
-    // Girdi 2: Habere uygun televizyon haber yayını ve spor ambiyansı arka plan müziği
+    const subtitleChain = filterParts.join(',');
+
+    // Girdi 4: Habere uygun televizyon haber yayını ve spor ambiyansı arka plan müziği
     const customBgm = path.join(process.cwd(), 'public', 'assets', 'audio', 'sports_broadcast_bed.mp3');
     const hasCustomBgm = fs.existsSync(customBgm);
     const bgmInputs = hasCustomBgm
       ? ['-stream_loop', '-1', '-i', customBgm]
       : ['-f', 'lavfi', '-i', `anoisesrc=color=pink:sample_rate=44100:amplitude=0.01:duration=${totalDuration}`];
 
-    // FFmpeg Filtre Grafiği: 1080x1920 Referans Şablon + Canlı Senkronize Altyazı + Seslendirme & Spor Ambiyansı
+    // FFmpeg Filtre Grafiği:
+    // - [1:v] (Hero Fotoğraf): 30fps yumuşak Ken Burns sinematik zoom hareketi (1008x567 tam 16:9 vitrin içinde)
+    // - [goldBar]: 30fps saniyede 30 kare kesintisiz akan gerçek zamanlı altın ilerleme çubuğu (x = 64-952+952*(t/totalDuration))
+    // - [2:v] (Broadcast HUD Overlay): Şeffaf pencereli koyu mod stüdyo arayüzü (ilerleme çubuğunu yuvarlatılmış pencere içinde maskeler)
+    // - Her satırı birebir ortalanmış senkronize altyazılar
     const ffmpegArgs: string[] = [
       '-y',
-      // Girdi 0: 1080x1920 Şablon Görseli
-      '-loop', '1', '-t', String(totalDuration), '-i', baseFrame,
-      // Girdi 1: Türkçe Seslendirme Dosyası
+      '-loop', '1', '-framerate', '30', '-t', String(totalDuration), '-i', composedSlides.baseFramePath,
+      '-i', composedSlides.heroPhotoPath,
+      '-loop', '1', '-framerate', '30', '-t', String(totalDuration), '-i', composedSlides.overlayHudPath,
       '-i', audioResult.audioPath,
-      // Girdi 2: Habere uygun spor ambiyans müziği
       ...bgmInputs,
       '-filter_complex',
-      // Seslendirme ile tam senkronize altyazıları alt koyu lacivert alana yerleştir
-      `[0:v]${subtitleFilters}[vOut];` +
-      // Seslendirme + TV Haber Ambiyansı Miksi (Seslendirme kristal net, arka plan dengeli)
-      `[2:a]volume=0.08[ambience];` +
-      `[1:a][ambience]amix=inputs=2:duration=first:dropout_transition=2[aOut]`,
+      `color=c=0xFBBF24:s=952x18:r=30:d=${totalDuration}[goldBar];` +
+      `[1:v]zoompan=z='min(zoom+0.00035,1.07)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${totalFrames}:s=1008x567:fps=30[heroAnim];` +
+      `[0:v][heroAnim]overlay=36:220:shortest=1[withHero];` +
+      `[withHero][goldBar]overlay=x='64-952+952*(t/${totalDuration})':y=1342:shortest=1[withProg];` +
+      `[withProg][2:v]overlay=0:0:format=auto:shortest=1[withHud];` +
+      `[withHud]${subtitleChain}[vOut];` +
+      `[4:a]volume=0.07[ambience];` +
+      `[3:a][ambience]amix=inputs=2:duration=first:dropout_transition=2[aOut]`,
       '-map', '[vOut]',
       '-map', '[aOut]',
       '-c:v', 'libx264',
       '-preset', 'fast',
+      '-r', '30',
       '-pix_fmt', 'yuv420p',
-      '-b:v', '4200k',
-      '-maxrate', '5000k',
-      '-bufsize', '8000k',
+      '-b:v', '4500k',
+      '-maxrate', '5500k',
+      '-bufsize', '8500k',
       '-c:a', 'aac',
-      '-b:a', '128k',
+      '-b:a', '192k',
       '-ar', '44100',
       '-t', String(totalDuration),
       outputVideoPath
     ];
 
-    console.log(`[ReelVideoGenerator] Rendering 1080x1920 MP4 (${totalDuration}s)...`);
+    console.log(`[ReelVideoGenerator] Rendering 1080x1920 30fps Broadcast MP4 (${totalDuration}s)...`);
     const startTime = Date.now();
 
     await new Promise((resolve, reject) => {
@@ -147,7 +160,7 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
         if (code === 0 && fs.existsSync(outputVideoPath)) {
           resolve(true);
         } else {
-          reject(new Error(`FFmpeg Reel render failed (code ${code}): ${stderr.slice(-350)}`));
+          reject(new Error(`FFmpeg Reel render failed (code ${code}): ${stderr.slice(-400)}`));
         }
       });
     });
@@ -179,19 +192,14 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
     };
 
   } finally {
-    // Geçici slayt ve parçaları temizle
     for (const f of filesToClean) {
       try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
     }
   }
 }
 
-/**
- * Geriye dönük uyumluluk yardımcısı: Doğrudan video buffer döner.
- */
 export async function generateReelVideoBuffer(params: GenerateReelParams): Promise<Buffer> {
   const res = await generateCompleteReelVideo(params);
-  // Geçici final video dosyasını iş bittikten sonra sil
   try {
     if (res.videoFilePath) {
       fs.unlinkSync(res.videoFilePath);

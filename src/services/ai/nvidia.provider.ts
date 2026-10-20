@@ -52,10 +52,14 @@ export class NvidiaProvider implements AIProvider {
 
   private cleanGeneratedText(raw: string): string {
     let text = (raw || '').trim();
-    // Strip <think>...</think> reasoning tags
+    // Strip closed and unclosed <think> reasoning blocks
     text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-    // Strip "Here's a thinking process..." preamble
-    text = text.replace(/^Here's a thinking process:[\s\S]*?\n\n/i, '').trim();
+    text = text.replace(/<think>[\s\S]*$/gi, '').trim();
+    // Strip English chain-of-thought preambles if leaked into content
+    text = text.replace(/^(Here's a thinking process:|Thinking Process:|The user wants[\s\S]*?\n\n)/i, '').trim();
+    if (/^(The user wants|Let's analyze|Constraints:|We need to write)/i.test(text)) {
+      return '';
+    }
     // Strip markdown asterisks as per user rules
     text = text.replace(/\*\*/g, '').replace(/\*/g, '').trim();
     return text;
@@ -74,7 +78,7 @@ export class NvidiaProvider implements AIProvider {
         for (const modelId of step.candidateIds) {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 7000);
+            const timeoutId = setTimeout(() => controller.abort(), 9000);
 
             const res = await fetch(this.nvidiaBaseUrl, {
               method: 'POST',
@@ -87,8 +91,8 @@ export class NvidiaProvider implements AIProvider {
               body: JSON.stringify({
                 model: modelId,
                 messages: [{ role: 'user', content: prompt }],
-                temperature: 0.7,
-                max_tokens: 1024
+                temperature: 0.6,
+                max_tokens: 2048
               })
             });
 
@@ -97,7 +101,7 @@ export class NvidiaProvider implements AIProvider {
             if (res.ok) {
               const data = await res.json();
               const choice = data.choices?.[0]?.message;
-              const text = choice?.content || choice?.reasoning_content || '';
+              const text = choice?.content || '';
               const cleaned = this.cleanGeneratedText(text);
               if (cleaned) {
                 console.log(`[NvidiaProvider] SUCCESS via Direct NVIDIA: ${step.name} (${modelId})`);
@@ -124,7 +128,7 @@ export class NvidiaProvider implements AIProvider {
         try {
           console.log(`[NvidiaProvider] Trying OpenRouter mirror: ${orModel.name} (${orModel.id})...`);
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000);
+          const timeoutId = setTimeout(() => controller.abort(), 18000);
 
           const res = await fetch(this.openrouterBaseUrl, {
             method: 'POST',
@@ -138,8 +142,8 @@ export class NvidiaProvider implements AIProvider {
             body: JSON.stringify({
               model: orModel.id,
               messages: [{ role: 'user', content: prompt }],
-              temperature: 0.7,
-              max_tokens: 1024
+              temperature: 0.6,
+              max_tokens: 2500
             })
           });
 

@@ -1,5 +1,6 @@
+import { prisma } from "@/lib/db";
 import { AIFactory } from "@/services/ai/ai.factory";
-import { stripExternalSources, sanitizePlainText } from "@/lib/content/content-generator";
+import { sanitizePlainText } from "@/lib/content/content-generator";
 
 export interface ReelScriptScene {
   sceneIndex: number;
@@ -25,13 +26,82 @@ export interface ReelScriptData {
 }
 
 /**
- * Haberin detaylarını analiz ederek Facebook Reels için 100% habere özel,
- * akıcı ve dinamik bir Türkçe seslendirme senaryosu üretir.
- * Statik şablonları asla tekrar etmez; yapay zeka ile habere özgü metin hazırlar.
+ * HTML entity kodlarını (&#214; -> Ö, &#252; -> ü vb.) temiz Türkçe karakterlere dönüştürür.
  */
+function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ');
+}
+
+/**
+ * RSS özetleri kısa olduğunda haberin orijinal URL'sinden tam metin paragraflarını çeker.
+ * Böylece dinleyici ve izleyici haberin tüm detaylarını eksiksiz alır.
+ */
+async function fetchFullArticleText(title: string, existingText: string, sourceNewsId?: string): Promise<string> {
+  try {
+    const newsRecord = sourceNewsId
+      ? await prisma.news.findUnique({ where: { id: sourceNewsId }, include: { content: true } })
+      : await prisma.news.findFirst({ where: { title: { contains: title.slice(0, 35) } }, include: { content: true } });
+
+    if (!newsRecord) return existingText;
+
+    if (newsRecord.url && (newsRecord.url.startsWith('http://') || newsRecord.url.startsWith('https://'))) {
+      const res = await fetch(newsRecord.url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        signal: AbortSignal.timeout(7000)
+      });
+      if (res.ok) {
+        let html = await res.text();
+        // Menü, üst bilgi ve alt bilgi bloklarını temizle
+        html = html
+          .replace(/<(header|nav|footer|aside|script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+
+        const pMatches = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
+          .map(m => decodeHtmlEntities(m[1].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim())
+          .map(t => t
+            // Sayfa sonu etiket ve menü kalıntılarını kırp
+            .replace(/\b(DİĞER SPORLAR|DİĞER\s+[A-ZÇĞİÖŞÜ]|SONRAKİ HABER|Günün Spor Manşetleri|Tüm Manşetler|HANGİ MAÇ HANGİ KANALDA)[\s\S]*$/i, '')
+            // Araya sıkıştırılan alakasız manşet linklerini temizle
+            .replace(/Okan Buruk’tan Uğurcan'a özel görüşme!\s*"Yenilginin sorumlusu Italiano!"\s*Çakar'dan dikkat çeken hakem yorumu!/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+          )
+          .filter(t =>
+            t.length > 55 &&
+            /[.?!…]$/.test(t) &&
+            !/voleybol motor sporları|hangi maç hangi kanalda|tıklayınız|abone ol|çerez politikası|telif hakkı|tüm hakları/i.test(t)
+          );
+
+        if (pMatches.length > 0) {
+          const combined = pMatches.slice(0, 8).join(' ');
+          if (combined.length > existingText.length) {
+            return combined.slice(0, 3200);
+          }
+        }
+      }
+    }
+
+    if (newsRecord.content?.body && newsRecord.content.body.length > existingText.length) {
+      return newsRecord.content.body;
+    }
+  } catch (e: any) {
+    console.warn('[ReelScriptGenerator] Full article fetch warning:', e.message);
+  }
+  return existingText;
+}
+
 function cleanNewsForScript(title: string, rawText: string): string {
-  let cleaned = rawText
-    .replace(/(İşte detaylar|ayrıntılar|foto galeri|tıklayınız|tıklayın|muhabirimiz|haber merkezi|kaynak).*$/gi, '')
+  let cleaned = decodeHtmlEntities(rawText)
+    // Sadece klişe yönlendirme ifadelerini sil, devamındaki makale metnini KORU!
+    .replace(/\b(İşte detaylar|İşte o yorumlar|İşte ayrıntılar|Haberin detayları|Detaylar haberimizde)\s*[:.!…]*/gi, ' ')
     .replace(/\b(AA|DHA|İHA|IHA)\b/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -39,154 +109,155 @@ function cleanNewsForScript(title: string, rawText: string): string {
   return cleaned;
 }
 
+/**
+ * Sayıları ve skorları Türkçe spikerin kesintisiz okuması için yazıya çevirir.
+ * Cümle bölme işleminden ÖNCE çağrılır ki "8. haftasında" nokta yüzünden bölünmesin.
+ */
+function convertNumbersToTurkishWords(text: string): string {
+  const numMap: Record<string, string> = {
+    '0': 'sıfır', '1': 'bir', '2': 'iki', '3': 'üç', '4': 'dört',
+    '5': 'beş', '6': 'altı', '7': 'yedi', '8': 'sekiz', '9': 'dokuz', '10': 'on'
+  };
+  const ordMap: Record<string, string> = {
+    '1': 'birinci', '2': 'ikinci', '3': 'üçüncü', '4': 'dördüncü', '5': 'beşinci',
+    '6': 'altıncı', '7': 'yedinci', '8': 'sekizinci', '9': 'dokuzuncu', '10': 'onuncu',
+    '11': 'on birinci', '12': 'on ikinci', '71': 'yetmiş birinci', '82': 'seksen ikinci'
+  };
+
+  return text
+    // Skor + ekler: 2-0'lık -> iki sıfırlık, 2-0'a -> iki sıfıra
+    .replace(/\b(\d)\s*-\s*(\d)['’]?(lık|lik|luk|lük|a|e)?\b/gi, (_, a, b, suffix) => {
+      const base = `${numMap[a] || a} ${numMap[b] || b}`;
+      return suffix ? `${base}${suffix.toLocaleLowerCase('tr-TR')}` : base;
+    })
+    // Sıra sayıları: 8. hafta / 8. haftasında / 71. dakikada -> sekizinci haftasında
+    .replace(/\b(\d{1,2})\.\s*(hafta\w*|dakika\w*|sıra\w*|maç\w*|yarı\w*|sezon\w*)/gi, (_, n, word) => `${ordMap[n] || n} ${word}`);
+}
+
 export async function generateReelScript(params: {
   title: string;
   summary?: string | null;
   body?: string | null;
   category?: string | null;
+  sourceNewsId?: string;
 }): Promise<ReelScriptData> {
-  const cleanTitle = sanitizePlainText(params.title || '');
-  const rawBodyOrSummary = sanitizePlainText(params.body || params.summary || '');
-  const cleanSummary = cleanNewsForScript(cleanTitle, rawBodyOrSummary);
+  const cleanTitle = convertNumbersToTurkishWords(
+    sanitizePlainText(decodeHtmlEntities(params.title || ''))
+      .replace(/([!?])\s*;+/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
+
+  const rawInitial = sanitizePlainText(decodeHtmlEntities(params.body || params.summary || ''));
+  const fullArticleRaw = await fetchFullArticleText(cleanTitle, rawInitial, params.sourceNewsId);
+  const cleanInitialLead = convertNumbersToTurkishWords(cleanNewsForScript(cleanTitle, rawInitial));
+  const cleanSummary = convertNumbersToTurkishWords(cleanNewsForScript(cleanTitle, fullArticleRaw));
   const lowerText = `${cleanTitle} ${cleanSummary}`.toLocaleLowerCase('tr-TR');
 
-  // Kategori Tespiti
   let category: ReelScriptData['category'] = 'GENERAL';
-  let badgeTitle = 'BORDO MAVİ ÖZEL';
+  let badgeTitle = 'BORDO MAVİ HABER';
 
   if (lowerText.includes('transfer') || lowerText.includes('imza') || lowerText.includes('bonservis') || lowerText.includes('anlaşma')) {
     category = 'TRANSFER';
-    badgeTitle = 'TRANSFER MASASI';
-  } else if (lowerText.includes('derbi') || lowerText.includes('beşiktaş') || lowerText.includes('fenerbahçe') || lowerText.includes('galatasaray') || lowerText.includes('maç günü')) {
+  } else if (lowerText.includes('derbi') || lowerText.includes('beşiktaş') || lowerText.includes('fenerbahçe') || lowerText.includes('galatasaray') || lowerText.includes('maç')) {
     category = 'MATCH_PREVIEW';
-    badgeTitle = 'DERBİ GÜNDEMİ';
   } else if (lowerText.includes('sakat') || lowerText.includes('tedavi') || lowerText.includes('ameliyat') || lowerText.includes('revir')) {
     category = 'INJURY';
-    badgeTitle = 'SAĞLIK RAPORU';
-  } else if (lowerText.includes('ertuğrul doğan') || lowerText.includes('yönetim') || lowerText.includes('başkan') || lowerText.includes('sponsor')) {
+  } else if (lowerText.includes('ertuğrul doğan') || lowerText.includes('yönetim') || lowerText.includes('başkan') || lowerText.includes('yetki') || lowerText.includes('sponsor')) {
     category = 'MANAGEMENT';
-    badgeTitle = 'KULÜP KULİSİ';
   } else if (lowerText.includes('son dakika') || lowerText.includes('flaş') || lowerText.includes('resmi')) {
     category = 'BREAKING';
-    badgeTitle = 'SON DAKİKA';
   }
 
-  // 1. AI ile Habere Özel Orijinal, Doğal ve Akıcı Seslendirme Metni Üret
-  let aiNarration = '';
-  let customPollQuestion = '';
+  // Doğrudan haberin orijinal metninden ve tam makale paragraflarından %100 gerçek, eksiksiz ve akıcı Türkçe bülten oluştur
+  const cleanLeadSentences = cleanInitialLead
+    .replace(/\b(Fotomaç|Fanatik|Sabah|Hürriyet|Milliyet|61saat|Haber61|Günebakış|Taka|Kuzey Ekspres)\s*(Gazetesi('nin|'nde|)?|Haber('in|)?|Spor('un|)?)?\b/gi, 'spor basınının')
+    .split(/(?<=[.?!])\s+/)
+    .map(s => s.trim())
+    .filter(s =>
+      s.length > 25 &&
+      !s.endsWith('...') &&
+      !s.includes(',...') &&
+      !/\b(usta yazarları|köşelerinde değerlendirdi|işte detaylar|işte o yorumlar)\b/i.test(s)
+    );
 
-  try {
-    const aiProvider = AIFactory.getRouter("CONTENT_GENERATION");
-    const prompt = `
-Aşağıdaki Trabzonspor haberini 9:16 dikey Facebook Reels videosu için profesyonel bir kadın haber spikerinin seslendireceği dinamik, kurumsal ve akıcı bir TV bülten metnine dönüştür.
+  const articleSentences = cleanSummary
+    .replace(/\b(Fotomaç|Fanatik|Sabah|Hürriyet|Milliyet|61saat|Haber61|Günebakış|Taka|Kuzey Ekspres)\s*(Gazetesi('nin|'nde|)?|Haber('in|)?|Spor('un|)?)?\b/gi, 'spor basınının')
+    .replace(/\b[A-ZÇĞİÖŞÜ]{3,}(?:\s+[A-ZÇĞİÖŞÜ]{2,})+\s*-\s*(?:\b[A-ZÇĞİÖŞÜ0-9]{2,}\b[.,!…\s]*)+/g, ' ')
+    .split(/(?<=[.?!])\s+/)
+    .map(s => s.trim())
+    .filter(s =>
+      s.length > 35 &&
+      s.length < 190 &&
+      !s.includes('&#') &&
+      !s.endsWith('...') &&
+      !s.includes(',...') &&
+      !/\b(enseyi karartmayın|vesselam|yol kazasıdır|yiğit düştüğü|atamayana atarlar|izlediğim en güzel|haftanın en çok beklenen|tehlikeli pozisyonlar yakalıyor|alkışlamak lazım|tebrik etmek lazım|önemli bir fırsattan yararlanamadı)\b/i.test(s)
+    );
 
-Haber Başlığı: ${cleanTitle}
-Haber Detayı: ${cleanSummary}
-Kategori: ${badgeTitle}
+  // Haberin en somut bilgi içeren (gol, oyuncu, teknik direktör, skor, karar) cümlelerini önceliklendir
+  const scoredArticleSentences = articleSentences.map((s, idx) => {
+    let score = 100 - idx * 3;
+    if (/\b(Trabzonspor|Bordo-Mavi|gol|skor|dakika|puan|transfer|imza|başkan|teknik direktör|şampiyon)\b/i.test(s)) score += 25;
+    if (/\b(2-0|1-0|3-0|2-1|3-1|iki sıfır|galip|kazandı|mağlup|transfer|sözleşme)\b/i.test(s)) score += 20;
+    return { text: s, score, idx };
+  }).sort((a, b) => b.score - a.score);
 
-ZORUNLU KURALLAR (2026 META REELS ALGORİTMA STANDARDI):
-1. HABER KAYNAĞI YASAK: Kesinlikle dış haber ajansı veya kaynak adı (Günebakış, Haber61, 61saat vb.) KULLANMA.
-2. SESLENDİRME UYUMLULUĞU: 
-   - Tüm sayıları, skorları ve tarihleri doğrudan OKUNUŞLARIYLA (yazıyla) yaz (Örn: "iki bir", "üçüncü hafta", "yirmi beş milyon euro").
-   - Kısaltma KULLANMA; açıkça yaz (Örn: "teknik direktör", "dakika").
-3. AKICI VE DOĞAL DİLBİLGİSİ:
-   - Cümleler devrik veya anlamsız olmamalı; tam ve kurallı Türkçe spiker cümleleri kur.
-   - "Sıcak saatler yaşanıyor", "bomba gelişme" gibi klişeler yerine doğrudan konunun özüne odaklan.
-4. METİN UZUNLUĞU: Toplam 45-60 kelime arasında, ~18-24 saniyede rahatça okunacak ideal Facebook Reels temposunda olsun.
-5. METİN AKIŞI:
-   - Kanca: Haberin en kritik gelişmesini ilk cümlede net ver.
-   - Detay: Teknik heyet, yönetim veya oyuncunun reaksiyonunu açıkla.
-   - Etkileşim: İzleyicinin fikrini soran tek ve samimi bir soruyla bitir (Örn: "Sizce bu karar fırtınanın gidişatını nasıl etkiler? Yorumlarınızı bekliyoruz.").
-6. ANKET ÇIKARTMASI: Metnin sonuna ayrı bir satırda "ANKET: <4-6 kelimelik soru>" şeklinde ekranda gösterilecek anket kartı sorusunu yaz (Örn: "ANKET: Sizce bu transfer doğru mu?").
-7. Yalnızca mikrofonda doğrudan okunacak yalın metni ver. Parantez, sahne yönergesi, tırnak veya emoji KULLANMA.`;
+  const selectedTop = scoredArticleSentences.slice(0, 6).sort((a, b) => a.idx - b.idx).map(x => x.text);
 
-    const generated = await aiProvider.generateContent(prompt);
-    let rawTextOutput = sanitizePlainText(generated || '');
+  let combined = cleanLeadSentences.length > 0 ? cleanLeadSentences.join(' ') : `${cleanTitle}.`;
 
-    // Anket sorusunu ayıkla
-    const pollMatch = rawTextOutput.match(/ANKET:\s*([^\n\r]+)/i);
-    if (pollMatch && pollMatch[1]) {
-      customPollQuestion = pollMatch[1].replace(/[?"']/g, '').trim() + '?';
-      rawTextOutput = rawTextOutput.replace(/ANKET:\s*[^\n\r]+/gi, '').trim();
+  for (const s of selectedTop) {
+    const currentWords = combined.split(/\s+/).filter(Boolean).length;
+    if (currentWords >= 51) break;
+    const firstFew = s.split(/\s+/).slice(0, 4).join(' ').toLocaleLowerCase('tr-TR');
+    if (!combined.toLocaleLowerCase('tr-TR').includes(firstFew)) {
+      combined = `${combined} ${s}`.trim();
     }
-
-    aiNarration = rawTextOutput
-      .replace(/\[.*?\]/g, '')
-      .replace(/\(.*?\)/g, '')
-      .replace(/^(Sahne|Kanca|Seslendirme|Metin|Spiker)\s*\d*:\s*/gim, '')
-      .trim();
-  } catch (err: any) {
-    console.warn("[ReelScriptGenerator] AI script generation warning, using dynamic fallback:", err.message);
   }
 
-  // 2026 Meta Algoritma Standardı: İdeal video süresi 18-28 sn (45-60 kelime)
-  const currentWordCount = aiNarration.split(/\s+/).filter(Boolean).length;
-  if (!aiNarration || currentWordCount < 35 || aiNarration.length < 200) {
-    let hook = `Trabzonspor gündeminde ${cleanTitle} gelişmesi dikkatleri üzerine çekti.`;
-    const firstSentences = cleanSummary.split(/(?<=[.?!])\s+/).filter(Boolean);
-    const shortDetail = firstSentences.slice(0, 2).join(' ').trim();
-    let detail = shortDetail.length >= 30 && shortDetail.length <= 220
-      ? shortDetail
-      : (shortDetail.slice(0, 200).replace(/\s+\S*$/, '') + '.');
-    if (detail.length < 30) {
-      detail = 'Bordo-Mavili teknik heyet ve yönetimin konuyla ilgili planlamalarını titizlikle sürdürdüğü, gelişmelerin yakından takip edildiği bildirildi.';
+  // Eğer hala 50 kelimenin altındaysa kalan makale cümlelerinden ekle
+  for (const s of articleSentences) {
+    const currentWords = combined.split(/\s+/).filter(Boolean).length;
+    if (currentWords >= 51) break;
+    const firstFew = s.split(/\s+/).slice(0, 4).join(' ').toLocaleLowerCase('tr-TR');
+    if (!combined.toLocaleLowerCase('tr-TR').includes(firstFew)) {
+      combined = `${combined} ${s}`.trim();
     }
-
-    let cta = category === 'TRANSFER' 
-      ? 'Sizce bu transfer hamlesi takıma sınıf atlatır mı? Görüşlerinizi ve yorumlarınızı bekliyoruz!'
-      : category === 'MATCH_PREVIEW'
-      ? 'Bu kritik mücadele öncesi takımın performansını nasıl değerlendiriyorsunuz? Yorumlarda buluşalım!'
-      : 'Peki siz bu son gelişmeyi nasıl değerlendiriyorsunuz? Fikirlerinizi yorumlarda paylaşmayı unutmayın!';
-
-    aiNarration = `${hook} ${detail} ${cta}`;
   }
 
-  // Maksimum 60 kelime tavanı (18-28 saniye tatlı noktasını korumak için)
-  if (aiNarration.split(/\s+/).filter(Boolean).length > 60) {
+  const closingCta = 'Peki siz bu gelişmeyi nasıl değerlendiriyorsunuz? Görüşlerinizi yorumlarda paylaşın.';
+  let aiNarration = `${combined} ${closingCta}`.replace(/\s+/g, ' ').trim();
+
+  // Maksimum 60 kelime tavanı (Kesin 25.5 - 28.5 saniye stüdyo spiker + video süresi için)
+  const words = aiNarration.split(/\s+/).filter(Boolean);
+  if (words.length > 60) {
     const allSentences = aiNarration.split(/(?<=[.?!])\s+/).filter(Boolean);
     let bounded = '';
     for (const s of allSentences) {
-      if ((bounded + ' ' + s).trim().split(/\s+/).length <= 58) {
+      if ((bounded + ' ' + s).trim().split(/\s+/).length <= 60) {
         bounded = (bounded + ' ' + s).trim();
       } else break;
     }
-    aiNarration = bounded || allSentences.slice(0, 3).join(' ');
+    aiNarration = bounded || words.slice(0, 58).join(' ') + '.';
   }
 
-  // 2. Etkileşim ve Dwell Time Artırıcı Anket (Poll Card) Sorusu & Seçenekleri
-  let pollQuestion = customPollQuestion || 'Sizce bu gelişme doğru mu?';
-  let pollOption1 = 'Evet, tam isabet';
-  let pollOption2 = 'Hayır, gereksiz';
+  aiNarration = convertNumbersToTurkishWords(aiNarration);
 
-  if (category === 'TRANSFER') {
-    pollQuestion = customPollQuestion || 'Sizce bu transfer doğru mu?';
-    pollOption1 = 'Evet, tam isabet';
-    pollOption2 = 'Hayır, gereksiz';
-  } else if (category === 'MATCH_PREVIEW') {
-    pollQuestion = customPollQuestion || 'Trabzonspor bu maçı kazanır mı?';
-    pollOption1 = 'Evet, kazanırız';
-    pollOption2 = 'Zor maç, puan kaybı';
-  } else if (category === 'MANAGEMENT') {
-    pollQuestion = customPollQuestion || 'Yönetimin bu kararı doğru mu?';
-    pollOption1 = 'Evet, sonuna kadar';
-    pollOption2 = 'Hayır, yanlış karar';
-  } else if (category === 'INJURY') {
-    pollQuestion = customPollQuestion || 'Bu sakatlık takımı nasıl etkiler?';
-    pollOption1 = 'Yerini doldururuz';
-    pollOption2 = 'Ciddi kayıp yaşarız';
-  } else if (category === 'BREAKING') {
-    pollQuestion = customPollQuestion || 'Bu son dakika kararını destekliyor musunuz?';
-    pollOption1 = 'Evet, katılıyorum';
-    pollOption2 = 'Hayır, katılmıyorum';
-  }
+  // Kullanıcının istediği sabit etkileşim butonları:
+  // Sol: "✓ Evet, Beğen" (Parmak işareti ile) | Sağ: "Hayır, Yorum Yap"
+  let pollQuestion = 'Sizce bu gelişme doğru mu?';
+  if (category === 'TRANSFER') pollQuestion = 'Sizce bu transfer hamlesi doğru mu?';
+  else if (category === 'MATCH_PREVIEW') pollQuestion = 'Takımın derbi performansını beğendiniz mi?';
+  else if (category === 'MANAGEMENT') pollQuestion = 'Yönetimin bu kararını destekliyor musunuz?';
+  else if (category === 'INJURY') pollQuestion = 'Eksikler takımın oyununu etkiler mi?';
 
-  // 3. Metni Cümlelere Böl (Altyazı ve Görsel Zamanlaması İçin)
+  const pollOption1 = 'Evet, Beğen';
+  const pollOption2 = 'Hayır, Yorum Yap';
+
   const sentences = aiNarration.split(/(?<=[.?!])\s+/).filter(s => s.trim().length > 0);
-  
-  // Ortalama konuşma hızı: ~2.8 kelime/saniye (1.32x tempolu okuma)
-  const wordCount = aiNarration.split(/\s+/).length;
-  const estimatedDuration = Math.max(18, Math.min(32, Math.round(wordCount / 2.7)));
-
+  const finalWordCount = aiNarration.split(/\s+/).length;
+  const estimatedDuration = Math.max(25, Math.min(30, Math.round(finalWordCount / 2.65)));
   const sceneDuration = +(estimatedDuration / 4).toFixed(1);
 
   const scenes: ReelScriptScene[] = [
@@ -204,7 +275,7 @@ ZORUNLU KURALLAR (2026 META REELS ALGORİTMA STANDARDI):
       timeRange: `${sceneDuration} - ${(sceneDuration * 2).toFixed(1)} sn`,
       startSecond: sceneDuration,
       durationSeconds: sceneDuration,
-      badge: 'GELİŞME DETAYI',
+      badge: 'DETAY',
       subtitle: sentences[1] || cleanTitle,
       spokenText: sentences[1] || cleanTitle
     },
@@ -213,7 +284,7 @@ ZORUNLU KURALLAR (2026 META REELS ALGORİTMA STANDARDI):
       timeRange: `${(sceneDuration * 2).toFixed(1)} - ${(sceneDuration * 3).toFixed(1)} sn`,
       startSecond: +(sceneDuration * 2).toFixed(1),
       durationSeconds: sceneDuration,
-      badge: 'PERDE ARKASI',
+      badge: 'ANALİZ',
       subtitle: sentences[2] || sentences[sentences.length - 2] || cleanSummary.slice(0, 80),
       spokenText: sentences[2] || sentences[sentences.length - 2] || cleanSummary.slice(0, 80)
     },
@@ -222,17 +293,12 @@ ZORUNLU KURALLAR (2026 META REELS ALGORİTMA STANDARDI):
       timeRange: `${(sceneDuration * 3).toFixed(1)} - ${estimatedDuration} sn`,
       startSecond: +(sceneDuration * 3).toFixed(1),
       durationSeconds: +(estimatedDuration - sceneDuration * 3).toFixed(1),
-      badge: 'SENİN GÖRÜŞÜN?',
-      subtitle: sentences[sentences.length - 1] || 'Fikrini yorumlarda belirt!',
-      spokenText: sentences[sentences.length - 1] || 'Fikrini yorumlarda belirt!'
+      badge: 'YORUM',
+      subtitle: sentences[sentences.length - 1] || 'Görüşlerinizi yorumlarda paylaşın.',
+      spokenText: sentences[sentences.length - 1] || 'Görüşlerinizi yorumlarda paylaşın.'
     }
   ];
 
-  // 4. Meta 2026 Algoritma Standartlarında Facebook Reels Açıklaması:
-  // - Engagement bait yok
-  // - Doğal spiker anlatımı
-  // - Yalnızca "✍️ Editör" imzası
-  // - 3 ila 5 CamelCase hashtag
   const categoryTag = category === 'TRANSFER' ? '#TransferHaberleri' : category === 'MATCH_PREVIEW' ? '#MaçGünü' : '#SonDakika';
   const facebookCaption = `🎬 ${cleanTitle}\n\n${aiNarration}\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #SüperLig ${categoryTag} #Reels`;
 

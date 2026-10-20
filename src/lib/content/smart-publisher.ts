@@ -1,9 +1,72 @@
 import { prisma } from '@/lib/db';
 
+export type ScheduledSlotType = 'REELS' | 'TEXT' | 'NONE';
+
+export interface DailySlotDefinition {
+  id: 'SLOT_0700_REELS' | 'SLOT_1100_TEXT' | 'SLOT_1500_REELS' | 'SLOT_2030_REELS';
+  timeLabel: '07:00' | '11:00' | '15:00' | '20:30';
+  windowName: string;
+  type: 'REELS' | 'TEXT';
+  startHour: number;
+  startMinute: number;
+  /** Slotun aktif kabul edildiği tolerans süresi (dakika). Örn: 07:00 - 07:45 arası */
+  toleranceMinutes: number;
+}
+
+/**
+ * KESİN GÜNLÜK YAYIN TAKVİMİ (Türkiye Saati - Europe/Istanbul)
+ * Bu 4 saat dilimi dışına kesinlikle çıkılmaz:
+ * - 07:00 -> REELS
+ * - 11:00 -> METİN HABERİ (TEXT)
+ * - 15:00 -> REELS
+ * - 20:30 -> REELS
+ */
+export const STRICT_DAILY_SCHEDULE: DailySlotDefinition[] = [
+  {
+    id: 'SLOT_0700_REELS',
+    timeLabel: '07:00',
+    windowName: '07:00 Sabah Reels Bülteni',
+    type: 'REELS',
+    startHour: 7,
+    startMinute: 0,
+    toleranceMinutes: 55
+  },
+  {
+    id: 'SLOT_1100_TEXT',
+    timeLabel: '11:00',
+    windowName: '11:00 Gün Ortası Metin Haberi',
+    type: 'TEXT',
+    startHour: 11,
+    startMinute: 0,
+    toleranceMinutes: 55
+  },
+  {
+    id: 'SLOT_1500_REELS',
+    timeLabel: '15:00',
+    windowName: '15:00 Öğleden Sonra Reels Bülteni',
+    type: 'REELS',
+    startHour: 15,
+    startMinute: 0,
+    toleranceMinutes: 55
+  },
+  {
+    id: 'SLOT_2030_REELS',
+    timeLabel: '20:30',
+    windowName: '20:30 Akşam Prime-Time Reels Bülteni',
+    type: 'REELS',
+    startHour: 20,
+    startMinute: 30,
+    toleranceMinutes: 55
+  }
+];
+
 export interface PublishingQuotaInfo {
   hour: number;
   minute: number;
+  dateKey: string;
   quota: number;
+  allowedType: ScheduledSlotType;
+  activeSlotId?: DailySlotDefinition['id'];
   windowName: string;
   efficiencyRate: string;
   delayMsBetweenPosts: number;
@@ -11,192 +74,223 @@ export interface PublishingQuotaInfo {
   cooldownActive?: boolean;
   minutesSinceLastPost?: number;
   todayCount?: number;
+  nextSlotLabel?: string;
 }
 
 export class SmartPublisher {
   /**
-   * Returns current hour and minute in Turkey Time (Europe/Istanbul)
+   * Türkiye saat dilimine (Europe/Istanbul) göre güncel tarih, saat ve dakikayı döndürür.
    */
-  static getTurkeyTime(): { hour: number; minute: number } {
+  static getTurkeyTime(): { hour: number; minute: number; dateKey: string; nowTurkey: Date } {
     try {
-      const nowStr = new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" });
-      const turkeyDate = new Date(nowStr);
-      return {
-        hour: turkeyDate.getHours(),
-        minute: turkeyDate.getMinutes()
-      };
+      const now = new Date();
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Istanbul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).formatToParts(now);
+
+      const map: Record<string, string> = {};
+      for (const p of parts) {
+        map[p.type] = p.value;
+      }
+
+      const year = map.year || '2026';
+      const month = map.month || '01';
+      const day = map.day || '01';
+      const hour = parseInt(map.hour || '0', 10) % 24;
+      const minute = parseInt(map.minute || '0', 10);
+      const dateKey = `${year}-${month}-${day}`;
+
+      const nowStr = now.toLocaleString('en-US', { timeZone: 'Europe/Istanbul' });
+      return { hour, minute, dateKey, nowTurkey: new Date(nowStr) };
     } catch {
       const now = new Date();
-      const utcHour = now.getUTCHours();
+      const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+      const trDate = new Date(utcMs + 3 * 3600000);
+      const yyyy = trDate.getFullYear();
+      const mm = String(trDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(trDate.getDate()).padStart(2, '0');
       return {
-        hour: (utcHour + 3) % 24,
-        minute: now.getUTCMinutes()
+        hour: trDate.getHours(),
+        minute: trDate.getMinutes(),
+        dateKey: `${yyyy}-${mm}-${dd}`,
+        nowTurkey: trDate
       };
     }
   }
 
   /**
-   * Calculates the exact publishing quota for the current cycle.
-   * Enforces Facebook EdgeRank algorithm rules:
-   * 1. Night Sleep Mode (23:45 - 08:00): 0 posts
-   * 2. Pacing Cooldown: At least 90 minutes between automated posts
-   * 3. Daily Cap: Maximum 8 high-quality posts per day
-   * 4. Single-post dispatch: Maximum 1 post per cycle to allow full organic reach
+   * Sıradaki yayın saatini hesaplar.
+   */
+  static getNextSlotLabel(currentMinutes: number): string {
+    for (const slot of STRICT_DAILY_SCHEDULE) {
+      const slotStart = slot.startHour * 60 + slot.startMinute;
+      if (currentMinutes < slotStart) {
+        return `${slot.timeLabel} (${slot.type === 'REELS' ? 'Reels' : 'Metin Haberi'})`;
+      }
+    }
+    return `Yarın 07:00 (Reels)`;
+  }
+
+  /**
+   * Bir slot yayınlandığında veritabanına kaydeder ki aynı slotta ikinci kez paylaşım yapılmasın.
+   */
+  static async markSlotPublished(slotId: string, dateKey?: string): Promise<void> {
+    try {
+      const targetDate = dateKey || this.getTurkeyTime().dateKey;
+      const settingKey = `PUBLISHED_SLOT_${targetDate}_${slotId}`;
+      await prisma.setting.upsert({
+        where: { key: settingKey },
+        update: { value: new Date().toISOString() },
+        create: { key: settingKey, value: new Date().toISOString() }
+      });
+    } catch (e: any) {
+      console.warn('[SmartPublisher] markSlotPublished warning:', e.message);
+    }
+  }
+
+  /**
+   * Kesin Günlük Yayın Takvimi Denetimi:
+   * - 07:00 -> REELS
+   * - 11:00 -> TEXT (Metin Haberi)
+   * - 15:00 -> REELS
+   * - 20:30 -> REELS
+   * Bu 4 zaman dilimi dışında kesinlikle paylaşım yapılmaz (quota = 0, allowedType = 'NONE').
    */
   static async getPublishingQuota(): Promise<PublishingQuotaInfo> {
-    const { hour, minute } = this.getTurkeyTime();
-    const timeDecimal = hour + minute / 60;
-
-    // 1. Gece Uyku Modu (23:00 - 08:30) -> 0 Paylaşım (Spam & Algoritma Koruma)
-    if (timeDecimal >= 23.0 || timeDecimal < 8.5) {
-      return {
-        hour,
-        minute,
-        quota: 0,
-        windowName: "Gece Uyku & Dinlenme Modu (23:00 - 08:30)",
-        efficiencyRate: "Düşük (%5)",
-        delayMsBetweenPosts: 0,
-        reason: "Gece saatlerinde organik etkileşim düşüktür. Facebook EdgeRank algoritmasının sayfayı spama düşürmemesi ve sayfa kalite puanını korumak için yayın bekletilir."
-      };
-    }
+    const { hour, minute, dateKey, nowTurkey } = this.getTurkeyTime();
+    const currentMinutes = hour * 60 + minute;
+    const nextSlotLabel = this.getNextSlotLabel(currentMinutes);
 
     try {
-      // 2. Algoritmik Soğuma (Pacing Guard) Denetimi: Facebook algoritmasını korumak için en az 3 saat (180 dk) beklenir
-      const lastPublished = await prisma.content.findFirst({
-        where: {
-          status: 'PUBLISHED',
-          publishedAt: { not: null }
-        },
-        orderBy: { publishedAt: 'desc' },
-        select: { publishedAt: true, title: true }
-      });
-
-      let minutesSinceLastPost = 999;
-      if (lastPublished?.publishedAt) {
-        minutesSinceLastPost = Math.floor((Date.now() - new Date(lastPublished.publishedAt).getTime()) / (60 * 1000));
-      }
-
-      const MIN_COOLDOWN_MINUTES = 180; // 3 saatte bir yayın (EdgeRank en yüksek dağıtım kuralı)
-      if (minutesSinceLastPost < MIN_COOLDOWN_MINUTES) {
-        return {
-          hour,
-          minute,
-          quota: 0,
-          windowName: "Algoritmik Pacing (3 Saatlik Güvenli Soğuma)",
-          efficiencyRate: "Durduruldu",
-          delayMsBetweenPosts: 0,
-          cooldownActive: true,
-          minutesSinceLastPost,
-          reason: `Son paylaşımdan bu yana ${minutesSinceLastPost} dk geçti. Facebook spam filtresine takılmamak ve mevcut gönderinin keşfette yayılması için iki gönderi arası en az 3 saat (${MIN_COOLDOWN_MINUTES} dk) bekleniyor. Kalan süre: ${MIN_COOLDOWN_MINUTES - minutesSinceLastPost} dk.`
-        };
-      }
-
-      // 3. Günlük Tavan Sınırı (Daily Cap Guard): Maksimum 5 gönderi (3 saatlik aralıklarla optimum dağılım)
-      const nowTurkey = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
       const startOfTodayTurkey = new Date(nowTurkey);
       startOfTodayTurkey.setHours(0, 0, 0, 0);
 
-      const todayCount = await prisma.content.count({
+      const todayPublished = await prisma.content.findMany({
         where: {
           status: 'PUBLISHED',
           publishedAt: { gte: startOfTodayTurkey }
-        }
+        },
+        orderBy: { publishedAt: 'desc' },
+        select: { id: true, type: true, publishedAt: true, title: true }
       });
 
-      const MAX_DAILY_POSTS = 5;
+      const todayCount = todayPublished.length;
+      const lastPublished = todayPublished[0];
+      const minutesSinceLastPost = lastPublished?.publishedAt
+        ? Math.floor((Date.now() - new Date(lastPublished.publishedAt).getTime()) / (60 * 1000))
+        : 999;
+
+      // Günlük maksimum 4 paylaşım (3 Reels + 1 Metin Haberi)
+      const MAX_DAILY_POSTS = 4;
       if (todayCount >= MAX_DAILY_POSTS) {
         return {
           hour,
           minute,
+          dateKey,
           quota: 0,
-          windowName: `Günlük Tavan Doldu (${todayCount}/${MAX_DAILY_POSTS})`,
-          efficiencyRate: "Tamamlandı",
+          allowedType: 'NONE',
+          windowName: `Günlük Takvim Tamamlandı (${todayCount}/${MAX_DAILY_POSTS})`,
+          efficiencyRate: 'Tamamlandı (%100)',
           delayMsBetweenPosts: 0,
           todayCount,
-          reason: `Bugün hedeflenen maksimum ${MAX_DAILY_POSTS} gönderi limitine ulaşıldı (${todayCount} paylaşıldı). Takipçi doygunluğunu önlemek ve sayfa etkileşim oranını zirvede tutmak için kalan içerikler ertesi güne aktarılıyor.`
+          minutesSinceLastPost,
+          nextSlotLabel: 'Yarın 07:00 (Reels)',
+          reason: `Günlük 4 paylaşım takvimi (07:00 Reels, 11:00 Metin, 15:00 Reels, 20:30 Reels) bugün için tamamlandı.`
         };
       }
 
-      // 4. Zaman Pencerelerine Göre Verimlilik Analizi (Her pencerede TAM 1 gönderi)
-      if (timeDecimal >= 20.0 && timeDecimal < 23.0) {
+      // Şu anki saatin 4 kesin slottan birinin içinde olup olmadığını kontrol et
+      const matchedSlot = STRICT_DAILY_SCHEDULE.find((slot) => {
+        const slotStart = slot.startHour * 60 + slot.startMinute;
+        const slotEnd = slotStart + slot.toleranceMinutes;
+        return currentMinutes >= slotStart && currentMinutes <= slotEnd;
+      });
+
+      if (!matchedSlot) {
         return {
           hour,
           minute,
-          quota: 1,
-          windowName: "Akşam Zirvesi & Primetime Tartışma (20:00 - 23:00)",
-          efficiencyRate: "Zirve (%99)",
+          dateKey,
+          quota: 0,
+          allowedType: 'NONE',
+          windowName: `Takvim Dışı Bekleme Modu (Saat ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')})`,
+          efficiencyRate: 'Kilitli (Takvim Koruma)',
           delayMsBetweenPosts: 0,
-          minutesSinceLastPost,
+          cooldownActive: true,
           todayCount,
-          reason: `Optimum yayın penceresi: Son paylaşımdan bu yana ${minutesSinceLastPost} dk geçti. Günün ${todayCount + 1}. gönderisi (Akşam Primetime) onaylandı.`
+          minutesSinceLastPost,
+          nextSlotLabel,
+          reason: `Kesin Yayın Takvimi aktif (07:00 Reels, 11:00 Metin Haberi, 15:00 Reels, 20:30 Reels). Şu an yayın penceresi dışındayız. Sıradaki yayın: ${nextSlotLabel}.`
         };
       }
 
-      if (timeDecimal >= 17.0 && timeDecimal < 19.5) {
+      // Bu slot bugün zaten yayınlandı mı kontrol et (1. Setting kaydı, 2. Son 50 dk içindeki yayın kaydı)
+      const settingKey = `PUBLISHED_SLOT_${dateKey}_${matchedSlot.id}`;
+      const existingSlotLock = await prisma.setting.findUnique({ where: { key: settingKey } });
+
+      const alreadyPublishedInWindow = Boolean(existingSlotLock) || todayPublished.some((item) => {
+        if (!item.publishedAt) return false;
+        const pubTrStr = new Date(item.publishedAt).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' });
+        const pubTr = new Date(pubTrStr);
+        const pubMinutes = pubTr.getHours() * 60 + pubTr.getMinutes();
+        const slotStart = matchedSlot.startHour * 60 + matchedSlot.startMinute;
+        return pubMinutes >= slotStart - 5 && pubMinutes <= slotStart + matchedSlot.toleranceMinutes + 10;
+      });
+
+      if (alreadyPublishedInWindow) {
         return {
           hour,
           minute,
-          quota: 1,
-          windowName: "İş Çıkışı & Sıcak Gündem (17:00 - 19:30)",
-          efficiencyRate: "Çok Yüksek (%92)",
+          dateKey,
+          quota: 0,
+          allowedType: 'NONE',
+          activeSlotId: matchedSlot.id,
+          windowName: `${matchedSlot.windowName} (Yayınlandı ✅)`,
+          efficiencyRate: 'Tamamlandı',
           delayMsBetweenPosts: 0,
-          minutesSinceLastPost,
+          cooldownActive: true,
           todayCount,
-          reason: `İş çıkışı taraftar mobil trafiği zirvede. Günün ${todayCount + 1}. gönderisi onaylandı.`
+          minutesSinceLastPost,
+          nextSlotLabel,
+          reason: `${matchedSlot.windowName} dilimine ait paylaşım bugün başarıyla yapıldı. Sıradaki yayın: ${nextSlotLabel}.`
         };
       }
 
-      if (timeDecimal >= 12.0 && timeDecimal < 14.5) {
-        return {
-          hour,
-          minute,
-          quota: 1,
-          windowName: "Öğle Molası Zirvesi (12:00 - 14:30)",
-          efficiencyRate: "Yüksek (%88)",
-          delayMsBetweenPosts: 0,
-          minutesSinceLastPost,
-          todayCount,
-          reason: `Öğle arası mobil internet trafiği yüksek. Günün ${todayCount + 1}. gönderisi için izin verildi.`
-        };
-      }
-
-      if (timeDecimal >= 8.5 && timeDecimal < 11.5) {
-        return {
-          hour,
-          minute,
-          quota: 1,
-          windowName: "Sabah Gazeteleri & İlk Manşetler (08:30 - 11:30)",
-          efficiencyRate: "Yüksek (%82)",
-          delayMsBetweenPosts: 0,
-          minutesSinceLastPost,
-          todayCount,
-          reason: `Sabah gündemi için günün ${todayCount + 1}. gönderisi yayınlanıyor.`
-        };
-      }
-
+      // Slot aktif ve henüz yayınlanmadı -> Tam 1 adet (matchedSlot.type) yayına izin ver!
       return {
         hour,
         minute,
+        dateKey,
         quota: 1,
-        windowName: "Standart Gün İçi Penceresi",
-        efficiencyRate: "Orta (%70)",
+        allowedType: matchedSlot.type,
+        activeSlotId: matchedSlot.id,
+        windowName: matchedSlot.windowName,
+        efficiencyRate: 'Kesin Takvim (%100)',
         delayMsBetweenPosts: 0,
-        minutesSinceLastPost,
         todayCount,
-        reason: `Düzenli 3 saatlik aralık korundu (${minutesSinceLastPost} dk). Günün ${todayCount + 1}. gönderisi onaylandı.`
+        minutesSinceLastPost,
+        nextSlotLabel,
+        reason: `${matchedSlot.windowName} saati geldi. Otomatik ${matchedSlot.type === 'REELS' ? 'Reels Videosu' : 'Metin Haberi'} yayını onaylandı.`
       };
-
     } catch (err: any) {
-      console.error("[SmartPublisher] Error checking database state:", err);
-      // Hata durumunda güvenli tarafta kal: spam önleme adına 0 kota dön
+      console.error('[SmartPublisher] Error checking database state:', err);
       return {
         hour,
         minute,
+        dateKey,
         quota: 0,
-        windowName: "Güvenli Hata Modu",
-        efficiencyRate: "Belirsiz",
+        allowedType: 'NONE',
+        windowName: 'Güvenli Hata Modu',
+        efficiencyRate: 'Belirsiz',
         delayMsBetweenPosts: 0,
-        reason: `Veritabanı kontrolünde hata oluştu (${err.message}). Spam riskini önlemek için yayın bekletiliyor.`
+        reason: `Veritabanı kontrolünde hata oluştu (${err.message}). Takvim dışına çıkmamak için yayın bekletiliyor.`
       };
     }
   }

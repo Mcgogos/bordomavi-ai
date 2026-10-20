@@ -60,27 +60,51 @@ async function handleSync(request: Request) {
     console.log("[CRON] Phase 4: Checking content quality...");
     const qualityResult = await checkContentQuality(3);
 
-    // 5. Facebook'ta Yayınla — Algoritmik Pacing (3 saat cooldown) & Günlük Tavan (5 post) denetimi
+    // 5. KESİN GÜNLÜK YAYIN TAKVİMİ (07:00 Reels, 11:00 Metin Haberi, 15:00 Reels, 20:30 Reels)
+    // Bu 4 saat dilimi dışına kesinlikle çıkılmaz!
     const forcePublish = searchParams.get('force') === 'true';
+    const forcedSlotType = searchParams.get('slot')?.toUpperCase(); // 'REELS' | 'TEXT'
     const quotaInfo = await SmartPublisher.getPublishingQuota();
-    console.log(`[CRON] Phase 5: Publishing to Facebook (${quotaInfo.windowName} - Kota: ${quotaInfo.quota}, Force: ${forcePublish})...`);
-    
-    const quotaToUse = forcePublish ? 1 : quotaInfo.quota;
-    let publishResult = { success: true, requested: quotaToUse, processed: 0, failed: 0, results: [] as any[] };
-    if (quotaToUse > 0) {
-      publishResult = await publishReadyContent(quotaToUse, forcePublish);
-    } else {
-      console.log(`[CRON] Phase 5 (PASSED): ${quotaInfo.reason}`);
-    }
 
-    // 5b. Otomatik AI Reels Üretim ve Yayın Döngüsü (Günlük maks 3, 3 saatlik soğuma, 75+ AI skoru)
-    console.log("[CRON] Phase 5b: Checking Autonomous AI Reels pipeline...");
+    console.log(`[CRON] Phase 5: Schedule Check (${quotaInfo.windowName} | Allowed: ${quotaInfo.allowedType} | Quota: ${quotaInfo.quota} | Force: ${forcePublish})...`);
+
+    let publishResult: any = {
+      success: true,
+      requested: 0,
+      processed: 0,
+      failed: 0,
+      cooldownActive: quotaInfo.cooldownActive,
+      minutesSinceLastPost: quotaInfo.minutesSinceLastPost,
+      todayCount: quotaInfo.todayCount,
+      reason: quotaInfo.reason,
+      results: [] as any[]
+    };
     let reelResult: any = null;
-    try {
-      reelResult = await runAutonomousReelWorkflow({ force: forcePublish });
-      console.log(`[CRON] Phase 5b Reels Status: ${reelResult.success ? 'PUBLISHED' : (reelResult.skippedReason || reelResult.error || 'SKIPPED')}`);
-    } catch (reelErr: any) {
-      console.warn("[CRON] Phase 5b Reels non-blocking error:", reelErr.message);
+
+    if (forcePublish) {
+      if (forcedSlotType === 'REELS') {
+        reelResult = await runAutonomousReelWorkflow({ force: true });
+      } else {
+        publishResult = await publishReadyContent(1, true);
+      }
+    } else if (quotaInfo.quota > 0 && quotaInfo.allowedType === 'TEXT') {
+      // Saat 11:00 -> Metin Haberi Slotu
+      console.log("[CRON] 🕚 11:00 Metin Haberi Slotu aktif -> Metin haberi yayınlanıyor...");
+      publishResult = await publishReadyContent(1, false);
+    } else if (quotaInfo.quota > 0 && quotaInfo.allowedType === 'REELS') {
+      // Saat 07:00, 15:00 veya 20:30 -> Reels Slotu
+      console.log(`[CRON] 🎬 ${quotaInfo.windowName} aktif -> Otonom Reels videosu üretiliyor ve yayınlanıyor...`);
+      try {
+        reelResult = await runAutonomousReelWorkflow({ force: false });
+        if (reelResult?.success) {
+          publishResult.processed = 1;
+          publishResult.reason = `${quotaInfo.windowName} kapsamında Reels başarıyla yayınlandı.`;
+        }
+      } catch (reelErr: any) {
+        console.warn("[CRON] Reels slot error:", reelErr.message);
+      }
+    } else {
+      console.log(`[CRON] Phase 5 (LOCKED): ${quotaInfo.reason}`);
     }
 
     // 6. Canlı Facebook İstatistiklerini Senkronize Et (Son 5 Gönderi)
@@ -91,6 +115,7 @@ async function handleSync(request: Request) {
 
     return NextResponse.json({
       success: true,
+      scheduleSlot: quotaInfo,
       collection: collectResult,
       analysis: {
         requested: analyzeResult.requested,

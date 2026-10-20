@@ -807,9 +807,9 @@ async function main() {
   log('=== BordoMavi AI Otomatik Yayınlayıcı Başlatıldı ===');
   log('====================================================');
 
-  const apiKey = env.GEMINI_API_KEY;
-  if (!apiKey) {
-    log('HATA: GEMINI_API_KEY tanımlanmamış!');
+  const apiKey = env.GEMINI_API_KEY || '';
+  if (!apiKey && !env.OPENROUTER_API_KEY && !env.NVIDIA_API_KEY) {
+    log('HATA: Ne GEMINI_API_KEY ne de OPENROUTER_API_KEY / NVIDIA_API_KEY tanımlanmış!');
     return;
   }
 
@@ -817,7 +817,16 @@ async function main() {
     await collectNews();
     await analyzePendingNews(apiKey, 5);
     await generateContent(apiKey, 2);
-    await publishToFacebook(1);
+
+    // Kesin Takvim Koruması: Metin haberi sadece 11:00 - 11:45 (Türkiye Saati) aralığında yayınlanır
+    const nowTr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+    const trMins = nowTr.getHours() * 60 + nowTr.getMinutes();
+    if (trMins >= 11 * 60 && trMins <= 11 * 60 + 45) {
+      await publishToFacebook(1);
+    } else {
+      log('[Takvim Koruması] Saat 11:00 Metin Haberi dilimi dışındayız; yayın merkezi SmartPublisher tarafından kilitlendi.');
+    }
+
     await syncRecentStats();
     log('=== Otomatik Yayınlama Döngüsü Başarıyla Tamamlandı ===');
   } catch (error) {

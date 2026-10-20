@@ -3,6 +3,7 @@ import { FacebookService } from '@/services/facebook.service';
 import { generateCompleteReelVideo, GeneratedReelResult } from './reel-video-generator';
 import { checkAgainstPublishedHistory, isNewsTooOld, deduplicateNewsBatch } from '@/lib/news/news-similarity-engine';
 import { stripExternalSources } from '@/lib/content/content-generator';
+import { SmartPublisher } from '@/lib/content/smart-publisher';
 import fs from 'fs';
 
 // İşlem bazlı eşzamanlılık kilidi (Aynı anda iki Reel render edilmesini önler)
@@ -23,10 +24,6 @@ export interface ReelPublishWorkflowResult {
 
 /**
  * Otomatik AI Reels Seçim, Üretim ve Facebook Yayın Modülü
- * 
- * Mevcut haber analiz motorunun ürettiği sonuçları ve AI skorlarını kullanarak
- * en yüksek etkileşim potansiyeline sahip haberi seçer, profesyonel dikey 9:16
- * video üretir, kalite testlerini yapar ve Facebook Reels olarak yayınlar.
  */
 async function tryScrapeArticleImage(articleUrl?: string | null): Promise<string | null> {
   if (!articleUrl || !articleUrl.startsWith('http')) return null;
@@ -61,51 +58,15 @@ export async function runAutonomousReelWorkflow(options?: {
   const force = options?.force || false;
 
   try {
-    // 1. ZAMANLAYICI & KOTA GÜVENLİK KONTROLLERİ
-    // Günlük Maksimum 3 Reels (Kural 7 gereği)
-    const MAX_DAILY_REELS = 3;
-    const MIN_COOLDOWN_MINUTES = 180; // İki Reel arası en az 3 saat (EdgeRank keşfet koruması)
+    // 1. KESİN GÜNLÜK REELS YAYIN TAKVİMİ DENETİMİ (07:00, 15:00 ve 20:30)
+    const quotaInfo = await SmartPublisher.getPublishingQuota();
 
-    const nowTurkey = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
-    const startOfTodayTurkey = new Date(nowTurkey);
-    startOfTodayTurkey.setHours(0, 0, 0, 0);
-
-    const todayReelsCount = await prisma.content.count({
-      where: {
-        type: 'REELS_SCRIPT',
-        status: 'PUBLISHED',
-        publishedAt: { gte: startOfTodayTurkey }
-      }
-    });
-
-    if (!force && todayReelsCount >= MAX_DAILY_REELS) {
-      console.log(`[ReelsPublisher] Daily Cap reached: ${todayReelsCount}/${MAX_DAILY_REELS} Reels published today.`);
+    if (!force && (quotaInfo.quota <= 0 || quotaInfo.allowedType !== 'REELS')) {
+      console.log(`[ReelsPublisher] Takvim Koruması: Reels sadece 07:00, 15:00 ve 20:30 saatlerinde yayınlanır. (${quotaInfo.reason})`);
       return {
         ...result,
-        skippedReason: `Günlük maksimum ${MAX_DAILY_REELS} Reels kotasına ulaşıldı (${todayReelsCount} yayınlandı). Sayfa algoritmasını korumak için yayın bekletiliyor.`
+        skippedReason: quotaInfo.reason
       };
-    }
-
-    // Algoritmik Soğuma Kontrolü (Pacing Guard)
-    const lastPublishedReel = await prisma.content.findFirst({
-      where: {
-        type: 'REELS_SCRIPT',
-        status: 'PUBLISHED',
-        publishedAt: { not: null }
-      },
-      orderBy: { publishedAt: 'desc' },
-      select: { publishedAt: true, title: true }
-    });
-
-    if (!force && lastPublishedReel?.publishedAt) {
-      const minutesSince = Math.floor((Date.now() - new Date(lastPublishedReel.publishedAt).getTime()) / (60 * 1000));
-      if (minutesSince < MIN_COOLDOWN_MINUTES) {
-        console.log(`[ReelsPublisher] Pacing Guard: Last Reel was published ${minutesSince}m ago (< ${MIN_COOLDOWN_MINUTES}m).`);
-        return {
-          ...result,
-          skippedReason: `İki Reels arası en az ${MIN_COOLDOWN_MINUTES} dakika soğuma bekleniyor (Son paylaşımdan bu yana ${minutesSince} dk geçti).`
-        };
-      }
     }
 
     // 2. OTOMATİK HABER SEÇİMİ (Kural 2)
@@ -331,6 +292,10 @@ export async function runAutonomousReelWorkflow(options?: {
         aiReasoning: `DURUM: YAYINLANDI ✅ | Facebook Post ID: ${fbRes.postId} | Süre: ${reelResult.durationSeconds}s | Kalite Testleri: 100% Geçti`
       }
     });
+
+    if (quotaInfo.activeSlotId) {
+      await SmartPublisher.markSlotPublished(quotaInfo.activeSlotId, quotaInfo.dateKey);
+    }
 
     console.log(`[ReelsPublisher] 🎉 STEP 6: YAYINLANDI! Reel Post ID: ${fbRes.postId}`);
 

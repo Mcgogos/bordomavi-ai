@@ -134,9 +134,41 @@ export default function WebAutomationCard() {
 
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-md border border-border/60">
-            <Laptop className="w-3.5 h-3.5 text-emerald-500" />
-            <span>PC Görevi: <strong className="text-foreground">Kapatıldı (Bağımsız)</strong></span>
+            <Clock className="w-3.5 h-3.5 text-primary" />
+            <span>Kesin Takvim: <strong className="text-foreground">Günde 4 Paylaşım</strong></span>
           </div>
+        </div>
+      </div>
+
+      {/* 4'lü Kesin Günlük Yayın Takvimi */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 pb-1">
+        <div className="p-2.5 rounded-lg border border-border/60 bg-muted/30 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-foreground">07:00</span>
+            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 border border-purple-500/20">REELS</span>
+          </div>
+          <span className="text-[11px] text-muted-foreground">Sabah Bülteni</span>
+        </div>
+        <div className="p-2.5 rounded-lg border border-primary/40 bg-primary/5 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-foreground">11:00</span>
+            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 border border-blue-500/20">METİN</span>
+          </div>
+          <span className="text-[11px] text-muted-foreground">Gün Ortası Haberi</span>
+        </div>
+        <div className="p-2.5 rounded-lg border border-border/60 bg-muted/30 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-foreground">15:00</span>
+            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 border border-purple-500/20">REELS</span>
+          </div>
+          <span className="text-[11px] text-muted-foreground">İkindi Gündemi</span>
+        </div>
+        <div className="p-2.5 rounded-lg border border-border/60 bg-muted/30 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-foreground">20:30</span>
+            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 border border-purple-500/20">REELS</span>
+          </div>
+          <span className="text-[11px] text-muted-foreground">Ana Haber / Prime Time</span>
         </div>
       </div>
 
