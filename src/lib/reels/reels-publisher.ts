@@ -122,15 +122,28 @@ export async function runAutonomousReelWorkflow(options?: {
           continue;
         }
 
-        // Eğer bu haber zaten bir REELS olarak yayınlanmışsa atla
-        if (item.content?.type === 'REELS_SCRIPT' && item.content?.status === 'PUBLISHED') {
+        // Eğer bu haber daha önce HERHANGİ bir şekilde (Reels veya Metin) yayınlandıysa KESİNLİKLE ATLA
+        if (item.content?.status === 'PUBLISHED' || item.content?.facebookPostId) {
           continue;
         }
 
-        // Son 7 günde yayınlananlarla benzerlik kontrolü
+        const wasEverPublished = await prisma.content.findFirst({
+          where: {
+            sourceNewsId: item.id,
+            OR: [
+              { status: 'PUBLISHED' },
+              { facebookPostId: { not: null } }
+            ]
+          }
+        });
+        if (wasEverPublished) {
+          continue;
+        }
+
+        // Son 60 günde yayınlanan tüm haberlerle benzerlik kontrolü
         const history = await checkAgainstPublishedHistory(
           { id: item.id, title: item.title, summary: item.summary || item.aiSummary },
-          7
+          60
         );
         if (!history.isDuplicate) {
           candidateNews = item;

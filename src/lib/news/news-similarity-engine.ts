@@ -381,9 +381,49 @@ export interface DuplicateHistoryCheckResult {
  */
 export async function checkAgainstPublishedHistory(
   candidate: { title: string; summary?: string | null; id?: string },
-  lookbackDays: number = 14
+  lookbackDays: number = 60
 ): Promise<DuplicateHistoryCheckResult> {
   try {
+    // 1. KESİN KONTROL: Bu haber kimliği (ID) ile geçmişte herhangi bir zamanda Facebook'a paylaşım yapılmış mı?
+    if (candidate.id) {
+      const alreadyPublishedDirect = await prisma.content.findFirst({
+        where: {
+          OR: [
+            { sourceNewsId: candidate.id },
+            { id: candidate.id }
+          ],
+          AND: [
+            {
+              OR: [
+                { status: 'PUBLISHED' },
+                { facebookPostId: { not: null } }
+              ]
+            }
+          ]
+        },
+        select: {
+          id: true,
+          title: true,
+          publishedAt: true,
+          facebookPostId: true
+        }
+      });
+
+      if (alreadyPublishedDirect) {
+        return {
+          isDuplicate: true,
+          similarity: 1.0,
+          matchedPost: {
+            id: alreadyPublishedDirect.id,
+            title: alreadyPublishedDirect.title,
+            publishedAt: alreadyPublishedDirect.publishedAt,
+            facebookPostId: alreadyPublishedDirect.facebookPostId
+          },
+          reason: `Bu haber daha önce zaten yayınlandı (Post ID: ${alreadyPublishedDirect.facebookPostId}). Kesinlikle tekrar yayınlanamaz.`
+        };
+      }
+    }
+
     const lookbackDate = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
 
     // Son N günde yayınlanan ve sıraya alınan tüm içerikleri getir
@@ -419,8 +459,21 @@ export async function checkAgainstPublishedHistory(
     let matchReason = '';
 
     for (const post of pastContents) {
-      // Kendi kendine kıyaslamayı engelle
-      if (candidate.id && post.sourceNewsId === candidate.id) {
+      // Eğer bu post zaten yayınlanmış bir gönderi ise ve adayın kendisiyse doğrudan mükerrer say
+      if (candidate.id && (post.sourceNewsId === candidate.id || post.id === candidate.id)) {
+        if (post.status === 'PUBLISHED' || post.facebookPostId) {
+          return {
+            isDuplicate: true,
+            similarity: 1.0,
+            matchedPost: {
+              id: post.id,
+              title: post.title,
+              publishedAt: post.publishedAt,
+              facebookPostId: post.facebookPostId
+            },
+            reason: `Bu haber kimliği ile daha önce yayın yapılmış. Tekrar yayınlanamaz.`
+          };
+        }
         continue;
       }
 

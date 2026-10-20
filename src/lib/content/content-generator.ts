@@ -202,11 +202,11 @@ export async function generateAutomatedContent(limit: number = 5) {
         continue;
       }
 
-      // 4. Geçmiş Yayın Hafızası Kontrolü (Son 14 gün)
-      // Eğer bu haber son 14 gün içinde Facebook'ta yayınlandıysa tekrar yayınlama!
+      // 4. Geçmiş Yayın Hafızası Kontrolü (Son 60 gün)
+      // Eğer bu haber son 60 gün içinde Facebook'ta yayınlandıysa tekrar yayınlama!
       const historyCheck = await checkAgainstPublishedHistory(
         { id: news.id, title: news.title, summary: news.summary || news.aiSummary },
-        14
+        60
       );
 
       if (historyCheck.isDuplicate) {

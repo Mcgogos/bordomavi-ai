@@ -93,10 +93,35 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
         continue;
       }
 
-      // 2. Mükerrer Yayın Denetimi (Anti-Duplicate Past Post Guard):
+      // 2. Kaynak Haber Mükerrerlik Denetimi (Anti-Duplicate Source Guard):
+      if (content.sourceNewsId) {
+        const sourceAlreadyPublished = await prisma.content.findFirst({
+          where: {
+            sourceNewsId: content.sourceNewsId,
+            id: { not: content.id },
+            OR: [
+              { status: 'PUBLISHED' },
+              { facebookPostId: { not: null } }
+            ]
+          }
+        });
+        if (sourceAlreadyPublished) {
+          console.log(`[Content Publisher] Kaynak haber (ID: ${content.sourceNewsId}) daha önce zaten yayınlandı (${sourceAlreadyPublished.facebookPostId}). İptal ediliyor.`);
+          await prisma.content.update({
+            where: { id: content.id },
+            data: {
+              status: 'REJECTED',
+              aiReasoning: `[MÜKERRER KAYNAK] Bu kaynak haber daha önce ${sourceAlreadyPublished.facebookPostId} ile yayınlanmıştı. Tekrar yayınlanamaz.`
+            }
+          });
+          continue;
+        }
+      }
+
+      // 3. Mükerrer Yayın Denetimi (Son 60 Günde Yayınlanan Tüm İçeriklerle Karşılaştırma):
       const historyCheck = await checkAgainstPublishedHistory(
         { id: content.sourceNewsId || content.id, title: content.title, summary: content.body },
-        7
+        60
       );
 
       if (historyCheck.isDuplicate && historyCheck.matchedPost?.id !== content.id) {
