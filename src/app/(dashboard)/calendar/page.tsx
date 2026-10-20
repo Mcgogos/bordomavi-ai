@@ -1,23 +1,35 @@
 import { prisma } from "@/lib/db";
 import CalendarClient from "./CalendarClient";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function CalendarPage() {
+  const fortyFiveDaysAgo = new Date();
+  fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
+
   const contents = await prisma.content.findMany({
     where: {
       status: {
         not: 'REJECTED'
       },
-      // We want contents that have a created or published date
+      createdAt: {
+        gte: fortyFiveDaysAgo
+      }
     },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      type: true,
+      createdAt: true,
       sourceNews: {
         select: { title: true }
       }
     },
     orderBy: { createdAt: "desc" },
+    take: 100,
   });
+
 
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">

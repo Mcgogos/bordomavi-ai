@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const revalidate = 15;
 import { prisma } from "@/lib/db";
 import { 
   Newspaper, FileText, Send, TrendingUp, 

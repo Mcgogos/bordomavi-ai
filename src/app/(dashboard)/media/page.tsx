@@ -1,43 +1,44 @@
-export const dynamic = 'force-dynamic';
+export const revalidate = 30;
 import { prisma } from "@/lib/db";
 import MediaClient from "./MediaClient";
 
 export default async function MediaPage() {
-  // Fetch actual media items from DB
-  const dbMedia = await prisma.media.findMany({
-    orderBy: { createdAt: "desc" },
-  });
-
-  // Fetch recent contents to display their dynamic OG images
-  // This will show the user the BordoMavi logolu images we generate on the fly
-  const recentContents = await prisma.content.findMany({
-    where: {
-      status: {
-        in: ['PUBLISHED', 'READY_TO_PUBLISH', 'SCHEDULED', 'PENDING_APPROVAL']
-      }
-    },
-    orderBy: { createdAt: "desc" },
-    take: 12, // Show last 12 generated images
-    select: {
-      id: true,
-      title: true,
-      body: true,
-      status: true,
-      createdAt: true,
-      media: {
-        select: {
-          url: true
+  // Fetch media and contents concurrently
+  const [dbMedia, recentContents] = await Promise.all([
+    prisma.media.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 40,
+    }),
+    prisma.content.findMany({
+      where: {
+        status: {
+          in: ['PUBLISHED', 'READY_TO_PUBLISH', 'SCHEDULED', 'PENDING_APPROVAL']
         }
       },
-      sourceNews: {
-        select: {
-          imageUrl: true,
-          title: true,
-          summary: true
+      orderBy: { createdAt: "desc" },
+      take: 12, // Show last 12 generated images
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        status: true,
+        createdAt: true,
+        media: {
+          select: {
+            url: true
+          }
+        },
+        sourceNews: {
+          select: {
+            imageUrl: true,
+            title: true,
+            summary: true
+          }
         }
       }
-    }
-  });
+    })
+  ]);
+
 
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">

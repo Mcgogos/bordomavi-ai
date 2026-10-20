@@ -1,7 +1,7 @@
-﻿import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import EditorClient from "./EditorClient";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 15;
 
 export default async function EditorPage() {
   // We fetch DRAFT, PENDING_APPROVAL, and READY_TO_PUBLISH items to be editable
@@ -17,6 +17,7 @@ export default async function EditorPage() {
       }
     },
     orderBy: { createdAt: "desc" },
+    take: 40,
   });
 
   return (

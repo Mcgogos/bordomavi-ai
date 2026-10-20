@@ -1,30 +1,32 @@
-export const dynamic = 'force-dynamic';
+export const revalidate = 15;
 import { prisma } from "@/lib/db";
 import ContentClient from "./ContentClient";
 
 export default async function ContentPage() {
-  const contents = await prisma.content.findMany({
-    where: {
-      status: {
-        not: 'REJECTED' // Don't send rejected items to the UI default list
-      }
-    },
-    include: {
-      sourceNews: {
-        select: { title: true, importanceScore: true, viralScore: true }
+  const [contents, draftCount, readyCount, scheduledCount, publishedCount] = await Promise.all([
+    prisma.content.findMany({
+      where: {
+        status: {
+          not: 'REJECTED' // Don't send rejected items to the UI default list
+        }
       },
-      analytics: {
-        orderBy: { recordedAt: 'desc' },
-        take: 1
-      }
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const draftCount = await prisma.content.count({ where: { status: 'DRAFT' } });
-  const readyCount = await prisma.content.count({ where: { status: 'READY_TO_PUBLISH' } });
-  const scheduledCount = await prisma.content.count({ where: { status: 'SCHEDULED' } });
-  const publishedCount = await prisma.content.count({ where: { status: 'PUBLISHED' } });
+      include: {
+        sourceNews: {
+          select: { title: true, importanceScore: true, viralScore: true }
+        },
+        analytics: {
+          orderBy: { recordedAt: 'desc' },
+          take: 1
+        }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+    }),
+    prisma.content.count({ where: { status: 'DRAFT' } }),
+    prisma.content.count({ where: { status: 'READY_TO_PUBLISH' } }),
+    prisma.content.count({ where: { status: 'SCHEDULED' } }),
+    prisma.content.count({ where: { status: 'PUBLISHED' } }),
+  ]);
 
   const metrics = { draftCount, readyCount, scheduledCount, publishedCount };
 
@@ -33,4 +35,4 @@ export default async function ContentPage() {
       <ContentClient initialContents={contents} metrics={metrics} />
     </div>
   );
-}
+}

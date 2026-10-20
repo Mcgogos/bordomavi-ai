@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const revalidate = 20;
 import { prisma } from '@/lib/db';
 import NewsClientPage from './client-page';
 import { deduplicateNewsBatch } from '@/lib/news/news-similarity-engine';
@@ -13,7 +13,7 @@ export default async function NewsPage() {
     orderBy: [
       { publishedAt: 'desc' }
     ],
-    take: 120,
+    take: 40,
     include: { source: true }
   });
 

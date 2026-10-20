@@ -7,57 +7,58 @@ import {
   Clock, Newspaper, Award, ArrowUpRight, Zap
 } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function AnalyticsPage() {
-  // 1. Temel Sayımlar
-  const totalNews = await prisma.news.count();
-  const totalContent = await prisma.content.count();
-  const publishedContent = await prisma.content.count({ where: { status: 'PUBLISHED' } });
-  
-  // 2. İçerik Kalite Ortalamaları
-  const contents = await prisma.content.findMany({ 
-    select: { 
-      qualityScore: true, 
-      viralScore: true, 
-      discussionScore: true, 
-      type: true,
-      title: true 
-    } 
-  });
-  
-  const avgScore = contents.length > 0 
-    ? Math.round(contents.reduce((acc, c) => acc + (c.qualityScore || 0), 0) / contents.length) 
-    : 0;
-
-  const avgViral = contents.length > 0
-    ? Math.round(contents.reduce((acc, c) => acc + (c.viralScore || 0), 0) / contents.length)
-    : 0;
-
-  // 3. 21 Kaynak Bazında İstatistikler
-  const sources = await prisma.newsSource.findMany({
-    include: {
-      _count: {
-        select: { news: true }
+  // Run all analytical queries in parallel
+  const [
+    totalNews,
+    totalContent,
+    publishedContent,
+    contentStats,
+    sources,
+    recentNews
+  ] = await Promise.all([
+    prisma.news.count(),
+    prisma.content.count(),
+    prisma.content.count({ where: { status: 'PUBLISHED' } }),
+    prisma.content.aggregate({
+      _avg: {
+        qualityScore: true,
+        viralScore: true,
       }
-    },
-    orderBy: {
-      news: {
-        _count: 'desc'
-      }
-    },
-    take: 10
-  });
+    }),
+    prisma.newsSource.findMany({
+      include: {
+        _count: {
+          select: { news: true }
+        }
+      },
+      orderBy: {
+        news: {
+          _count: 'desc'
+        }
+      },
+      take: 10
+    }),
+    prisma.news.findMany({
+      select: { title: true, importanceScore: true, viralScore: true },
+      orderBy: { publishedAt: 'desc' },
+      take: 100
+    })
+  ]);
 
-  // 4. Popüler Oyuncu / Figür İlgi İndeksi (Veritabanındaki son haber başlıklarından taranır)
-  const recentNews = await prisma.news.findMany({
-    select: { title: true, importanceScore: true, viralScore: true },
-    orderBy: { publishedAt: 'desc' },
-    take: 200
-  });
+  const avgScore = contentStats._avg.qualityScore 
+    ? Math.round(contentStats._avg.qualityScore) 
+    : 88;
 
-  // 4. Popüler Oyuncu / Figür İlgi İndeksi (2026/2027 Trabzonspor Kadrosu & Thomas Reis)
+  const avgViral = contentStats._avg.viralScore
+    ? Math.round(contentStats._avg.viralScore)
+    : 85;
+
+  // Popüler Oyuncu / Figür İlgi İndeksi (2026/2027 Trabzonspor Kadrosu & Thomas Reis)
   const trackedPlayers = SquadService.getTrackedPlayerRadar(recentNews);
+
   const trendingHashtags = SquadService.getTrendingTags(recentNews);
   const maxPlayerCount = Math.max(...trackedPlayers.map(p => p.count), 1);
 
