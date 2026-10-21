@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { AIFactory } from '@/services/ai/ai.factory';
+import { isValidArticleContent } from '@/lib/content/content-generator';
 
 const checkingIds = new Set<string>();
 
@@ -76,7 +77,8 @@ Yanıtını SADECE aşağıdaki formata uygun bir JSON nesnesi olarak döndür (
         const parsed = JSON.parse(jsonStr);
 
         let newStatus = 'REJECTED';
-        if (parsed.approved === true && parsed.qualityScore >= 75 && parsed.riskLevel !== 'HIGH') {
+        const candidateBody = parsed.correctedContent || content.body || '';
+        if (parsed.approved === true && parsed.qualityScore >= 75 && parsed.riskLevel !== 'HIGH' && isValidArticleContent(candidateBody)) {
             newStatus = 'READY_TO_PUBLISH';
             result.approved++;
         } else {

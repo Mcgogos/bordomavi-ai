@@ -60,6 +60,10 @@ export class NvidiaProvider implements AIProvider {
     if (/^(The user wants|Let's analyze|Constraints:|We need to write)/i.test(text)) {
       return '';
     }
+    // Model güvenlik, değerlendirme ve sohbet kalıntılarını temizle
+    text = text.replace(/^(User\s*Safety|Response\s*Safety)\s*:\s*[a-z0-9_-]+\s*/gi, '').trim();
+    text = text.replace(/\b(User\s*Safety|Response\s*Safety)\s*:\s*[a-z0-9_-]+\b/gi, '').trim();
+    text = text.replace(/^(İşte\s.*gönderi.*:|Here\s+is\s.*:|Certainly!|Sure,?\s+here\s+is.*:)\s*/i, '').trim();
     // Strip markdown asterisks as per user rules
     text = text.replace(/\*\*/g, '').replace(/\*/g, '').trim();
     return text;

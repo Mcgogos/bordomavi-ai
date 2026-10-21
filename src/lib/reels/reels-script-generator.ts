@@ -100,6 +100,9 @@ async function fetchFullArticleText(title: string, existingText: string, sourceN
 
 function cleanNewsForScript(title: string, rawText: string): string {
   let cleaned = decodeHtmlEntities(rawText)
+    // Model güvenlik çıktılarını ve yapay zeka kalıntılarını temizle
+    .replace(/\b(User\s*Safety|Response\s*Safety)\s*:\s*[a-z0-9_-]+\b/gi, '')
+    .replace(/\b(as\s+an\s+ai|bir\s+yapay\s+zeka\s+olarak|dil\s+modeli\s+olarak)\b/gi, '')
     // Sadece klişe yönlendirme ifadelerini sil, devamındaki makale metnini KORU!
     .replace(/\b(İşte detaylar|İşte o yorumlar|İşte ayrıntılar|Haberin detayları|Detaylar haberimizde)\s*[:.!…]*/gi, ' ')
     .replace(/\b(AA|DHA|İHA|IHA)\b/g, '')
