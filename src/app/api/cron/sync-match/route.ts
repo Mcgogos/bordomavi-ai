@@ -1,20 +1,17 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { MatchAutomationEngine, MatchEventParams } from "@/lib/matchday/match-engine";
+import { verifyApiAuthorization } from "@/lib/api-auth";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  const authCheck = await verifyApiAuthorization(request);
+  if (!authCheck.authorized) {
+    return authCheck.unauthorizedResponse!;
+  }
+
   try {
-    const { searchParams } = new URL(request.url);
-    const secret = searchParams.get("secret") || request.headers.get("authorization")?.replace("Bearer ", "");
-    const expectedSecret = process.env.CRON_SECRET;
-
-    if (!expectedSecret || secret !== expectedSecret) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Cron ping: Can trigger autonomous match state check
     return NextResponse.json({
       success: true,
       message: "Canlı Maç Otonom Robotu Aktif.",
@@ -26,6 +23,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const authCheck = await verifyApiAuthorization(request);
+  if (!authCheck.authorized) {
+    return authCheck.unauthorizedResponse!;
+  }
+
   try {
     const body: MatchEventParams = await request.json();
 

@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { FacebookService } from '@/services/facebook.service';
+import { verifyApiAuthorization } from '@/lib/api-auth';
 
 export async function POST(request: Request) {
+  const authCheck = await verifyApiAuthorization(request);
+  if (!authCheck.authorized) {
+    return authCheck.unauthorizedResponse!;
+  }
+
   try {
     const isMock = process.env.FACEBOOK_MOCK_MODE === 'true';
 

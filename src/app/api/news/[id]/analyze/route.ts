@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { AIFactory } from '@/services/ai/ai.factory';
+import { verifyApiAuthorization } from '@/lib/api-auth';
 
 export async function POST(
   request: Request,
   { params }: { params: any }
 ) {
+  const authCheck = await verifyApiAuthorization(request);
+  if (!authCheck.authorized) {
+    return authCheck.unauthorizedResponse!;
+  }
+
   try {
     const resolvedParams = await params;
     const newsId = resolvedParams.id;
@@ -35,7 +41,7 @@ export async function POST(
       });
     }
 
-    // 3. Prepare data for Gemini
+    // 3. Prepare data for AI
     const newsData = {
       title: newsItem.title,
       summary: newsItem.summary,
@@ -44,8 +50,8 @@ export async function POST(
       sourceName: newsItem.source?.name
     };
 
-    // 4. Analyze via AI
-    const aiProvider = AIFactory.getRouter("NEWS_ANALYSIS"); // Use Router Architecture
+    // 4. Analyze via AI Router
+    const aiProvider = AIFactory.getRouter("NEWS_ANALYSIS");
     const aiResult = await aiProvider.analyzeNews(newsData);
 
     // 5. Update DB

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CanvaService, TRABZONSPOR_CANVA_TEMPLATES } from '@/lib/canva/canva-service';
+import { verifyApiAuthorization } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const authCheck = await verifyApiAuthorization(req);
+  if (!authCheck.authorized) {
+    return authCheck.unauthorizedResponse!;
+  }
+
   try {
     const body = await req.json();
     const { action, title, width, height, templateId, customTitle } = body;

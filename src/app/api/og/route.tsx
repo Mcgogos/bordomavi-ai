@@ -33,7 +33,16 @@ export async function GET(request: NextRequest) {
 
     // 4. Harici Haber Görselini Güvenli İndirme (WebP / 403 / Timeout Koruması)
     let safeExternalImageDataUrl: string | null = null;
-    if (externalImageUrl) {
+    const isSafeUrl = Boolean(
+      externalImageUrl &&
+      (externalImageUrl.startsWith('http://') || externalImageUrl.startsWith('https://')) &&
+      !externalImageUrl.includes('localhost') &&
+      !externalImageUrl.includes('127.0.0.1') &&
+      !externalImageUrl.includes('169.254.') &&
+      !externalImageUrl.includes('[::1]')
+    );
+
+    if (isSafeUrl && externalImageUrl) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3500);
