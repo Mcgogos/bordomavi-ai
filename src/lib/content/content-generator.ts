@@ -31,6 +31,48 @@ export function stripExternalSources(text: string): string {
 }
 
 // Helper to strictly remove markdown asterisks (** and *) and external sources for clean plain text publishing
+
+/**
+ * Bir metnin gerçek, doyurucu ve geçerli bir haber makalesi olup olmadığını denetler.
+ * AI modellerinin döndürebileceği "User Safety: safe", "I cannot fulfill", vb.
+ * halüsinasyon veya güvenlik çıktısı kalıntılarını KESİNLİKLE reddeder.
+ */
+export function isValidArticleContent(text: string): boolean {
+  if (!text || typeof text !== 'string') return false;
+  const trimmed = text.trim();
+  
+  // En az 100 karakter olmalı
+  if (trimmed.length < 100) return false;
+
+  const lower = trimmed.toLowerCase();
+
+  const invalidPatterns = [
+    /user\s*safety\s*:\s*safe/i,
+    /response\s*safety\s*:\s*safe/i,
+    /safety\s*assessment/i,
+    /as\s+an\s+ai/i,
+    /bir\s+yapay\s+zeka\s+olarak/i,
+    /dil\s+modeli\s+olarak/i,
+    /i\s+cannot\s+(fulfill|generate|comply)/i,
+    /üzgünüm.*yardımcı\s+olamam/i,
+    /özür\s+dilerim/i,
+    /policy\s+violation/i,
+    /content\s+moderation/i,
+    /^\{[\s\S]*\}$/
+  ];
+
+  for (const pattern of invalidPatterns) {
+    if (pattern.test(lower)) {
+      return false;
+    }
+  }
+
+  const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+  if (wordCount < 12) return false;
+
+  return true;
+}
+
 export function sanitizePlainText(text: string): string {
   if (!text) return '';
   const noSources = stripExternalSources(text);

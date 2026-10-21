@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db';
 import { FacebookService } from '@/services/facebook.service';
 import { isNewsTooOld, checkAgainstPublishedHistory } from '@/lib/news/news-similarity-engine';
-import { stripExternalSources } from '@/lib/content/content-generator';
+import { stripExternalSources, isValidArticleContent, generateSmartFallbackPost } from '@/lib/content/content-generator';
 import { SmartPublisher } from '@/lib/content/smart-publisher';
 
 const publishingIds = new Set<string>();
@@ -145,10 +145,31 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
           .replace(/\*\*/g, '')
           .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
           .trim();
-        const cleanBody = stripExternalSources(content.body || '')
+        let cleanBody = stripExternalSources(content.body || '')
           .replace(/\*\*/g, '')
           .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
           .trim();
+
+        // 3. Son Savunma Hattı (Zero Corrupt/Short Post Guard):
+        // Eğer veritabanındaki içerik herhangi bir sebeple "User Safety: safe" veya 100 karakterden kısaysa,
+        // KESİNLİKLE o haliyle yayınlama! Kaynak haberden zengin profesyonel makale üret.
+        if (!isValidArticleContent(cleanBody)) {
+          console.warn(`[Content Publisher] Corrupted or short body detected for content ID: ${content.id}. Regenerating from sourceNews...`);
+          if (content.sourceNews) {
+            cleanBody = generateSmartFallbackPost(content.sourceNews);
+            await prisma.content.update({
+              where: { id: content.id },
+              data: { body: cleanBody, aiReasoning: '[OTONOM DÜZELTME] Boş/hatalı metin zengin içerikle yenilendi.' }
+            }).catch(() => {});
+          } else {
+            console.error(`[Content Publisher] Content ID ${content.id} has invalid body and no sourceNews. Skipping publish.`);
+            await prisma.content.update({
+              where: { id: content.id },
+              data: { status: 'REJECTED', aiReasoning: '[HATA] Geçersiz veya boş içerik gövdesi.' }
+            }).catch(() => {});
+            continue;
+          }
+        }
 
         let messageBody = cleanTitle + '\n\n' + cleanBody;
 
