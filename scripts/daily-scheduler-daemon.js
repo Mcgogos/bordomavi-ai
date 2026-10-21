@@ -72,6 +72,22 @@ async function triggerSyncWorkflow() {
   });
 }
 
+function isSlotWindowActive(slot, hour, minute) {
+  if (slot.id === '07:00') {
+    return (hour >= 7 && hour < 11);
+  }
+  if (slot.id === '11:00') {
+    return (hour >= 11 && hour < 15);
+  }
+  if (slot.id === '15:00') {
+    return (hour >= 15 && (hour < 20 || (hour === 20 && minute < 30)));
+  }
+  if (slot.id === '20:30') {
+    return ((hour === 20 && minute >= 30) || hour >= 21);
+  }
+  return false;
+}
+
 function checkSchedule() {
   const trNow = getTurkeyTime();
   const curHour = trNow.getHours();
@@ -80,11 +96,11 @@ function checkSchedule() {
 
   for (const slot of SCHEDULE_SLOTS) {
     const slotKey = `${dateKey}_${slot.id}`;
-    // Eğer saat ve dakika eşleşiyorsa ve bugün henüz tetiklenmediyse
-    if (curHour === slot.hour && curMin === slot.minute) {
+    // Eğer slot penceresi aktifse ve bugün bu daemon tarafından henüz tetiklenmediyse
+    if (isSlotWindowActive(slot, curHour, curMin)) {
       if (!executedToday.has(slotKey)) {
         executedToday.add(slotKey);
-        log(`🎯 [ZAMANLAYICI] ${slot.id} (${slot.type}) slot vakti geldi! Otomasyon başlatılıyor...`);
+        log(`🎯 [ZAMANLAYICI] ${slot.id} (${slot.type}) slot vakti/penceresi aktif! Otomasyon başlatılıyor...`);
         triggerSyncWorkflow();
       }
     }

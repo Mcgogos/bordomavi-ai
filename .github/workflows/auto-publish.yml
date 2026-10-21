@@ -2,10 +2,20 @@ name: 7-24 Cloud Autonomous Publisher (07:00, 11:00, 15:00, 20:30 TR)
 
 on:
   schedule:
-    # 7/24 Kesintisiz Otonom Bulut Döngüsü (Her 15 dakikada bir kontrol eder):
-    # Slot saati geldiğinde (07:00, 11:00, 15:00, 20:30 TR) anında yayınlar;
-    # Slot daha önce yayınlandıysa 2 saniyede güvenle sonlanır.
-    - cron: '*/15 * * * *'
+    # 07:00 TR (04:00 UTC) Sabah Reels Bülteni
+    - cron: '0 4 * * *'
+    - cron: '15 4 * * *'
+    # 11:00 TR (08:00 UTC) Gün Ortası Metin Bülteni
+    - cron: '0 8 * * *'
+    - cron: '15 8 * * *'
+    # 15:00 TR (12:00 UTC) İkindi Reels Bülteni
+    - cron: '0 12 * * *'
+    - cron: '15 12 * * *'
+    # 20:30 TR (17:30 UTC) Akşam Ana Reels Bülteni
+    - cron: '30 17 * * *'
+    - cron: '45 17 * * *'
+    # Yedek saatlik kontrol (GitHub Actions cron gecikmelerine karşı emniyet supabı)
+    - cron: '5 * * * *'
   workflow_dispatch:
 
 concurrency:
