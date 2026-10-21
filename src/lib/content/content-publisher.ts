@@ -151,10 +151,19 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
           .trim();
 
         let messageBody = cleanTitle + '\n\n' + cleanBody;
+
+        // İmza Denetimi: Metin içinde Editör imzası yoksa hashtaglerden önce ekle
+        if (!messageBody.includes('Editör')) {
+          messageBody += '\n\n✍️ Editör';
+        }
+
         if (content.hashtags) {
           messageBody += '\n\n' + content.hashtags.trim();
         }
+
         messageBody = stripExternalSources(messageBody)
+          .replace(/Bordo\s*Mavi\s*AI\s*Editör(\s*paylaştı)?/gi, 'Editör')
+          .replace(/\bAI\s*Editör(\s*paylaştı)?/gi, 'Editör')
           .replace(/\*\*/g, '')
           .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
           .trim();

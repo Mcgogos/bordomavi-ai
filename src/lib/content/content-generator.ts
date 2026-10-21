@@ -23,6 +23,9 @@ export function stripExternalSources(text: string): string {
     .replace(/\b(devamı|detaylar)\s+için\s+tıklayın\b/gi, '')
     .replace(/\b(devamı|detaylar)\s+için\s+tıklayınız\b/gi, '')
     .replace(/\bdevamı\s+için\b/gi, '')
+    // Bordo Mavi AI / AI Editör ibarelerini temizle, imza olarak sadece Editör kalsın
+    .replace(/Bordo\s*Mavi\s*AI\s*Editör(\s*paylaştı)?/gi, 'Editör')
+    .replace(/\bAI\s*Editör(\s*paylaştı)?/gi, 'Editör')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -107,7 +110,7 @@ export function generateSmartFallbackPost(news: any): string {
     fanQuestion = '📢 Fırtına taraftarı ses veriyor! Bu sıcak gelişme hakkındaki net görüşünüz nedir? Herkes yorumunu bıraksın! 👇';
   }
 
-  const post = `${badge}\n\n${cleanTitle}\n\n${selectedHook}\n\n${bodyParagraphs}\n\n${categoryDetail}\n\n${fanQuestion}\n\n#Trabzonspor #BordoMavi #Fırtına #SüperLig`;
+  const post = `${badge}\n\n${cleanTitle}\n\n${selectedHook}\n\n${bodyParagraphs}\n\n${categoryDetail}\n\n${fanQuestion}\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #Fırtına #SüperLig`;
 
   return sanitizePlainText(post);
 }
@@ -239,7 +242,7 @@ Kurallar:
 3. Haberin kaynağı KESİNLİKLE 'Bordo Mavi Haber Merkezi' veya 'Bordo Mavi Özel'dir. Asla başka gazete veya site adı (Günebakış, Haber61, 61saat, Fanatik, Fotomaç vb.) KULLANMA. 'Kaynak: ...' veya '... sitesine göre' gibi ifadeler KESİNLİKLE YASAKTIR. KESİNLİKLE 'Devamı için tıklayınız', 'Detaylar için tıklayın', 'Haberin devamı sitemizde' gibi dış link çağrışımları KULLANMA. Haberin tamamını doğrudan bu gönderide aktar.
 4. Kesinleşmemiş haberler için "kulüp kaynaklarından edinilen bilgiye göre", "yönetim kulislerinde konuşulanlara göre" gibi güvenilir ifadeler kullan.
 5. Gönderinin sonuna takipçileri YORUM YAPMAYA, OYLAMAYA ve TARTIŞMAYA teşvik edecek net ve etkileşim patlatıcı bir soru veya A/B tercihi ekle (Örn: 'Sizce ilk 11 başlamalı mı yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek)', 'Bu kararı destekliyor musunuz? (EVET / HAYIR)', 'Bu hamleyi 1-10 arası puanlayın!'). Sonuna 'Fikrinizi yorumlarda belirtin!' veya 'Yorumlarda buluşalım!' çağrısı ekle.
-6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
+6. Gönderinin sonuna hashtaglerden hemen önce imza olarak SADECE '✍️ Editör' yaz. Asla 'Bordo Mavi AI Editör', 'Bordo Mavi AI paylaştı' veya benzeri yapay zeka ibareleri KULLANMA. İmza yalnızca '✍️ Editör' olmalıdır. Ardından 3-5 adet hashtag ekle (#Trabzonspor vb.).
 7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.
 8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).
 9. KESİNLİKLE 'Bordo-Mavili kulüpte sıcak saatler yaşanıyor' gibi beylik, genel geçer veya tekrarlayan kalıp girişlerle başlama! Haberin öznesine, maçına veya olayına doğrudan ve özgün bir üslupla giriş yap. Her haberin açılış cümlesi birbirinden tamamen farklı ve o habere özel olmalıdır.`;
@@ -357,7 +360,7 @@ Kurallar:
 3. Haberin kaynağı KESİNLİKLE 'Bordo Mavi Haber Merkezi' veya 'Bordo Mavi Özel'dir. Asla başka gazete veya site adı (Günebakış, Haber61, 61saat, Fanatik, Fotomaç vb.) KULLANMA. 'Kaynak: ...' veya '... sitesine göre' gibi ifadeler KESİNLİKLE YASAKTIR. KESİNLİKLE 'Devamı için tıklayınız', 'Detaylar için tıklayın', 'Haberin devamı sitemizde' gibi dış link çağrışımları KULLANMA. Haberin tamamını doğrudan bu gönderide aktar.
 4. Kesinleşmemiş haberler için "kulüp kaynaklarından edinilen bilgiye göre", "yönetim kulislerinde konuşulanlara göre" gibi güvenilir ifadeler kullan.
 5. Gönderinin sonuna takipçileri YORUM YAPMAYA, OYLAMAYA ve TARTIŞMAYA teşvik edecek net ve etkileşim patlatıcı bir soru veya A/B tercihi ekle (Örn: 'Sizce ilk 11 başlamalı mı yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek)', 'Bu kararı destekliyor musunuz? (EVET / HAYIR)', 'Bu hamleyi 1-10 arası puanlayın!'). Sonuna 'Fikrinizi yorumlarda belirtin!' veya 'Yorumlarda buluşalım!' çağrısı ekle.
-6. Gönderinin en altına 3-5 adet hashtag ekle (#Trabzonspor vb.).
+6. Gönderinin sonuna hashtaglerden hemen önce imza olarak SADECE '✍️ Editör' yaz. Asla 'Bordo Mavi AI Editör', 'Bordo Mavi AI paylaştı' veya benzeri yapay zeka ibareleri KULLANMA. İmza yalnızca '✍️ Editör' olmalıdır. Ardından 3-5 adet hashtag ekle (#Trabzonspor vb.).
 7. KESİNLİKLE hiçbir yerde markdown yıldız işareti (**, *) KULLANMA. Başlıkları ve vurguları sade düz metin olarak veya büyük harfle yaz. Metnin başında, ortasında veya sonunda asla ** olmasın.
 8. Yanıtını doğrudan paylaşılacak düz metin olarak gönder (JSON veya ekstra açıklama olmadan).
 9. KESİNLİKLE 'Bordo-Mavili kulüpte sıcak saatler yaşanıyor' gibi beylik, genel geçer veya tekrarlayan kalıp girişlerle başlama! Haberin öznesine, maçına veya olayına doğrudan ve özgün bir üslupla giriş yap. Her haberin açılış cümlesi birbirinden tamamen farklı ve o habere özel olmalıdır.`;
