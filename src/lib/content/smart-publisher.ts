@@ -9,17 +9,17 @@ export interface DailySlotDefinition {
   type: 'REELS' | 'TEXT';
   startHour: number;
   startMinute: number;
-  /** Slotun aktif kabul edildiği tolerans süresi (dakika). Örn: 07:00 - 07:45 arası */
-  toleranceMinutes: number;
+  endHour: number;
+  endMinute: number;
 }
 
 /**
  * KESİN GÜNLÜK YAYIN TAKVİMİ (Türkiye Saati - Europe/Istanbul)
  * Bu 4 saat dilimi dışına kesinlikle çıkılmaz:
- * - 07:00 -> REELS
- * - 11:00 -> METİN HABERİ (TEXT)
- * - 15:00 -> REELS
- * - 20:30 -> REELS
+ * - 07:00 -> REELS (07:00 - 10:59 arası günde 1 adet)
+ * - 11:00 -> METİN HABERİ (11:00 - 14:59 arası günde 1 adet)
+ * - 15:00 -> REELS (15:00 - 20:29 arası günde 1 adet)
+ * - 20:30 -> REELS (20:30 - 23:59 arası günde 1 adet)
  */
 export const STRICT_DAILY_SCHEDULE: DailySlotDefinition[] = [
   {
@@ -29,7 +29,8 @@ export const STRICT_DAILY_SCHEDULE: DailySlotDefinition[] = [
     type: 'REELS',
     startHour: 7,
     startMinute: 0,
-    toleranceMinutes: 55
+    endHour: 10,
+    endMinute: 59
   },
   {
     id: 'SLOT_1100_TEXT',
@@ -38,7 +39,8 @@ export const STRICT_DAILY_SCHEDULE: DailySlotDefinition[] = [
     type: 'TEXT',
     startHour: 11,
     startMinute: 0,
-    toleranceMinutes: 55
+    endHour: 14,
+    endMinute: 59
   },
   {
     id: 'SLOT_1500_REELS',
@@ -47,7 +49,8 @@ export const STRICT_DAILY_SCHEDULE: DailySlotDefinition[] = [
     type: 'REELS',
     startHour: 15,
     startMinute: 0,
-    toleranceMinutes: 55
+    endHour: 20,
+    endMinute: 29
   },
   {
     id: 'SLOT_2030_REELS',
@@ -56,7 +59,8 @@ export const STRICT_DAILY_SCHEDULE: DailySlotDefinition[] = [
     type: 'REELS',
     startHour: 20,
     startMinute: 30,
-    toleranceMinutes: 55
+    endHour: 23,
+    endMinute: 59
   }
 ];
 
@@ -209,7 +213,7 @@ export class SmartPublisher {
       // Şu anki saatin 4 kesin slottan birinin içinde olup olmadığını kontrol et
       const matchedSlot = STRICT_DAILY_SCHEDULE.find((slot) => {
         const slotStart = slot.startHour * 60 + slot.startMinute;
-        const slotEnd = slotStart + slot.toleranceMinutes;
+        const slotEnd = slot.endHour * 60 + slot.endMinute;
         return currentMinutes >= slotStart && currentMinutes <= slotEnd;
       });
 
@@ -220,18 +224,20 @@ export class SmartPublisher {
           dateKey,
           quota: 0,
           allowedType: 'NONE',
-          windowName: `Takvim Dışı Bekleme Modu (Saat ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')})`,
+          windowName: `Gece Dinlenme Modu (Saat ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')})`,
           efficiencyRate: 'Kilitli (Takvim Koruma)',
           delayMsBetweenPosts: 0,
           cooldownActive: true,
           todayCount,
           minutesSinceLastPost,
           nextSlotLabel,
-          reason: `Kesin Yayın Takvimi aktif (07:00 Reels, 11:00 Metin Haberi, 15:00 Reels, 20:30 Reels). Şu an yayın penceresi dışındayız. Sıradaki yayın: ${nextSlotLabel}.`
+          reason: `Kesin Yayın Takvimi aktif (07:00 Reels, 11:00 Metin Haberi, 15:00 Reels, 20:30 Reels). Şu an gece dinlenme penceresindeyiz. Sıradaki yayın: ${nextSlotLabel}.`
         };
       }
 
-      // Bu slot bugün zaten yayınlandı mı kontrol et (1. Setting kaydı, 2. Son 50 dk içindeki yayın kaydı)
+      // Bu slot bugün zaten yayınlandı mı kontrol et:
+      // 1. Setting tablosundaki kilit (PUBLISHED_SLOT_2026-10-21_SLOT_0700_REELS)
+      // 2. todayPublished listesinde bu slot aralığında veya bu tipte yayınlanmış içerik var mı?
       const settingKey = `PUBLISHED_SLOT_${dateKey}_${matchedSlot.id}`;
       const existingSlotLock = await prisma.setting.findUnique({ where: { key: settingKey } });
 
@@ -241,7 +247,8 @@ export class SmartPublisher {
         const pubTr = new Date(pubTrStr);
         const pubMinutes = pubTr.getHours() * 60 + pubTr.getMinutes();
         const slotStart = matchedSlot.startHour * 60 + matchedSlot.startMinute;
-        return pubMinutes >= slotStart - 5 && pubMinutes <= slotStart + matchedSlot.toleranceMinutes + 10;
+        const slotEnd = matchedSlot.endHour * 60 + matchedSlot.endMinute;
+        return pubMinutes >= slotStart && pubMinutes <= slotEnd;
       });
 
       if (alreadyPublishedInWindow) {

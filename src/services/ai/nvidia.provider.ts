@@ -77,12 +77,9 @@ export class NvidiaProvider implements AIProvider {
       for (const step of NVIDIA_FALLBACK_MODELS) {
         for (const modelId of step.candidateIds) {
           try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 9000);
-
             const res = await fetch(this.nvidiaBaseUrl, {
               method: 'POST',
-              signal: controller.signal,
+              signal: AbortSignal.timeout(10000),
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${this.nvidiaApiKey}`,
@@ -95,8 +92,6 @@ export class NvidiaProvider implements AIProvider {
                 max_tokens: 2048
               })
             });
-
-            clearTimeout(timeoutId);
 
             if (res.ok) {
               const data = await res.json();
@@ -117,22 +112,19 @@ export class NvidiaProvider implements AIProvider {
       }
     }
 
-    // 2. Yedek: OpenRouter üzerindeki doğrulanmış ücretsiz modeller ve yük dengeleyici
+    // 2. Yedek: OpenRouter üzerindeki doğrulanmış hızlı modeller
     if (this.openrouterApiKey && this.openrouterApiKey.startsWith('sk-or-')) {
       const openRouterCandidates = [
+        { name: 'Meta Llama 3.3 70B (Fast)', id: 'meta-llama/llama-3.3-70b-instruct' },
         { name: 'OpenRouter Free Auto-Router', id: 'openrouter/free' },
-        { name: 'Nemotron-3 Ultra 550B (Free)', id: 'nvidia/nemotron-3-ultra-550b-a55b:free' },
       ];
 
       for (const orModel of openRouterCandidates) {
         try {
           console.log(`[NvidiaProvider] Trying OpenRouter mirror: ${orModel.name} (${orModel.id})...`);
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 18000);
-
           const res = await fetch(this.openrouterBaseUrl, {
             method: 'POST',
-            signal: controller.signal,
+            signal: AbortSignal.timeout(12000),
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${this.openrouterApiKey}`,
@@ -146,8 +138,6 @@ export class NvidiaProvider implements AIProvider {
               max_tokens: 2500
             })
           });
-
-          clearTimeout(timeoutId);
 
           if (res.ok) {
             const data = await res.json();
