@@ -318,7 +318,7 @@ export async function composeReelSlides(
 
       <!-- 5. İNTERAKTİF TARAFTAR ANKET & TARTIŞMA KARTI (x: 36, y: 1405, w: 1008, h: 250) -->
       <rect x="36" y="1405" width="1008" height="250" rx="28" ry="28" fill="url(#pollCardGrad)" stroke="url(#goldAccent)" stroke-width="2.5" filter="url(#dropShadow)"/>
-      <text x="540" y="1472" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="900">${pollQuestion}</text>
+      <text x="540" y="1472" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="${pollQuestion.length > 44 ? 30 : pollQuestion.length > 36 ? 33 : 36}" font-weight="900">${pollQuestion}</text>
 
       <!-- Sol Seçenek Butonu: ✓ Evet, Parmak İşareti Beğen (Zümrüt Yeşili) -->
       <rect x="64" y="1504" width="456" height="116" rx="58" ry="58" fill="url(#btnGreenGrad)" stroke="#6EE7B7" stroke-width="2.5"/>

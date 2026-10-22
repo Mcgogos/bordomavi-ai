@@ -27,18 +27,30 @@ export class EngagementEngine {
    * Facebook gönderisinin sonuna taraftarların yorum yapmasını tetikleyecek akıllı sorular ekler.
    */
   static generateEngagementCTA(title: string, body: string): string {
-    const textLower = (title + " " + body).toLowerCase();
+    const titleLower = title.toLocaleLowerCase("tr-TR");
+    const leadLower = (title + " " + body.slice(0, 300)).toLocaleLowerCase("tr-TR");
 
-    if (textLower.includes("transfer") || textLower.includes("imza") || textLower.includes("bonservis") || textLower.includes("kulüp")) {
-      const transferCTAs = [
-        "Sizce bu transfer ilk 11'in değişilmezi mi olmalı, yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek) Yorumlarda buluşalım! 👇",
-        "Bordo-Mavili taraftarlar ne düşünüyor? Bu hamle şampiyonluk yolunda doğru adım mı? (EVET / HAYIR) Fikirlerinizi paylaşın! 🔴🔵",
-        "Bu transfer hamlesini 1 ile 10 arasında puanlayın: 1️⃣ - 🔟? Yorumlarda oyluyoruz! 👇"
+    // 1. Rakip Analizi & Avrupa / Kupa Maçları
+    if (leadLower.includes("rakip") || leadLower.includes("hearts") || leadLower.includes("avrupa") || leadLower.includes("konferans")) {
+      const opponentCTAs = [
+        "Sizce Fırtına bu Avrupa sınavından galibiyetle ayrılır mı? (EVET: Beğen / HAYIR: Yorum Yaz) Fikirlerinizi paylaşın! 🔴🔵",
+        "Bu kritik mücadelede maçın yıldızı kim olur? Skor tahminlerinizi yoruma bekliyoruz! ⚽👇"
       ];
-      return transferCTAs[Math.floor(Math.random() * transferCTAs.length)];
+      return opponentCTAs[Math.floor(Math.random() * opponentCTAs.length)];
     }
 
-    if (textLower.includes(OFFICIAL_MANAGER.name.toLowerCase()) || textLower.includes("reis") || textLower.includes("hoca") || textLower.includes("teknik direktör") || textLower.includes("taktik")) {
+    // 2. Hakem & Disiplin Kararları
+    if (titleLower.includes("hakem") || titleLower.includes("tff") || titleLower.includes("pfdk") || titleLower.includes("ceza") || titleLower.includes("mhk")) {
+      return "Sizce verilen bu hakem ve disiplin kararları adil mi? (EVET / HAYIR) Görüşlerinizi yorumlarda buluşturalım! 👇";
+    }
+
+    // 3. Sakatlık & Sağlık
+    if (titleLower.includes("sakat") || titleLower.includes("tedavi") || titleLower.includes("revir") || leadLower.includes("forma giyemeyecek")) {
+      return "Sizce bu eksikler takımın sahadaki oyununu olumsuz etkiler mi? Fikirlerinizi yorumlarda paylaşın! 🔴🔵";
+    }
+
+    // 4. Teknik Heyet & Taktik & Kadro
+    if (titleLower.includes(OFFICIAL_MANAGER.name.toLowerCase()) || titleLower.includes("reis") || titleLower.includes("hoca") || titleLower.includes("taktik") || titleLower.includes("ilk 11")) {
       const coachCTAs = [
         "Hocamızın bu kararını destekliyor musunuz? (EVET / HAYIR) Katılanlar 'BEĞEN' butonuna bassın, fikri olan yoruma yazsın! 👇",
         "Sizce sahaya hangi 11 ile çıkmalıyız? İdeal kadronuzu yoruma bırakın, en çok beğenilen kadroyu öne çıkaralım! 🔴🔵",
@@ -47,12 +59,28 @@ export class EngagementEngine {
       return coachCTAs[Math.floor(Math.random() * coachCTAs.length)];
     }
 
-    if (textLower.includes("maç") || textLower.includes("derbi") || textLower.includes("skor") || textLower.includes("rakip")) {
+    // 5. Gerçek Transfer & Sözleşme (Sadece başlıkta veya ilk cümlede açık transfer aksiyonu varsa)
+    if (titleLower.includes("transfer") || titleLower.includes("imza attı") || titleLower.includes("bonservis") || titleLower.includes("sözleşme imzaladı") || titleLower.includes("kiralık") || titleLower.includes("yeni transfer")) {
+      const transferCTAs = [
+        "Sizce bu transfer ilk 11'in değişilmezi mi olmalı, yoksa hamle oyuncusu mu kalmalı? (1: İlk 11 / 2: Yedek) Yorumlarda buluşalım! 👇",
+        "Bordo-Mavili taraftarlar ne düşünüyor? Bu hamle şampiyonluk yolunda doğru adım mı? (EVET / HAYIR) Fikirlerinizi paylaşın! 🔴🔵",
+        "Bu transfer hamlesini 1 ile 10 arasında puanlayın: 1️⃣ - 🔟? Yorumlarda oyluyoruz! 👇"
+      ];
+      return transferCTAs[Math.floor(Math.random() * transferCTAs.length)];
+    }
+
+    // 6. Maç & Derbi Öncesi / Sonrası
+    if (titleLower.includes("maç") || titleLower.includes("derbi") || titleLower.includes("skor") || titleLower.includes("beşiktaş") || titleLower.includes("galatasaray") || titleLower.includes("fenerbahçe")) {
       const matchCTAs = [
         "Sizce maçın kırılma anı veya yıldızı kim olur? Skor tahminlerinizi yoruma yazın, bakalım kim bilecek! ⚽👇",
         "Fırtına bu kritik virajdan nasıl bir sonuçla ayrılır? (GALİBİYET / BERABERLİK / MAĞLUBİYET) Tahminleri alalım! 🔴🔵"
       ];
       return matchCTAs[Math.floor(Math.random() * matchCTAs.length)];
+    }
+
+    // 7. Yönetim & Başkan
+    if (titleLower.includes("ertuğrul doğan") || titleLower.includes("başkan") || titleLower.includes("yönetim")) {
+      return "Yönetimin ve başkanımızın bu adımını destekliyor musunuz? (EVET / HAYIR) Yorumlarınızı bekliyoruz! 👇";
     }
 
     // Varsayılan genel etkileşim sorusu

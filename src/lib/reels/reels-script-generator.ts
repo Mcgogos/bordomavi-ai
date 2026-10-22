@@ -137,6 +137,211 @@ function convertNumbersToTurkishWords(text: string): string {
     .replace(/\b(\d{1,2})\.\s*(hafta\w*|dakika\w*|sıra\w*|maç\w*|yarı\w*|sezon\w*)/gi, (_, n, word) => `${ordMap[n] || n} ${word}`);
 }
 
+/**
+ * Haberin gerçek konusuna (Rakip Analizi, Sakatlık, Hakem, Taktik, Transfer vb.)
+ * göre dinamik, soru ve Evet/Hayır seçenekleriyle %100 uyumlu anket sorusu üretir.
+ */
+export function determineContextualReelPoll(
+  title: string,
+  summary: string,
+  categoryHint?: string
+): {
+  category: ReelScriptData['category'];
+  badgeTitle: string;
+  pollQuestion: string;
+  categoryTag: string;
+} {
+  const titleLower = title.toLocaleLowerCase('tr-TR');
+  const leadLower = (title + ' ' + summary.slice(0, 300)).toLocaleLowerCase('tr-TR');
+
+  // 1. HAKEM & TFF & DİSİPLİN (Hakem ataması, VAR, ceza, sevk vb.)
+  if (
+    titleLower.includes('hakem') ||
+    titleLower.includes('düdük çalacak') ||
+    titleLower.includes('pfdk') ||
+    titleLower.includes('mhk') ||
+    titleLower.includes('var hakemi') ||
+    titleLower.includes('ceza') ||
+    leadLower.includes('pfdk\'ye sevk')
+  ) {
+    return {
+      category: 'GENERAL',
+      badgeTitle: 'HAKEM & DİSİPLİN',
+      pollQuestion: 'Sizce verilen bu kararlar adil mi?',
+      categoryTag: '#HakemKararları'
+    };
+  }
+
+  // 2. SAKATLIK & SAĞLIK & EKSİKLER (Savic, Onuachu, Revir, Tedavi vb.)
+  if (
+    titleLower.includes('sakat') ||
+    titleLower.includes('tedavi') ||
+    titleLower.includes('ameliyat') ||
+    titleLower.includes('revir') ||
+    titleLower.includes('forma giyemeyecek') ||
+    titleLower.includes('oynayamayacak') ||
+    titleLower.includes('kadrodan çıkarıldı') ||
+    titleLower.includes('salonda çalıştı') ||
+    leadLower.includes('antrenmana çıkmadı') ||
+    leadLower.includes('tedavisine başlandı')
+  ) {
+    return {
+      category: 'INJURY',
+      badgeTitle: 'SAĞLIK RAPORU',
+      pollQuestion: 'Bu eksikler takımın oyununu olumsuz etkiler mi?',
+      categoryTag: '#SakatlıkRaporu'
+    };
+  }
+
+  // 3. KADRO & İLK 11 & TAKTİK (Thomas Reis, Muhtemel 11 vb.)
+  if (
+    titleLower.includes('ilk 11') ||
+    titleLower.includes('muhtemel 11') ||
+    titleLower.includes('taktik') ||
+    titleLower.includes('formasyon') ||
+    titleLower.includes('kadro tercihi') ||
+    (titleLower.includes('reis') && (titleLower.includes('11') || titleLower.includes('plan')))
+  ) {
+    return {
+      category: 'MATCH_PREVIEW',
+      badgeTitle: 'TAKTIK & KADRO',
+      pollQuestion: 'Hocamızın bu kadro tercihini doğru buluyor musunuz?',
+      categoryTag: '#Trabzonsporİlk11'
+    };
+  }
+
+  // 4. RAKİP ANALİZİ & AVRUPA / KUPA MAÇLARI (Hearts, Rakip Kimdir, Konferans Ligi vb.)
+  if (
+    titleLower.includes('rakip') ||
+    titleLower.includes('rakibi') ||
+    titleLower.includes('rakibimiz') ||
+    titleLower.includes('hearts') ||
+    titleLower.includes('kimdir') ||
+    leadLower.includes('rakip analizi') ||
+    leadLower.includes('rakibe dikkat') ||
+    (leadLower.includes('avrupa') && leadLower.includes('hearts'))
+  ) {
+    return {
+      category: 'MATCH_PREVIEW',
+      badgeTitle: 'RAKİP ANALİZİ',
+      pollQuestion: 'Sizce Trabzonspor bu maçı rahat kazanır mı?',
+      categoryTag: '#AvrupaLigi'
+    };
+  }
+
+  // 5. GERÇEK TRANSFER & İMZA
+  if (
+    titleLower.includes('transfer') ||
+    titleLower.includes('imza') ||
+    titleLower.includes('bonservis') ||
+    titleLower.includes('sözleşme') ||
+    titleLower.includes('kiralık') ||
+    titleLower.includes('resmen açıkladı') ||
+    titleLower.includes('yeni transfer') ||
+    titleLower.includes('sesleri') ||
+    (titleLower.includes('anlaştı') && !titleLower.includes('tff'))
+  ) {
+    return {
+      category: 'TRANSFER',
+      badgeTitle: 'TRANSFER HABERİ',
+      pollQuestion: 'Sizce bu transfer hamlesi doğru mu?',
+      categoryTag: '#TransferHaberleri'
+    };
+  }
+
+  // 6. DERBİ & LİG MAÇI GÜNDEMİ
+  if (
+    titleLower.includes('derbi') ||
+    titleLower.includes('beşiktaş') ||
+    titleLower.includes('fenerbahçe') ||
+    titleLower.includes('galatasaray') ||
+    titleLower.includes('maç günü') ||
+    titleLower.includes('karşılaşma')
+  ) {
+    return {
+      category: 'MATCH_PREVIEW',
+      badgeTitle: 'MAÇ GÜNDEMİ',
+      pollQuestion: 'Trabzonspor bu kritik maçtan galibiyetle ayrılır mı?',
+      categoryTag: '#MaçGünü'
+    };
+  }
+
+  // 7. MAÇ SONU & SKOR DEĞERLENDİRMESİ
+  if (
+    titleLower.includes('maç sonu') ||
+    titleLower.includes('galip geldi') ||
+    titleLower.includes('mağlup oldu') ||
+    titleLower.includes('puansız döndü') ||
+    titleLower.includes('gol şov') ||
+    titleLower.includes('tarihi zafer') ||
+    titleLower.includes('galibiyetin ardından')
+  ) {
+    return {
+      category: 'MATCH_PREVIEW',
+      badgeTitle: 'MAÇ SONU',
+      pollQuestion: 'Takımın bu maçtaki performansını beğendiniz mi?',
+      categoryTag: '#MaçSonu'
+    };
+  }
+
+  // 8. YÖNETİM & BAŞKAN & KULÜP GELİŞMELERİ
+  if (
+    titleLower.includes('ertuğrul doğan') ||
+    titleLower.includes('başkan') ||
+    titleLower.includes('yönetim') ||
+    titleLower.includes('kongre') ||
+    titleLower.includes('sponsor') ||
+    titleLower.includes('tesis') ||
+    titleLower.includes('tüzük')
+  ) {
+    return {
+      category: 'MANAGEMENT',
+      badgeTitle: 'KULÜP HABERİ',
+      pollQuestion: 'Yönetimin bu kararını destekliyor musunuz?',
+      categoryTag: '#Yönetim'
+    };
+  }
+
+  // 9. OYUNCU PERFORMANSI & REKOR & BİREYSEL BAŞARI
+  if (
+    titleLower.includes('gol krallığı') ||
+    titleLower.includes('rekor') ||
+    titleLower.includes('istatistik') ||
+    titleLower.includes('solladı') ||
+    titleLower.includes('parladı') ||
+    titleLower.includes('övgü')
+  ) {
+    return {
+      category: 'GENERAL',
+      badgeTitle: 'YILDIZ PERFORMANSI',
+      pollQuestion: 'Yıldız oyuncumuz bu form grafiğini sürdürür mü?',
+      categoryTag: '#YıldızOyuncular'
+    };
+  }
+
+  // 10. SON DAKİKA / FLAŞ GELİŞME
+  if (
+    titleLower.includes('son dakika') ||
+    titleLower.includes('flaş') ||
+    titleLower.includes('resmi açıklama')
+  ) {
+    return {
+      category: 'BREAKING',
+      badgeTitle: 'SON DAKİKA',
+      pollQuestion: 'Sizce bu gelişme takımımızı olumlu etkiler mi?',
+      categoryTag: '#SonDakika'
+    };
+  }
+
+  // 11. GENEL TRABZONSPOR HABERİ
+  return {
+    category: 'GENERAL',
+    badgeTitle: 'BORDO MAVİ HABER',
+    pollQuestion: 'Sizce bu gelişme takımımızı olumlu etkiler mi?',
+    categoryTag: '#Trabzonspor'
+  };
+}
+
 export async function generateReelScript(params: {
   title: string;
   summary?: string | null;
@@ -157,20 +362,11 @@ export async function generateReelScript(params: {
   const cleanSummary = convertNumbersToTurkishWords(cleanNewsForScript(cleanTitle, fullArticleRaw));
   const lowerText = `${cleanTitle} ${cleanSummary}`.toLocaleLowerCase('tr-TR');
 
-  let category: ReelScriptData['category'] = 'GENERAL';
-  let badgeTitle = 'BORDO MAVİ HABER';
-
-  if (lowerText.includes('transfer') || lowerText.includes('imza') || lowerText.includes('bonservis') || lowerText.includes('anlaşma')) {
-    category = 'TRANSFER';
-  } else if (lowerText.includes('derbi') || lowerText.includes('beşiktaş') || lowerText.includes('fenerbahçe') || lowerText.includes('galatasaray') || lowerText.includes('maç')) {
-    category = 'MATCH_PREVIEW';
-  } else if (lowerText.includes('sakat') || lowerText.includes('tedavi') || lowerText.includes('ameliyat') || lowerText.includes('revir')) {
-    category = 'INJURY';
-  } else if (lowerText.includes('ertuğrul doğan') || lowerText.includes('yönetim') || lowerText.includes('başkan') || lowerText.includes('yetki') || lowerText.includes('sponsor')) {
-    category = 'MANAGEMENT';
-  } else if (lowerText.includes('son dakika') || lowerText.includes('flaş') || lowerText.includes('resmi')) {
-    category = 'BREAKING';
-  }
+  const pollMeta = determineContextualReelPoll(cleanTitle, cleanSummary, params.category || undefined);
+  const category = pollMeta.category;
+  const badgeTitle = pollMeta.badgeTitle;
+  const pollQuestion = pollMeta.pollQuestion;
+  const categoryTag = pollMeta.categoryTag;
 
   // Doğrudan haberin orijinal metninden ve tam makale paragraflarından %100 gerçek, eksiksiz ve akıcı Türkçe bülten oluştur
   const cleanLeadSentences = cleanInitialLead
@@ -247,14 +443,8 @@ export async function generateReelScript(params: {
 
   aiNarration = convertNumbersToTurkishWords(aiNarration);
 
-  // Kullanıcının istediği sabit etkileşim butonları:
-  // Sol: "✓ Evet, Beğen" (Parmak işareti ile) | Sağ: "Hayır, Yorum Yap"
-  let pollQuestion = 'Sizce bu gelişme doğru mu?';
-  if (category === 'TRANSFER') pollQuestion = 'Sizce bu transfer hamlesi doğru mu?';
-  else if (category === 'MATCH_PREVIEW') pollQuestion = 'Takımın derbi performansını beğendiniz mi?';
-  else if (category === 'MANAGEMENT') pollQuestion = 'Yönetimin bu kararını destekliyor musunuz?';
-  else if (category === 'INJURY') pollQuestion = 'Eksikler takımın oyununu etkiler mi?';
-
+  // Haberin konusuna göre dinamik üretilen anket ve etkileşim butonları:
+  // Sol: "✓ Evet, Beğen" | Sağ: "Hayır, Yorum Yap"
   const pollOption1 = 'Evet, Beğen';
   const pollOption2 = 'Hayır, Yorum Yap';
 
@@ -302,8 +492,7 @@ export async function generateReelScript(params: {
     }
   ];
 
-  const categoryTag = category === 'TRANSFER' ? '#TransferHaberleri' : category === 'MATCH_PREVIEW' ? '#MaçGünü' : '#SonDakika';
-  const facebookCaption = `🎬 ${cleanTitle}\n\n${aiNarration}\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #SüperLig ${categoryTag} #Reels`;
+  const facebookCaption = `🎬 ${cleanTitle}\n\n${aiNarration}\n\n📊 SİZCE: ${pollQuestion}\n👍 Evet (Beğen) | 💬 Hayır (Yorum Yap)\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #SüperLig ${categoryTag} #Reels`;
 
   return {
     title: cleanTitle,
