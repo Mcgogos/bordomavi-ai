@@ -27,8 +27,7 @@ jobs:
   publish-slot:
     name: 7/24 Cloud Autonomous Daily Slot Publisher
     runs-on: ubuntu-latest
-    # Slot dışında başlayan çalışma sıradaki slota kadar en fazla 300 dk bekleyebilir (scripts/trigger_workflow.ts)
-    timeout-minutes: 345
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Codebase
@@ -61,6 +60,7 @@ jobs:
           FACEBOOK_MOCK_MODE: "false"
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          FFMPEG_PATH: /usr/bin/ffmpeg
           NEXT_PUBLIC_APP_URL: "https://bordomavi-ai.vercel.app"
           CRON_SECRET: ${{ secrets.CRON_SECRET || 'test_secret' }}
         run: |

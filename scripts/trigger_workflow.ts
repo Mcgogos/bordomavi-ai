@@ -8,14 +8,6 @@ import { runAutonomousReelWorkflow } from '../src/lib/reels/reels-publisher';
 import { SmartPublisher, PublishingQuotaInfo } from '../src/lib/content/smart-publisher';
 
 /**
- * GitHub Actions `schedule` tetikleri yoğunlukta gecikir veya hiç çalışmaz (günde ~56 planlı tetikten
- * yalnızca birkaçı gerçekleşiyor). Bu nedenle slot dışında başlayan bir çalışma, sıradaki slot
- * en fazla bu kadar dakika uzaktaysa kapanmak yerine slot saatine kadar bekler ve yayını kendisi yapar.
- * Workflow `timeout-minutes` değeri bu süre + yayın süresinden büyük olmalıdır.
- */
-const SLOT_WAIT_MAX_MINUTES = Number(process.env.SLOT_WAIT_MAX_MINUTES || 300);
-
-/**
  * 11:00 metin haberi Vercel cron'u tarafından tam saatinde yayınlanır. Aynı anda iki yayın
  * yapılmasını önlemek için bulut işçisi metin slotuna yalnızca bu kadar dakika sonra (yedek olarak) girer.
  */
@@ -32,10 +24,9 @@ async function getHealthyQuota(): Promise<PublishingQuotaInfo> {
 }
 
 /**
- * Yayın yapılabilir bir slot yoksa ve sıradaki slot yakınsa slot başlangıcına kadar bekler.
- * @returns Bekleme sonrası (veya hemen) yayın denemesi yapılmalıysa true.
+ * Slot durumunu kontrol eder. Slot aktifse ve henüz yayınlanmadıysa true döner.
  */
-async function waitForPublishableSlot(): Promise<boolean> {
+async function checkActiveSlot(): Promise<boolean> {
   const quota = await getHealthyQuota();
 
   if (quota.quota > 0 && quota.activeSlotId) {
@@ -50,18 +41,8 @@ async function waitForPublishableSlot(): Promise<boolean> {
     return true;
   }
 
-  const { slot, minutesUntilStart } = SmartPublisher.getNextSlotStart();
-  const wakeOffset = slot.type === 'TEXT' ? TEXT_SLOT_FALLBACK_DELAY_MINUTES : 1;
-  const waitMinutes = minutesUntilStart + wakeOffset;
-
-  if (waitMinutes > SLOT_WAIT_MAX_MINUTES) {
-    console.log(`🔒 ${quota.reason} Sıradaki slot (${slot.timeLabel}) ${minutesUntilStart} dk uzakta; bekleme sınırı (${SLOT_WAIT_MAX_MINUTES} dk) aşıldığı için bu çalışma kapanıyor.`);
-    return false;
-  }
-
-  console.log(`⏳ ${quota.reason} Sıradaki slot (${slot.timeLabel} ${slot.type}) için ${waitMinutes} dk bekleniyor (GitHub zamanlayıcı gecikmelerine karşı)...`);
-  await sleep(waitMinutes * 60_000);
-  return true;
+  console.log(`🔒 Takvim Koruması: ${quota.reason} Sıradaki slot: ${quota.nextSlotLabel}.`);
+  return false;
 }
 
 async function main() {
@@ -76,7 +57,7 @@ async function main() {
     throw new Error('DATABASE_URL tanımlı değil (GitHub repository secret eksik). Otomatik yayın yapılamaz.');
   }
 
-  const shouldPublish = await waitForPublishableSlot();
+  const shouldPublish = await checkActiveSlot();
   if (!shouldPublish) return;
 
   console.log('--- 1. COLLECTING FRESH NEWS ---');

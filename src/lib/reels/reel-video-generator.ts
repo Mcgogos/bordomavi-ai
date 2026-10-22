@@ -7,8 +7,22 @@ import { synthesizeTurkishSpeech } from './reels-audio-synthesizer';
 import { composeReelSlides, getAvailableFontPath, escapeFFmpegPath, wrapTextToLines } from './reels-visual-composer';
 import { verifyReelQuality, ReelQualityCheckResult } from './reels-quality-checker';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const ffmpegPath = require('ffmpeg-static');
+export function getFFmpegPath(): string {
+  if (process.env.FFMPEG_PATH && fs.existsSync(process.env.FFMPEG_PATH)) {
+    return process.env.FFMPEG_PATH;
+  }
+  // Linux / Ubuntu runner ortamında libfreetype & drawtext içeren sistem ffmpeg'i önceliklidir
+  if (process.platform === 'linux') {
+    if (fs.existsSync('/usr/bin/ffmpeg')) return '/usr/bin/ffmpeg';
+    if (fs.existsSync('/usr/local/bin/ffmpeg')) return '/usr/local/bin/ffmpeg';
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const staticPath = require('ffmpeg-static');
+    if (staticPath && fs.existsSync(staticPath)) return staticPath;
+  } catch {}
+  return 'ffmpeg';
+}
 
 export interface GenerateReelParams {
   title: string;
@@ -149,7 +163,8 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       outputVideoPath
     ];
 
-    console.log(`[ReelVideoGenerator] Rendering 1080x1920 30fps Broadcast MP4 (${totalDuration}s)...`);
+    const ffmpegPath = getFFmpegPath();
+    console.log(`[ReelVideoGenerator] Rendering 1080x1920 30fps Broadcast MP4 (${totalDuration}s) using FFmpeg: ${ffmpegPath}...`);
     const startTime = Date.now();
 
     await new Promise((resolve, reject) => {
@@ -160,7 +175,7 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
         if (code === 0 && fs.existsSync(outputVideoPath)) {
           resolve(true);
         } else {
-          reject(new Error(`FFmpeg Reel render failed (code ${code}): ${stderr.slice(-400)}`));
+          reject(new Error(`FFmpeg Reel render failed (code ${code}): ${stderr.slice(-2000)}`));
         }
       });
     });
