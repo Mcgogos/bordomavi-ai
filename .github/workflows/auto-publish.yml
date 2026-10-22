@@ -27,7 +27,8 @@ jobs:
   publish-slot:
     name: 7/24 Cloud Autonomous Daily Slot Publisher
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Slot dışında başlayan çalışma sıradaki slota kadar en fazla 300 dk bekleyebilir (scripts/trigger_workflow.ts)
+    timeout-minutes: 345
 
     steps:
       - name: Checkout Codebase
@@ -53,7 +54,7 @@ jobs:
       - name: Execute Cloud Slot Publisher on Ubuntu Runner (Primary Engine)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           FACEBOOK_APP_ID: ${{ secrets.FACEBOOK_APP_ID }}
@@ -67,6 +68,7 @@ jobs:
           echo "DATABASE_URL configured: $([ -n "$DATABASE_URL" ] && echo 'YES' || echo 'NO (CRITICAL)')"
           echo "FACEBOOK_PAGE_ACCESS_TOKEN configured: $([ -n "$FACEBOOK_PAGE_ACCESS_TOKEN" ] && echo 'YES' || echo 'NO (CRITICAL)')"
           echo "NVIDIA_API_KEY configured: $([ -n "$NVIDIA_API_KEY" ] && echo 'YES' || echo 'NO')"
+          if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL repository secret tanımlı değil. Otomatik yayın yapılamaz (Settings > Secrets and variables > Actions)."; exit 1; fi
           npx tsx scripts/trigger_workflow.ts
 
       - name: Sync Live Stats and Cache on Vercel Production

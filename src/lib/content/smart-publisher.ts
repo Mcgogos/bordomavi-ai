@@ -79,6 +79,8 @@ export interface PublishingQuotaInfo {
   minutesSinceLastPost?: number;
   todayCount?: number;
   nextSlotLabel?: string;
+  /** Veritabanı denetimi başarısız olduysa hata mesajı (Güvenli Hata Modu). */
+  error?: string;
 }
 
 export class SmartPublisher {
@@ -140,6 +142,34 @@ export class SmartPublisher {
       }
     }
     return `Yarın 07:00 (Reels)`;
+  }
+
+  /**
+   * Türkiye saatine göre bir sonraki slotun başlangıcına kalan dakikayı ve slot tanımını döndürür.
+   * Gün bittiyse ertesi günün ilk slotu (07:00) hesaplanır.
+   */
+  static getNextSlotStart(): { slot: DailySlotDefinition; minutesUntilStart: number } {
+    const { hour, minute } = this.getTurkeyTime();
+    const currentMinutes = hour * 60 + minute;
+    for (const slot of STRICT_DAILY_SCHEDULE) {
+      const slotStart = slot.startHour * 60 + slot.startMinute;
+      if (currentMinutes < slotStart) {
+        return { slot, minutesUntilStart: slotStart - currentMinutes };
+      }
+    }
+    const firstSlot = STRICT_DAILY_SCHEDULE[0];
+    const firstStart = firstSlot.startHour * 60 + firstSlot.startMinute;
+    return { slot: firstSlot, minutesUntilStart: 24 * 60 - currentMinutes + firstStart };
+  }
+
+  /**
+   * Belirtilen slotun başlangıcından bu yana geçen dakika (slot henüz başlamadıysa negatif).
+   */
+  static getMinutesSinceSlotStart(slotId: DailySlotDefinition['id']): number {
+    const slot = STRICT_DAILY_SCHEDULE.find((s) => s.id === slotId);
+    if (!slot) return 0;
+    const { hour, minute } = this.getTurkeyTime();
+    return hour * 60 + minute - (slot.startHour * 60 + slot.startMinute);
   }
 
   /**
@@ -297,6 +327,7 @@ export class SmartPublisher {
         windowName: 'Güvenli Hata Modu',
         efficiencyRate: 'Belirsiz',
         delayMsBetweenPosts: 0,
+        error: err.message,
         reason: `Veritabanı kontrolünde hata oluştu (${err.message}). Takvim dışına çıkmamak için yayın bekletiliyor.`
       };
     }
