@@ -8,6 +8,12 @@ import { runAutonomousReelWorkflow } from '../src/lib/reels/reels-publisher';
 import { SmartPublisher } from '../src/lib/content/smart-publisher';
 
 async function main() {
+  console.log('[TRIGGER_WORKFLOW] 🚀 Starting 7/24 Autonomous Workflow...');
+  console.log('[ENV_CHECK] DATABASE_URL present:', Boolean(process.env.DATABASE_URL));
+  console.log('[ENV_CHECK] FACEBOOK_PAGE_ACCESS_TOKEN present:', Boolean(process.env.FACEBOOK_PAGE_ACCESS_TOKEN));
+  console.log('[ENV_CHECK] NVIDIA_API_KEY present:', Boolean(process.env.NVIDIA_API_KEY));
+  console.log('[ENV_CHECK] OPENROUTER_API_KEY present:', Boolean(process.env.OPENROUTER_API_KEY));
+
   console.log('--- 1. COLLECTING FRESH NEWS ---');
   const col = await runNewsCollector();
   console.log('Collection result:', col);
@@ -41,4 +47,12 @@ async function main() {
   }
 }
 
-main().catch(console.error).finally(() => process.exit(0));
+main()
+  .then(() => {
+    console.log('[TRIGGER_WORKFLOW] ✅ Workflow finished successfully.');
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error('[TRIGGER_WORKFLOW CRITICAL ERROR]', err);
+    process.exit(1);
+  });

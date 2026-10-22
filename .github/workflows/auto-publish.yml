@@ -14,8 +14,9 @@ on:
     # 20:30 TR (17:30 UTC) Akşam Ana Reels Bülteni
     - cron: '30 17 * * *'
     - cron: '45 17 * * *'
-    # Yedek saatlik kontrol (GitHub Actions cron gecikmelerine karşı emniyet supabı)
+    # Kesintisiz Emniyet Kalp Atışı: Her saatin 5. ve 35. dakikaları (GitHub Actions gecikmelerine karşı)
     - cron: '5 * * * *'
+    - cron: '35 * * * *'
   workflow_dispatch:
 
 concurrency:
@@ -49,12 +50,7 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
 
-      - name: Trigger Vercel Production Cloud Sync (Redundancy 1)
-        run: |
-          echo "Pinging Vercel Production Cron Endpoint..."
-          curl -s -X POST -m 60 "https://bordomavi-ai.vercel.app/api/cron/sync-news?secret=test_secret" || echo "Vercel sync completed/timed out"
-
-      - name: Execute Cloud Slot Publisher on Ubuntu Runner (Redundancy 2)
+      - name: Execute Cloud Slot Publisher on Ubuntu Runner (Primary Engine)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
@@ -68,4 +64,13 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET || 'test_secret' }}
         run: |
           echo "Starting 7/24 Cloud Autonomous Publisher for active schedule slot..."
+          echo "DATABASE_URL configured: $([ -n "$DATABASE_URL" ] && echo 'YES' || echo 'NO (CRITICAL)')"
+          echo "FACEBOOK_PAGE_ACCESS_TOKEN configured: $([ -n "$FACEBOOK_PAGE_ACCESS_TOKEN" ] && echo 'YES' || echo 'NO (CRITICAL)')"
+          echo "NVIDIA_API_KEY configured: $([ -n "$NVIDIA_API_KEY" ] && echo 'YES' || echo 'NO')"
           npx tsx scripts/trigger_workflow.ts
+
+      - name: Sync Live Stats and Cache on Vercel Production
+        if: always()
+        run: |
+          echo "Pinging Vercel Production to synchronize stats..."
+          curl -s -X POST -m 30 "https://bordomavi-ai.vercel.app/api/cron/sync-news?secret=test_secret" || echo "Vercel sync finished"

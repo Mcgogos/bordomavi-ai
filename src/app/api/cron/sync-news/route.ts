@@ -95,7 +95,12 @@ async function handleSync(request: Request) {
       // Saat 07:00, 15:00 veya 20:30 -> Reels Slotu
       console.log(`[CRON] 🎬 ${quotaInfo.windowName} aktif -> Otonom Reels videosu üretiliyor ve yayınlanıyor...`);
       try {
-        reelResult = await runAutonomousReelWorkflow({ force: false });
+        if (process.env.VERCEL === '1') {
+          console.log(`[CRON] 🎬 ${quotaInfo.windowName} aktif. Vercel Serverless video zaman aşımını önlemek için video render işlemi Ubuntu FFmpeg bulut çalıştırıcısına (GitHub Actions) devredildi.`);
+          publishResult.reason = `${quotaInfo.windowName} aktif. Haber havuzu hazırlandı, FFmpeg video üretimi bulut Ubuntu işçisi tarafından yürütülüyor.`;
+        } else {
+          reelResult = await runAutonomousReelWorkflow({ force: false });
+        }
         if (reelResult?.success) {
           publishResult.processed = 1;
           publishResult.reason = `${quotaInfo.windowName} kapsamında Reels başarıyla yayınlandı.`;
