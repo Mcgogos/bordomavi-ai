@@ -39,6 +39,12 @@ const VIRAL_SEARCH_QUERIES = [
   'ytsearch10:trabzonspor gol #shorts',
 ];
 
+const TRABZON_REGION_SEARCH_QUERIES = [
+  'ytsearch15:trabzon horon kemençe #shorts',
+  'ytsearch15:trabzon uzungöl sümela yayla #shorts',
+  'ytsearch12:trabzon karadeniz yöresel #shorts',
+];
+
 const RIVAL_BLACKLIST_PATTERNS = [
   /#gs\b/i,
   /#gstv\b/i,
@@ -61,10 +67,13 @@ const RIVAL_BLACKLIST_PATTERNS = [
   /\bgalatasaray\s*kazand[ıi]/i,
   /\bfenerbah[cç]e\s*kazand[ıi]/i,
   /\bbe[sş]ikta[sş]\s*kazand[ıi]/i,
+  /\brizesporlu\b/i,
 ];
 
 const TRABZONSPOR_POSITIVE_PATTERNS = [
   /trabzonspor/i,
+  /trabzon\s*taraftar/i,
+  /\b[üu]nits\b/i,
   /bordo\s*mavi/i,
   /karadeniz\s*f[ıi]rt[ıi]nas[ıi]/i,
   /papara\s*park/i,
@@ -87,15 +96,40 @@ const TRABZONSPOR_POSITIVE_PATTERNS = [
   /\bbatagov\b/i,
 ];
 
-const NON_SPORTS_CITY_PATTERNS = [
+const TRABZON_REGION_POSITIVE_PATTERNS = [
+  /\btrabzon/i,
+  /\buzung[öo]l/i,
+  /\bs[üu]mela/i,
+  /\bhoron\b/i,
+  /\bkemen[cç]e\b/i,
+  /\byayla/i,
+  /\bak[cç]aabat/i,
+  /\bma[cç]ka\b/i,
+  /\b[cç]aykara\b/i,
+  /\bs[üu]rmene\b/i,
+  /\bvakf[ıi]kebir\b/i,
+  /\btonya\b/i,
+  /\bboztepe\b/i,
+  /\bh[ıi]d[ıi]rnebi\b/i,
+  /\bkuymak\b/i,
+  /\bm[ıi]hlama\b/i,
+  /\bkolbast[ıi]\b/i,
+  /\bkaradeniz\b/i,
+];
+
+const NEGATIVE_POLITICS_CRIME_PATTERNS = [
   /\bbakanl[ıi]k\b/i,
   /\bbelediye\b/i,
-  /\bmahallesi\b/i,
   /\bkentsel\s*d[öo]n[üu][sş][üu]m\b/i,
   /\btrafik\s*kazas[ıi]\b/i,
-  /\bhava\s*durumu\b/i,
-  /\bf[ıi]nd[ıi]k\s*fiyat/i,
-  /\b[cç]aykur\b/i,
+  /\bcinayet\b/i,
+  /\bg[öo]zalt[ıi]\b/i,
+  /\basgari\s*[üu]cret\b/i,
+  /\bsiyaset\b/i,
+  /\bse[cç]im\b/i,
+  /\botel\b/i,
+  /\bresort\b/i,
+  /\bsen\s*anlat\s*karadeniz\b/i,
 ];
 
 let cachedYtDlpPath: string | null = null;
@@ -163,8 +197,12 @@ export async function getYtDlpPath(): Promise<string> {
 /**
  * Üçüncü parti sayfa isimlerini, hashtag'leri, mention'ları ve reklam ibarelerini başlıktan temizler.
  */
-export function sanitizeViralTitle(rawTitle: string): string {
-  if (!rawTitle) return 'TRABZONSPOR GÜNDEMİNİ SARSAN O ANLAR!';
+export function sanitizeViralTitle(rawTitle: string, isTrabzonRegion = false): string {
+  if (!rawTitle) {
+    return isTrabzonRegion
+      ? 'TRABZON YÖRESİNDEN SOSYAL MEDYAYI SALLAYAN GÖRÜNTÜLER!'
+      : 'TRABZONSPOR GÜNDEMİNİ SARSAN O ANLAR!';
+  }
 
   // 1. Matematiksel bold/italic Unicode karakterleri standart harflere dönüştür (örn: 𝐌𝐞𝐥𝐢𝐡 -> Melih)
   let cleaned = rawTitle.normalize('NFKC');
@@ -187,6 +225,17 @@ export function sanitizeViralTitle(rawTitle: string): string {
   // İngilizce tek cümlelik başlıkları Türkçe Bordo-Mavi manşete çevir
   if (/\b(he was|now he|scoring|what a goal|matchday|training)\b/i.test(cleaned)) {
     cleaned = 'TRABZONSPOR SAHADA FIRTINA GİBİ ESİYOR: MUHTEŞEM GOL!';
+  } else if (/\b(best places to visit|black sea region)\b/i.test(cleaned)) {
+    cleaned = 'TRABZON YÖRESİNDEN EŞSİZ KARADENİZ VE UZUNGÖL MANZARALARI!';
+  }
+
+  if (isTrabzonRegion) {
+    if (cleaned.length >= 4 && cleaned.length < 32 && !/trabzon|karadeniz|uzungöl|sümela/i.test(cleaned)) {
+      cleaned = `TRABZON YÖRESİNDEN: ${cleaned.toLocaleUpperCase('tr-TR')}!`;
+    } else if (cleaned.length < 10) {
+      cleaned = 'TRABZON YÖRESİNDEN SOSYAL MEDYAYI SALLAYAN GÖRÜNTÜLER!';
+    }
+    return cleaned;
   }
 
   // Çok kısa (örn: "Usta işi bitiriş") başlıklara güçlü Trabzonspor bağlamı ekle
@@ -202,24 +251,31 @@ export function sanitizeViralTitle(rawTitle: string): string {
 /**
  * Temizlenen başlıktan güçlü, özgün ve etkileşim odaklı editöryel özet ve kategori üretir.
  */
-export function buildViralEditorialContext(cleanTitle: string, rawDescription?: string): {
+export function buildViralEditorialContext(
+  cleanTitle: string,
+  rawDescription?: string,
+  forceCategory?: string
+): {
   summary: string;
   category: string;
 } {
   const text = `${cleanTitle} ${rawDescription || ''}`.toLocaleLowerCase('tr-TR');
 
-  let category = 'Viral Gündem';
-  if (/(transfer|imza|kadro|anla[sş]ma|teklif)/i.test(text)) {
-    category = 'Transfer';
-  } else if (/(gol|[sş]ut|asist|bitiri[sş]|kurtar[ıi][sş]|ate[sş]ledi|ma[cç]|skor|galibiyet|antrenman|idman)/i.test(text)) {
-    category = 'Maç & Saha İçi';
-  } else if (/(taraftar|trib[üu]n|sevda|horon|kolbast[ıi]|forma|co[sş]ku|papara|mira[cç])/i.test(text)) {
-    category = 'Taraftar & Tribün';
+  let category = forceCategory || 'Viral Gündem';
+  if (!forceCategory) {
+    if (/(transfer|imza|kadro|anla[sş]ma|teklif)/i.test(text)) {
+      category = 'Transfer';
+    } else if (/(gol|[sş]ut|asist|bitiri[sş]|kurtar[ıi][sş]|ate[sş]ledi|ma[cç]|skor|galibiyet|antrenman|idman)/i.test(text)) {
+      category = 'Maç & Saha İçi';
+    } else if (/(taraftar|trib[üu]n|sevda|forma|co[sş]ku|papara|mira[cç])/i.test(text)) {
+      category = 'Taraftar & Tribün';
+    }
   }
 
-  // Üçüncü parti açıklamaları kopyalamak yerine kendi özgün Bordo-Mavi editöryel metnimizi kuruyoruz
   let summary = '';
-  if (category === 'Taraftar & Tribün') {
+  if (category === 'Trabzon Yöresi') {
+    summary = `${cleanTitle}. Trabzon yöremizin eşsiz kültürünü, yaylalarını, horon coşkusunu ve Karadeniz insanımızın samimiyetini yansıtan bu görüntüler sosyal medyada günün en çok izlenen viral videoları arasına girdi.`;
+  } else if (category === 'Taraftar & Tribün') {
     summary = `${cleanTitle}. Bordo-Mavili renklere gönül veren taraftarlarımızın tutkusunu ve Karadeniz fırtınasının büyüklüğünü bir kez daha gözler önüne seren bu görüntüler sosyal medyada binlerce etkileşim alarak gündeme damga vurdu.`;
   } else if (category === 'Maç & Saha İçi') {
     summary = `${cleanTitle}. Trabzonspor'umuzun sahadaki mücadelesi ve unutulmaz anları Bordo-Mavi camiada büyük heyecan yarattı. Sosyal medyada en çok konuşulan o anları sizler için derledik.`;
@@ -295,40 +351,58 @@ export async function markViralVideoAsPublished(entry: {
 }
 
 /**
- * Videonun Trabzonspor dostu olup olmadığını ve rakip/negatif içerik barındırmadığını denetler.
+ * Videonun Trabzonspor veya Trabzon Yöresi viral adayı olup olmadığını sınıflandırır.
+ * Rakip veya negatif/siyasi/asayiş içerikleri kesinlikle reddeder.
  */
-export function isValidTrabzonsporViralCandidate(title: string, description: string, channelName: string): boolean {
+export function classifyViralCandidate(
+  title: string,
+  description: string,
+  channelName: string
+): 'TRABZONSPOR' | 'TRABZON_YORESI' | null {
   const combined = `${title} ${description} ${channelName}`;
   const textOnly = `${title} ${description}`;
 
   // 1. Rakip kara liste kontrolü (Icardi, GS, FB, BJK vb. videoları kesinlikle reddet)
   for (const rivalPattern of RIVAL_BLACKLIST_PATTERNS) {
     if (rivalPattern.test(combined)) {
-      return false;
+      return null;
     }
   }
 
-  // 2. Spor dışı yerel belediye/şehir haberlerini ele
-  for (const cityPattern of NON_SPORTS_CITY_PATTERNS) {
-    if (cityPattern.test(textOnly)) {
-      return false;
+  // 2. Siyaset, kaza, cinayet, otel reklamı gibi uygunsuz içerikleri ele
+  for (const negPattern of NEGATIVE_POLITICS_CRIME_PATTERNS) {
+    if (negPattern.test(textOnly)) {
+      return null;
     }
   }
 
-  // 3. Resmi Trabzonspor kanalıysa veya başlık/açıklamada Trabzonspor ibaresi geçiyorsa kabul et
+  // 3. Trabzonspor kontrolü
   const isDedicatedTsChannel = /(@trabzonspor\b|trabzonspor\s*61)/i.test(channelName);
   const hasTrabzonsporKeyword = TRABZONSPOR_POSITIVE_PATTERNS.some((pattern) => pattern.test(textOnly));
-  if (!isDedicatedTsChannel && !hasTrabzonsporKeyword) {
-    return false;
+  if (isDedicatedTsChannel || hasTrabzonsporKeyword) {
+    return 'TRABZONSPOR';
   }
 
-  return true;
+  // 4. Trabzon Yöresi (Horon, Kemençe, Uzungöl, Sümela, Yayla, Karadeniz kültürü) kontrolü
+  const hasTrabzonRegionKeyword = TRABZON_REGION_POSITIVE_PATTERNS.some((pattern) => pattern.test(textOnly));
+  if (hasTrabzonRegionKeyword) {
+    return 'TRABZON_YORESI';
+  }
+
+  return null;
+}
+
+export function isValidTrabzonsporViralCandidate(title: string, description: string, channelName: string): boolean {
+  return classifyViralCandidate(title, description, channelName) !== null;
 }
 
 /**
  * Tekil bir video URL'sinin tam metaverisini yt-dlp ile çeker ve viral skorunu hesaplar.
  */
-export async function inspectViralVideoUrl(url: string): Promise<ViralVideoCandidate | null> {
+export async function inspectViralVideoUrl(
+  url: string,
+  hintTheme?: 'TRABZONSPOR' | 'TRABZON_YORESI'
+): Promise<ViralVideoCandidate | null> {
   const ytdlp = await getYtDlpPath();
   const ffmpegPath = getFFmpegPath();
 
@@ -341,6 +415,8 @@ export async function inspectViralVideoUrl(url: string): Promise<ViralVideoCandi
         '--no-warnings',
         '--ffmpeg-location',
         ffmpegPath,
+        '--add-header',
+        'Accept-Language:tr-TR,tr;q=0.9',
         '--extractor-args',
         'youtube:lang=tr',
         url,
@@ -365,8 +441,18 @@ export async function inspectViralVideoUrl(url: string): Promise<ViralVideoCandi
       return null;
     }
 
-    const cleanTitle = sanitizeViralTitle(rawTitle);
-    const { summary, category } = buildViralEditorialContext(cleanTitle, description);
+    const detectedTheme = classifyViralCandidate(rawTitle, description, channelName) || hintTheme;
+    if (!detectedTheme) {
+      return null;
+    }
+
+    const isRegionVideo = detectedTheme === 'TRABZON_YORESI';
+    const cleanTitle = sanitizeViralTitle(rawTitle, isRegionVideo);
+    const { summary, category } = buildViralEditorialContext(
+      cleanTitle,
+      description,
+      isRegionVideo ? 'Trabzon Yöresi' : undefined
+    );
 
     // Viral skor hesaplama (İzlenme + Beğeni*30 + Yorum*60 + Güncellik Çarpanı)
     let recencyMultiplier = 1.0;
@@ -384,7 +470,6 @@ export async function inspectViralVideoUrl(url: string): Promise<ViralVideoCandi
       else if (ageDays > 180) recencyMultiplier = 0.4;
     }
 
-    // Sokak röportajı mikrofonu içermeyen saf saha içi / tribün / kulüp videolarına ekstra öncelik çarpanı
     const isMediaMicrophoneChannel = /(61\s*saat|haber\s*61|kuzey\s*ekspres)/i.test(channelName);
     const sourcePurityMultiplier = isMediaMicrophoneChannel ? 0.65 : 1.35;
 
@@ -414,24 +499,29 @@ export async function inspectViralVideoUrl(url: string): Promise<ViralVideoCandi
 }
 
 /**
- * İnterneti tarayarak Trabzonspor ile ilgili en trend/viral dikey videoları keşfeder,
+ * İnterneti tarayarak hem Trabzonspor hem de Trabzon Yöresine ait en trend/viral dikey videoları keşfeder,
  * rakip ve daha önce paylaşılan videoları eler ve viral skora göre sıralar.
  */
 export async function discoverTrendingTrabzonsporVideos(options?: {
   limit?: number;
   includePublished?: boolean;
+  preferCategory?: 'Trabzon Yöresi' | 'Trabzonspor';
 }): Promise<ViralVideoCandidate[]> {
   const limit = options?.limit || 8;
   const ytdlp = await getYtDlpPath();
   const publishedIds = options?.includePublished ? new Set<string>() : await getPublishedViralVideoIds();
 
-  console.log('[ViralDiscoverer] 🔍 Scanning internet for viral Trabzonspor Reels/Shorts...');
+  console.log('[ViralDiscoverer] 🔍 Scanning internet for viral Trabzonspor & Trabzon Region Reels/Shorts...');
 
-  // 1. Hızlı flat-playlist taraması ile aday video ID'lerini topla
-  const rawEntries: { id: string; title: string; url: string; source: string }[] = [];
+  const tsEntries: { id: string; title: string; url: string; viewCount: number }[] = [];
+  const regionEntries: { id: string; title: string; url: string; viewCount: number }[] = [];
   const seenIds = new Set<string>();
 
-  const scanSource = async (sourceOrQuery: string, playlistEnd: number) => {
+  const scanSource = async (
+    sourceOrQuery: string,
+    playlistEnd: number,
+    defaultTheme?: 'TRABZONSPOR' | 'TRABZON_YORESI'
+  ) => {
     try {
       const { stdout } = await execFileAsync(
         ytdlp,
@@ -441,6 +531,8 @@ export async function discoverTrendingTrabzonsporVideos(options?: {
           '--playlist-end',
           String(playlistEnd),
           '--no-warnings',
+          '--add-header',
+          'Accept-Language:tr-TR,tr;q=0.9',
           '--extractor-args',
           'youtube:lang=tr',
           sourceOrQuery,
@@ -458,20 +550,29 @@ export async function discoverTrendingTrabzonsporVideos(options?: {
           const item = JSON.parse(line);
           const id = String(item.id || '');
           const title = String(item.title || '');
-          if (!id || seenIds.has(id) || publishedIds.has(id)) continue;
+          const duration = Number(item.duration || 0);
+          const viewCount = Number(item.view_count || 0);
 
-          // Ön filtreleme: Rakip içerikleri hemen ele
-          if (!isValidTrabzonsporViralCandidate(title, '', sourceOrQuery)) {
-            continue;
-          }
+          if (!id || seenIds.has(id) || publishedIds.has(id)) continue;
+          // Eğer flat-playlist süreyi veriyorsa 10-95 sn dışındakileri baştan ele
+          if (duration > 0 && (duration < 10 || duration > 95)) continue;
+
+          const theme = classifyViralCandidate(title, '', sourceOrQuery) || defaultTheme;
+          if (!theme) continue;
 
           seenIds.add(id);
-          rawEntries.push({
+          const entry = {
             id,
             title,
             url: item.url || `https://www.youtube.com/shorts/${id}`,
-            source: sourceOrQuery,
-          });
+            viewCount,
+          };
+
+          if (theme === 'TRABZON_YORESI') {
+            regionEntries.push(entry);
+          } else {
+            tsEntries.push(entry);
+          }
         } catch {}
       }
     } catch (e: any) {
@@ -479,35 +580,60 @@ export async function discoverTrendingTrabzonsporVideos(options?: {
     }
   };
 
-  // Paralel olarak Trabzonspor kaynaklarını ve genel viral aramaları tara
+  // Paralel olarak Trabzonspor kaynaklarını ve Trabzon Yöresi viral aramalarını tara
   await Promise.all([
-    ...CURATED_TRABZONSPOR_SHORTS_SOURCES.map((src) => scanSource(src, 5)),
-    ...VIRAL_SEARCH_QUERIES.map((q) => scanSource(q, 8)),
+    ...CURATED_TRABZONSPOR_SHORTS_SOURCES.map((src) => scanSource(src, 6)),
+    ...VIRAL_SEARCH_QUERIES.map((q) => scanSource(q, 8, 'TRABZONSPOR')),
+    ...TRABZON_REGION_SEARCH_QUERIES.map((q) => scanSource(q, 14, 'TRABZON_YORESI')),
   ]);
 
-  console.log(`[ViralDiscoverer] Found ${rawEntries.length} unique candidate Shorts after pre-filtering.`);
+  // Flat-playlist izlenme sayısına göre ön sıralama yap
+  tsEntries.sort((a, b) => b.viewCount - a.viewCount);
+  regionEntries.sort((a, b) => b.viewCount - a.viewCount);
 
-  // En güçlü ilk 10 adayın gerçek izlenme/beğeni/tarih detaylarını paralel (4'erli gruplar halinde) çek
-  const topToInspect = rawEntries.slice(0, 10);
-  const detailedCandidates: ViralVideoCandidate[] = [];
+  console.log(
+    `[ViralDiscoverer] Found ${tsEntries.length} Trabzonspor candidates and ${regionEntries.length} Trabzon Region candidates.`
+  );
+
+  // En güçlü 8 Trabzonspor adayını ve en güçlü 4 Trabzon Yöresi adayını paralel incele
+  const topToInspect: { url: string; theme: 'TRABZONSPOR' | 'TRABZON_YORESI' }[] = [
+    ...tsEntries.slice(0, 8).map((e) => ({ url: e.url, theme: 'TRABZONSPOR' as const })),
+    ...regionEntries.slice(0, 4).map((e) => ({ url: e.url, theme: 'TRABZON_YORESI' as const })),
+  ];
+
+  const detailedTs: ViralVideoCandidate[] = [];
+  const detailedRegion: ViralVideoCandidate[] = [];
 
   const batchSize = 4;
   for (let i = 0; i < topToInspect.length; i += batchSize) {
     const batch = topToInspect.slice(i, i + batchSize);
-    const results = await Promise.all(batch.map((entry) => inspectViralVideoUrl(entry.url)));
+    const results = await Promise.all(batch.map((entry) => inspectViralVideoUrl(entry.url, entry.theme)));
 
     for (const candidate of results) {
       if (!candidate) continue;
       if (!options?.includePublished && publishedIds.has(candidate.videoId)) continue;
-      if (!isValidTrabzonsporViralCandidate(candidate.rawTitle, candidate.editorialSummary, candidate.channelName)) {
-        continue;
+      if (candidate.category === 'Trabzon Yöresi') {
+        detailedRegion.push(candidate);
+      } else {
+        detailedTs.push(candidate);
       }
-      detailedCandidates.push(candidate);
     }
   }
 
-  // Viral skora göre büyükten küçüğe sırala
-  detailedCandidates.sort((a, b) => b.viralScore - a.viralScore);
+  detailedTs.sort((a, b) => b.viralScore - a.viralScore);
+  detailedRegion.sort((a, b) => b.viralScore - a.viralScore);
+
+  // Nihai listeyi oluştur: En trend Trabzonspor videoları + Günün En Viral Trabzon Yöresi Videoları
+  const detailedCandidates: ViralVideoCandidate[] = [];
+  if (options?.preferCategory === 'Trabzon Yöresi') {
+    detailedCandidates.push(...detailedRegion, ...detailedTs);
+  } else {
+    // 1. sırada en viral Trabzonspor videosu, 2. sırada Günün En Viral Trabzon Yöresi videosu, ardından diğerleri
+    if (detailedTs.length > 0) detailedCandidates.push(detailedTs[0]);
+    if (detailedRegion.length > 0) detailedCandidates.push(detailedRegion[0]);
+    detailedCandidates.push(...detailedTs.slice(1, 6));
+    if (detailedRegion.length > 1) detailedCandidates.push(...detailedRegion.slice(1, 3));
+  }
 
   // Eğer sunucusuz (Netlify/Vercel) ortamda yt-dlp çalışmadıysa saf HTTP YouTube Shorts tarayıcısına geç
   if (detailedCandidates.length === 0) {
@@ -518,7 +644,6 @@ export async function discoverTrendingTrabzonsporVideos(options?: {
   if (detailedCandidates.length > 0) {
     await saveDailyTrendingVideos(detailedCandidates.slice(0, 8));
   } else {
-    // Sunucusuz ortamda anlık tarama kısıtlandıysa veritabanındaki güncel önbelleği koru ve döndür
     const cached = await getCachedDailyTrendingVideos();
     if (cached.items.length > 0) {
       detailedCandidates.push(...cached.items);

@@ -40,7 +40,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    let body: { customVideoUrl?: string; customHeadline?: string } = {};
+    let body: {
+      customVideoUrl?: string;
+      customHeadline?: string;
+      preferCategory?: 'Trabzon Yöresi' | 'Trabzonspor';
+    } = {};
     try {
       body = await request.json();
     } catch {}
@@ -48,6 +52,7 @@ export async function POST(request: Request) {
     const result = await runAutonomousViralReelPublisher({
       customVideoUrl: body.customVideoUrl,
       customHeadline: body.customHeadline,
+      preferCategory: body.preferCategory,
     });
 
     if (!result.success) {

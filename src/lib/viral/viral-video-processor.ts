@@ -118,7 +118,11 @@ export function generateViralReelCaption(params: {
   pollQuestion?: string;
   category: string;
 }): string {
-  const { cleanTitle, editorialSummary } = params;
+  const { cleanTitle, editorialSummary, category } = params;
+  const hashtags =
+    category === 'Trabzon Yöresi'
+      ? '#Trabzon #Karadeniz #TrabzonYöresi #Horon #Uzungöl #Trabzonspor #BordoMavi #Reels #Keşfet'
+      : '#Trabzonspor #BordoMavi #Fırtına #Trabzon #TS #BordoMaviHaber #Reels #Keşfet';
 
   return [
     `🔥 ${cleanTitle.toLocaleUpperCase('tr-TR')}`,
@@ -129,7 +133,7 @@ export function generateViralReelCaption(params: {
     '',
     `✍️ Editör`,
     '',
-    `#Trabzonspor #BordoMavi #Fırtına #Trabzon #TS #BordoMaviHaber #Reels #Keşfet`,
+    hashtags,
   ].join('\n');
 }
 
@@ -152,10 +156,15 @@ export async function processViralVideoIntoBrandedReel(params: {
   const outputVideoPath = path.join(tempDir, `bm_viral_final_${timestamp}.mp4`);
   const filesToClean: string[] = [rawVideoPath, sampleFramePath, overlayHudPath];
 
-  const cleanTitle = sanitizeViralTitle(params.customHeadline || params.candidate.cleanTitle || params.candidate.rawTitle);
+  const isRegion = params.candidate.category === 'Trabzon Yöresi';
+  const cleanTitle = sanitizeViralTitle(
+    params.customHeadline || params.candidate.cleanTitle || params.candidate.rawTitle,
+    isRegion
+  );
   const { summary: editorialSummary, category } = buildViralEditorialContext(
     cleanTitle,
-    params.candidate.editorialSummary
+    params.candidate.editorialSummary,
+    isRegion ? 'Trabzon Yöresi' : undefined
   );
   const pollData = determineContextualReelPoll(cleanTitle, editorialSummary, category);
   const pollQuestion = typeof pollData === 'string' ? pollData : pollData.pollQuestion;

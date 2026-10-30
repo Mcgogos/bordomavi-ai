@@ -30,14 +30,18 @@ export interface ViralPublishResult {
 export async function runAutonomousViralReelPublisher(options?: {
   customVideoUrl?: string;
   customHeadline?: string;
+  preferCategory?: 'Trabzon Yöresi' | 'Trabzonspor';
 }): Promise<ViralPublishResult> {
-  console.log('[ViralPublisher] 🚀 Starting Autonomous Viral Trabzonspor Reel Workflow...');
+  console.log('[ViralPublisher] 🚀 Starting Autonomous Viral Trabzonspor & Trabzon Region Reel Workflow...');
 
   let candidate: ViralVideoCandidate | null = null;
 
   try {
     if (options?.customVideoUrl) {
-      candidate = await inspectViralVideoUrl(options.customVideoUrl);
+      candidate = await inspectViralVideoUrl(
+        options.customVideoUrl,
+        options.preferCategory === 'Trabzon Yöresi' ? 'TRABZON_YORESI' : undefined
+      );
       if (!candidate) {
         return {
           success: false,
@@ -45,11 +49,15 @@ export async function runAutonomousViralReelPublisher(options?: {
         };
       }
     } else {
-      const candidates = await discoverTrendingTrabzonsporVideos({ limit: 5, includePublished: false });
+      const candidates = await discoverTrendingTrabzonsporVideos({
+        limit: 8,
+        includePublished: false,
+        preferCategory: options?.preferCategory,
+      });
       if (candidates.length === 0) {
         return {
           success: false,
-          error: 'Şu anda paylaşılmamış yeni bir viral Trabzonspor videosu bulunamadı.',
+          error: 'Şu anda paylaşılmamış yeni bir viral Trabzonspor/Trabzon videosu bulunamadı.',
         };
       }
       candidate = candidates[0];
@@ -102,17 +110,20 @@ export async function runAutonomousViralReelPublisher(options?: {
         facebookPostId: postId,
       });
 
+      const titlePrefix =
+        candidate.category === 'Trabzon Yöresi' ? '[TRABZON YÖRESİ VİRAL]' : '[VİRAL REELS]';
+
       const contentRecord = await prisma.content.create({
         data: {
           type: 'REELS_SCRIPT',
-          title: `[VİRAL REELS] ${processed.cleanTitle}`,
+          title: `${titlePrefix} ${processed.cleanTitle}`,
           body: processed.caption,
           status: 'PUBLISHED',
           publishedAt: new Date(),
           facebookPostId: postId || null,
           viralScore: 95,
           qualityScore: 95,
-          aiReasoning: `Autonomous Viral Reel Engine | Source: ${candidate.url} | Views: ${candidate.viewCount} | Poll: ${processed.pollQuestion}`,
+          aiReasoning: `Autonomous Viral Reel Engine | Category: ${candidate.category} | Source: ${candidate.url} | Views: ${candidate.viewCount} | Poll: ${processed.pollQuestion}`,
         },
       });
 

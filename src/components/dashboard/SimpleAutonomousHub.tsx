@@ -14,6 +14,7 @@ import {
   Eye,
   ThumbsUp,
   Loader2,
+  Mountain,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,8 @@ export interface PublishedPostItem {
   publishedAt: string | null;
   facebookPostId: string | null;
   aiReasoning?: string | null;
-  sourceImageUrl?: string | null;
+  videoSourceUrl?: string | null;
+  thumbnailUrl?: string | null;
 }
 
 export interface TrendingVideoItem {
@@ -58,20 +60,71 @@ export default function SimpleAutonomousHub({
   const [trendingVideos, setTrendingVideos] = useState<TrendingVideoItem[]>(initialTrendingVideos);
   const [isRefreshingTrends, setIsRefreshingTrends] = useState(false);
   const [publishingVideoId, setPublishingVideoId] = useState<string | null>(null);
+  const [loadingPlayerId, setLoadingPlayerId] = useState<string | null>(null);
+  const [inlinePlayingPostId, setInlinePlayingPostId] = useState<string | null>(null);
+  const [resolvedStreams, setResolvedStreams] = useState<Record<string, string>>({});
   const [statusBanner, setStatusBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Sayfa içi aktif video oynatıcı modalı (Hem Paylaşılan Facebook Reels hem Trend Videolar için)
+  // Sayfa içi aktif video/görsel oynatıcı modalı
   const [activePlayer, setActivePlayer] = useState<{
     title: string;
-    facebookReelId?: string | null;
+    videoSourceUrl?: string | null;
+    imageUrl?: string | null;
     youtubeVideoId?: string | null;
-    directFacebookUrl?: string | null;
+    directExternalUrl?: string | null;
   } | null>(null);
 
   const extractYoutubeIdFromReasoning = (reasoning?: string | null): string | null => {
     if (!reasoning) return null;
     const m = reasoning.match(/(?:v=|shorts\/)([a-zA-Z0-9_-]{11})/);
     return m ? m[1] : null;
+  };
+
+  const handleWatchPublishedPost = async (post: PublishedPostItem, playInline = false) => {
+    const isReel =
+      post.type === "REELS_SCRIPT" ||
+      post.title.includes("[VİRAL REELS]") ||
+      post.title.includes("[TRABZON YÖRESİ VİRAL]");
+    const fbId = post.facebookPostId;
+    const ytId = extractYoutubeIdFromReasoning(post.aiReasoning);
+    const fbUrl = fbId
+      ? isReel
+        ? `https://www.facebook.com/reel/${fbId}`
+        : `https://www.facebook.com/${fbId}`
+      : "https://www.facebook.com/1415192102080896";
+
+    let streamUrl = resolvedStreams[post.id] || post.videoSourceUrl || null;
+    let imageUrl = post.thumbnailUrl || null;
+
+    // Eğer doğrudan MP4 akışı henüz çözülmediyse Facebook Graph API üzerinden anlık çek
+    if (isReel && !streamUrl && fbId) {
+      setLoadingPlayerId(post.id);
+      try {
+        const res = await fetch(`/api/viral/media?postId=${encodeURIComponent(fbId)}`);
+        const data = await res.json();
+        if (data.success && data.videoSourceUrl) {
+          streamUrl = data.videoSourceUrl;
+          setResolvedStreams((prev) => ({ ...prev, [post.id]: data.videoSourceUrl }));
+        }
+        if (data.success && data.thumbnailUrl && !imageUrl) {
+          imageUrl = data.thumbnailUrl;
+        }
+      } catch {}
+      setLoadingPlayerId(null);
+    }
+
+    if (playInline && streamUrl) {
+      setInlinePlayingPostId(post.id);
+      return;
+    }
+
+    setActivePlayer({
+      title: post.title,
+      videoSourceUrl: streamUrl,
+      imageUrl: !isReel ? imageUrl : null,
+      youtubeVideoId: !streamUrl ? ytId : null,
+      directExternalUrl: fbUrl,
+    });
   };
 
   const handleRefreshTrends = async () => {
@@ -84,7 +137,7 @@ export default function SimpleAutonomousHub({
         setTrendingVideos(data.candidates);
         setStatusBanner({
           type: "success",
-          text: `✅ İnternet tarandı ve en trend ${data.candidates.length} Trabzonspor videosu güncellendi.`,
+          text: `✅ İnternet tarandı: Trabzonspor ve Trabzon yöresine ait en trend ${data.candidates.length} viral video güncellendi.`,
         });
       } else {
         setStatusBanner({
@@ -113,6 +166,7 @@ export default function SimpleAutonomousHub({
         body: JSON.stringify({
           customVideoUrl: video?.url,
           customHeadline: video?.cleanTitle,
+          preferCategory: video?.category === "Trabzon Yöresi" ? "Trabzon Yöresi" : "Trabzonspor",
         }),
       });
       const data = await res.json();
@@ -140,8 +194,8 @@ export default function SimpleAutonomousHub({
   const dailySlots = [
     { id: "SLOT_0700_REELS", time: "07:00", label: "Sabah Reels Bülteni", badge: "REELS" },
     { id: "SLOT_1100_TEXT", time: "11:00", label: "Öğle Haber Kartı", badge: "HABER" },
-    { id: "SLOT_1500_REELS", time: "15:00", label: "İkindi Viral Reels", badge: "VİRAL REELS" },
-    { id: "SLOT_2030_REELS", time: "20:30", label: "Akşam Ana Viral Reels", badge: "VİRAL REELS" },
+    { id: "SLOT_1500_REELS", time: "15:00", label: "Trabzon Yöresi Viral Reels", badge: "YÖRE VİRAL" },
+    { id: "SLOT_2030_REELS", time: "20:30", label: "Akşam Trabzonspor Viral Reels", badge: "TS VİRAL" },
   ];
 
   return (
@@ -159,7 +213,7 @@ export default function SimpleAutonomousHub({
             </h2>
           </div>
           <span className="text-xs text-muted-foreground">
-            Bilgisayarınız kapalıyken de bulut sistemi bu saatlerde otomatik paylaşım yapar
+            Her gün Trabzonspor ve Trabzon yöresinin en viral videoları otomatik çekilip yayınlanır
           </span>
         </div>
 
@@ -184,7 +238,7 @@ export default function SimpleAutonomousHub({
                     {slot.badge}
                   </Badge>
                 </div>
-                <div className="flex items-center justify-between text-xs mt-1">
+                <div className="flex items-center justify-between text-xs mt-1 gap-1">
                   <span className="text-muted-foreground font-medium truncate">{slot.label}</span>
                   {isDone ? (
                     <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 shrink-0">
@@ -230,7 +284,7 @@ export default function SimpleAutonomousHub({
                 Paylaşılan Reels Videoları ve Gönderiler
               </h2>
               <p className="text-xs text-muted-foreground">
-                Facebook sayfanızda yayınlanan tüm Reels videolarını buradan doğrudan izleyebilir veya Facebook üzerinde açabilirsiniz
+                Yayınlanan tüm Reels videolarını doğrudan kartın içinde veya tam ekran oynatıcıda sesli olarak izleyebilirsiniz
               </p>
             </div>
           </div>
@@ -249,9 +303,13 @@ export default function SimpleAutonomousHub({
             Henüz yayınlanmış içerik bulunmuyor.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {publishedReelsAndPosts.map((post) => {
-              const isReel = post.type === "REELS_SCRIPT" || post.title.includes("[VİRAL REELS]");
+              const isRegionReel = post.title.includes("[TRABZON YÖRESİ VİRAL]");
+              const isReel =
+                post.type === "REELS_SCRIPT" ||
+                post.title.includes("[VİRAL REELS]") ||
+                isRegionReel;
               const fbId = post.facebookPostId;
               const ytId = extractYoutubeIdFromReasoning(post.aiReasoning);
               const fbUrl = fbId
@@ -260,24 +318,70 @@ export default function SimpleAutonomousHub({
                   : `https://www.facebook.com/${fbId}`
                 : "https://www.facebook.com/1415192102080896";
 
+              const streamUrl = resolvedStreams[post.id] || post.videoSourceUrl || null;
+              const thumbUrl =
+                post.thumbnailUrl ||
+                (ytId ? `https://i.ytimg.com/vi/${ytId}/hq720_2.jpg` : null);
+              const isPlayingInline = inlinePlayingPostId === post.id && Boolean(streamUrl);
+              const isLoadingThis = loadingPlayerId === post.id;
+
               return (
                 <div
                   key={post.id}
-                  className="rounded-xl border border-border/80 bg-muted/20 hover:bg-muted/35 p-3.5 flex flex-col justify-between gap-3 transition-all"
+                  className="rounded-xl border border-border/80 bg-muted/20 hover:bg-muted/35 overflow-hidden flex flex-col justify-between transition-all"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                  {/* Video veya Görsel Önizleme Alanı */}
+                  {isPlayingInline && streamUrl ? (
+                    <div className="relative aspect-[9/14] w-full bg-black">
+                      <video
+                        src={streamUrl}
+                        poster={thumbUrl || undefined}
+                        controls
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-contain bg-black"
+                      />
+                      <button
+                        onClick={() => setInlinePlayingPostId(null)}
+                        className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/75 text-white flex items-center justify-center hover:bg-black"
+                        title="Oynatıcıyı Kapat"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => handleWatchPublishedPost(post, true)}
+                      className="relative aspect-[16/10] w-full bg-zinc-900 cursor-pointer overflow-hidden group"
+                    >
+                      {thumbUrl ? (
+                        <img
+                          src={thumbUrl}
+                          alt={post.title}
+                          className="w-full h-full object-cover opacity-85 group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-[#781324] via-zinc-900 to-[#0c4a6e]" />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/30" />
+
+                      <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-2">
                         <Badge
                           className={`text-[10px] font-bold px-2 py-0.5 ${
-                            isReel
+                            isRegionReel
+                              ? "bg-emerald-600 text-white"
+                              : isReel
                               ? "bg-[#781324] text-white"
-                              : "bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30"
+                              : "bg-sky-600 text-white"
                           }`}
                         >
-                          {isReel ? "🎬 REELS VİDEO" : "📰 HABER KARTI"}
+                          {isRegionReel
+                            ? "🌲 TRABZON YÖRESİ REELS"
+                            : isReel
+                            ? "🎬 REELS VİDEO"
+                            : "📰 HABER KARTI"}
                         </Badge>
-                        <span className="text-[11px] text-muted-foreground font-medium">
+                        <span className="text-[10px] text-white/90 bg-black/60 px-2 py-0.5 rounded-full font-medium">
                           {post.publishedAt
                             ? new Date(post.publishedAt).toLocaleString("tr-TR", {
                                 day: "2-digit",
@@ -288,30 +392,42 @@ export default function SimpleAutonomousHub({
                             : "—"}
                         </span>
                       </div>
-                      <h3 className="text-sm font-bold text-foreground line-clamp-2 leading-snug">
-                        {post.title}
-                      </h3>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 pt-1">
-                    {isReel && (fbId || ytId) && (
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          setActivePlayer({
-                            title: post.title,
-                            facebookReelId: fbId,
-                            youtubeVideoId: ytId,
-                            directFacebookUrl: fbUrl,
-                          })
-                        }
-                        className="flex-1 bg-[#781324] hover:bg-[#5e0e1c] text-white font-bold text-xs h-9"
-                      >
+                      {isReel && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-[#781324]/90 border-2 border-white/80 flex items-center justify-center text-white group-hover:scale-110 transition-transform shadow-xl">
+                            {isLoadingThis ? (
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                              <Play className="w-5 h-5 ml-0.5 fill-current" />
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="absolute bottom-2.5 left-2.5 right-2.5">
+                        <h3 className="text-xs sm:text-sm font-bold text-white line-clamp-2 leading-snug drop-shadow">
+                          {post.title}
+                        </h3>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Alt Butonlar */}
+                  <div className="p-3 flex items-center gap-2 bg-card">
+                    <Button
+                      size="sm"
+                      disabled={isLoadingThis}
+                      onClick={() => handleWatchPublishedPost(post, false)}
+                      className="flex-1 bg-[#781324] hover:bg-[#5e0e1c] text-white font-bold text-xs h-9"
+                    >
+                      {isLoadingThis ? (
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      ) : (
                         <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
-                        Panelde İzle
-                      </Button>
-                    )}
+                      )}
+                      {isReel ? "Panelde İzle" : "Görseli Aç"}
+                    </Button>
 
                     <a
                       href={fbUrl}
@@ -320,7 +436,7 @@ export default function SimpleAutonomousHub({
                       className="flex-1 inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted text-foreground font-semibold text-xs h-9 px-3 transition-colors"
                     >
                       <ExternalLink className="w-3.5 h-3.5 mr-1.5 text-sky-500" />
-                      {isReel ? "Facebook Reels'te İzle" : "Facebook'ta Gör"}
+                      {isReel ? "Facebook'ta Aç" : "Facebook'ta Gör"}
                     </a>
                   </div>
                 </div>
@@ -330,7 +446,7 @@ export default function SimpleAutonomousHub({
         )}
       </div>
 
-      {/* 3. GÜNLÜK BELİRLENEN EN TREND TRABZONSPOR VİDEOLARI */}
+      {/* 3. GÜNLÜK BELİRLENEN EN TREND TRABZONSPOR & TRABZON YÖRESİ VİDEOLARI */}
       <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/60">
           <div className="flex items-center gap-2.5">
@@ -340,7 +456,7 @@ export default function SimpleAutonomousHub({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base font-bold text-foreground">
-                  Günlük Belirlenen En Trend Trabzonspor Videoları
+                  Günlük Belirlenen En Trend Trabzonspor & Trabzon Yöresi Videoları
                 </h2>
                 {trendingUpdatedAt && (
                   <span className="text-[11px] text-muted-foreground">
@@ -354,7 +470,7 @@ export default function SimpleAutonomousHub({
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Sistem interneti tarayarak en yüksek etkileşimli Trabzonspor videolarını belirler. Videoları aşağıdan izleyebilir veya tek tıkla logomuzla paylaşabilirsiniz.
+                Sistem her gün en yüksek etkileşimli Trabzonspor videoları ile Trabzon yöresine ait günün en viral videolarını belirler ve logomuzla yayınlar.
               </p>
             </div>
           </div>
@@ -390,13 +506,18 @@ export default function SimpleAutonomousHub({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {trendingVideos.map((video, idx) => {
               const isPublishingThis = publishingVideoId === video.videoId;
+              const isRegionVideo = video.category === "Trabzon Yöresi";
               const thumb =
                 video.thumbnailUrl || `https://i.ytimg.com/vi/${video.videoId}/hq720_2.jpg`;
 
               return (
                 <div
                   key={video.videoId}
-                  className="rounded-xl border border-border/80 bg-card overflow-hidden flex flex-col justify-between shadow-xs hover:border-primary/40 transition-all group"
+                  className={`rounded-xl border bg-card overflow-hidden flex flex-col justify-between shadow-xs transition-all group ${
+                    isRegionVideo
+                      ? "border-emerald-500/50 hover:border-emerald-500"
+                      : "border-border/80 hover:border-primary/40"
+                  }`}
                 >
                   {/* Video Önizleme Kapak Görseli */}
                   <div
@@ -404,7 +525,7 @@ export default function SimpleAutonomousHub({
                       setActivePlayer({
                         title: video.cleanTitle,
                         youtubeVideoId: video.videoId,
-                        directFacebookUrl: video.url,
+                        directExternalUrl: video.url,
                       })
                     }
                     className="relative aspect-[9/13] w-full bg-black cursor-pointer overflow-hidden"
@@ -416,12 +537,18 @@ export default function SimpleAutonomousHub({
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/40" />
 
-                    {/* Sıra & Viral Skor Rozeti */}
-                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between">
-                      <Badge className="bg-amber-500 text-black font-extrabold text-[10px] px-2 py-0.5">
-                        #{idx + 1} TREND
-                      </Badge>
-                      <span className="text-[10px] font-bold bg-black/70 text-white px-2 py-0.5 rounded-full border border-white/15">
+                    {/* Sıra & Kategori Rozeti */}
+                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1">
+                      {isRegionVideo ? (
+                        <Badge className="bg-emerald-600 text-white font-extrabold text-[10px] px-2 py-0.5 flex items-center gap-1">
+                          <Mountain className="w-3 h-3" /> TRABZON YÖRESİ VİRAL
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-amber-500 text-black font-extrabold text-[10px] px-2 py-0.5">
+                          #{idx + 1} TS TREND
+                        </Badge>
+                      )}
+                      <span className="text-[10px] font-bold bg-black/70 text-white px-2 py-0.5 rounded-full border border-white/15 shrink-0">
                         {video.durationSeconds} sn
                       </span>
                     </div>
@@ -460,7 +587,7 @@ export default function SimpleAutonomousHub({
                         setActivePlayer({
                           title: video.cleanTitle,
                           youtubeVideoId: video.videoId,
-                          directFacebookUrl: video.url,
+                          directExternalUrl: video.url,
                         })
                       }
                       className="flex-1 h-8 text-[11px] font-bold"
@@ -471,7 +598,11 @@ export default function SimpleAutonomousHub({
                       size="sm"
                       disabled={Boolean(publishingVideoId)}
                       onClick={() => handlePublishViral(video)}
-                      className="flex-1 h-8 text-[11px] font-bold bg-[#781324] hover:bg-[#5e0e1c] text-white"
+                      className={`flex-1 h-8 text-[11px] font-bold text-white ${
+                        isRegionVideo
+                          ? "bg-emerald-700 hover:bg-emerald-800"
+                          : "bg-[#781324] hover:bg-[#5e0e1c]"
+                      }`}
                     >
                       {isPublishingThis ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
@@ -489,10 +620,10 @@ export default function SimpleAutonomousHub({
         )}
       </div>
 
-      {/* 4. SAYFA İÇİ VİDEO İZLEME MODALI (Reels & Trend Videolar İçin) */}
+      {/* 4. SAYFA İÇİ DOĞRUDAN VİDEO İZLEME MODALI (HTML5 MP4 & YouTube Shorts) */}
       {activePlayer && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setActivePlayer(null)}
         >
           <div
@@ -511,30 +642,49 @@ export default function SimpleAutonomousHub({
               </button>
             </div>
 
-            <div className="aspect-[9/16] w-full max-h-[70vh] bg-black rounded-xl overflow-hidden flex items-center justify-center">
-              {activePlayer.facebookReelId ? (
-                <iframe
-                  src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(
-                    `https://www.facebook.com/reel/${activePlayer.facebookReelId}`
-                  )}&show_text=false&width=360`}
-                  className="w-full h-full border-0"
-                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                  allowFullScreen
+            <div className="aspect-[9/16] w-full max-h-[72vh] bg-black rounded-xl overflow-hidden flex items-center justify-center">
+              {activePlayer.videoSourceUrl ? (
+                <video
+                  src={activePlayer.videoSourceUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain bg-black"
+                />
+              ) : activePlayer.imageUrl ? (
+                <img
+                  src={activePlayer.imageUrl}
+                  alt={activePlayer.title}
+                  className="w-full h-full object-contain bg-black"
                 />
               ) : activePlayer.youtubeVideoId ? (
                 <iframe
-                  src={`https://www.youtube.com/embed/${activePlayer.youtubeVideoId}?autoplay=1&rel=0`}
+                  src={`https://www.youtube-nocookie.com/embed/${activePlayer.youtubeVideoId}?autoplay=1&playsinline=1&rel=0`}
                   className="w-full h-full border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                 />
-              ) : null}
+              ) : (
+                <div className="p-6 text-center text-xs text-white/80 space-y-3">
+                  <p>Video akışı doğrudan bağlantıda hazır.</p>
+                  {activePlayer.directExternalUrl && (
+                    <a
+                      href={activePlayer.directExternalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#781324] text-white font-bold"
+                    >
+                      Videoyu Aç <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
 
-            {activePlayer.directFacebookUrl && (
+            {activePlayer.directExternalUrl && (
               <div className="flex justify-end pt-1">
                 <a
-                  href={activePlayer.directFacebookUrl}
+                  href={activePlayer.directExternalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"

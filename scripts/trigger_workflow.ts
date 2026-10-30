@@ -102,8 +102,11 @@ async function main() {
     const preferViralFirst = quota.activeSlotId === 'SLOT_1500_REELS' || quota.activeSlotId === 'SLOT_2030_REELS';
 
     if (preferViralFirst) {
-      console.log('🔥 1. Aşama: İnternetteki En Trend Trabzonspor Viral Videosu Taranıyor & Logomuzla İşleniyor...');
-      const viralRes = await runAutonomousViralReelPublisher();
+      const preferCategory = quota.activeSlotId === 'SLOT_1500_REELS' ? 'Trabzon Yöresi' : 'Trabzonspor';
+      console.log(
+        `🔥 1. Aşama: İnternetteki En Trend ${preferCategory} Viral Videosu Taranıyor & Logomuzla İşleniyor...`
+      );
+      const viralRes = await runAutonomousViralReelPublisher({ preferCategory });
       console.log('Viral Reel result:', viralRes);
 
       if (viralRes.success) {
