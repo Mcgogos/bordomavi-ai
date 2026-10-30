@@ -513,7 +513,7 @@ export async function generateReelScript(params: {
     }
   ];
 
-  const facebookCaption = `🎬 ${cleanTitle}\n\n${aiNarration}\n\n📊 SİZCE: ${pollQuestion}\n👍 Evet (Beğen) | 💬 Hayır (Yorum Yap)\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #SüperLig ${categoryTag} #Reels`;
+  const facebookCaption = `🎬 ${cleanTitle}\n\n${aiNarration}\n\n💬 Siz bu gelişmeyi nasıl değerlendiriyorsunuz? Görüşlerinizi yorumlarda paylaşın!\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #SüperLig ${categoryTag} #Reels`;
 
   return {
     title: cleanTitle,

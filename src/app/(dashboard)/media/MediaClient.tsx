@@ -162,7 +162,7 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
                 </h3>
               </div>
               <p className="text-xs text-muted-foreground">
-                İnternetteki en trend Trabzonspor Reels/Shorts videolarını bulur, yabancı sayfa logolarını/yazılarını otomatik kaldırır, Bordo-Mavi logomuzu ve dinamik taraftar anketini ekleyerek paylaşır.
+                İnternetteki en trend Trabzonspor Reels/Shorts videolarını bulur, yabancı sayfa logolarını/yazılarını otomatik kaldırır, Bordo-Mavi logomuzu ve kurumsal manşetimizi ekleyerek paylaşır.
               </p>
             </div>
 

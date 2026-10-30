@@ -316,28 +316,8 @@ export async function composeReelSlides(
       <!-- İlerleme Çubuğu Arka İzi -->
       <rect x="${progX}" y="${progY}" width="${progW}" height="${progH}" rx="7" ry="7" fill="#1E293B" stroke="#334155" stroke-width="1"/>
 
-      <!-- 5. İNTERAKTİF TARAFTAR ANKET & TARTIŞMA KARTI (x: 36, y: 1405, w: 1008, h: 250) -->
-      <rect x="36" y="1405" width="1008" height="250" rx="28" ry="28" fill="url(#pollCardGrad)" stroke="url(#goldAccent)" stroke-width="2.5" filter="url(#dropShadow)"/>
-      <text x="540" y="1472" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="${pollQuestion.length > 44 ? 30 : pollQuestion.length > 36 ? 33 : 36}" font-weight="900">${pollQuestion}</text>
-
-      <!-- Sol Seçenek Butonu: ✓ Evet, Parmak İşareti Beğen (Zümrüt Yeşili) -->
-      <rect x="64" y="1504" width="456" height="116" rx="58" ry="58" fill="url(#btnGreenGrad)" stroke="#6EE7B7" stroke-width="2.5"/>
-      <!-- Beyaz Parmak İşareti (Thumbs Up) Vektör İkonu -->
-      <g transform="translate(106, 1538) scale(1.75)" fill="#FFFFFF">
-        <path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83v7.84C7 18.95 8.05 20 9.34 20h8.11c.7 0 1.36-.37 1.72-.97l2.66-6.15z"/>
-      </g>
-      <text x="318" y="1573" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="900">✓ Evet, Beğen</text>
-
-      <!-- Sağ Seçenek Butonu: Hayır, Yorum Yap (Bordo Kırmızı) -->
-      <rect x="560" y="1504" width="456" height="116" rx="58" ry="58" fill="url(#btnBordoGrad)" stroke="#FDA4AF" stroke-width="2.5"/>
-      <!-- Beyaz Yorum Balonu Vektör İkonu -->
-      <g transform="translate(596, 1540) scale(1.7)" fill="#FFFFFF">
-        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
-      </g>
-      <text x="808" y="1573" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="900">Hayır, Yorum Yap</text>
-
-      <!-- 6. ALT GÜVENLİ BÖLGE İMZASI (y: 1705) -->
-      <text x="540" y="1705" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" letter-spacing="3">BORDO MAVİ • TARAFTARIN SESİ • YORUMLARDA BULUŞALIM</text>
+      <!-- 5. ALT GÜVENLİ BÖLGE İMZASI (y: 1460) -->
+      <text x="540" y="1460" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" letter-spacing="3">BORDO MAVİ • TARAFTARIN SESİ • YORUMLARDA BULUŞALIM</text>
     </svg>
   `);
 

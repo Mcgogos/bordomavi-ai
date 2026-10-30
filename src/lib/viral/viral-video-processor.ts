@@ -115,19 +115,17 @@ export async function downloadViralSourceVideo(url: string, outputFilePath: stri
 export function generateViralReelCaption(params: {
   cleanTitle: string;
   editorialSummary: string;
-  pollQuestion: string;
+  pollQuestion?: string;
   category: string;
 }): string {
-  const { cleanTitle, editorialSummary, pollQuestion } = params;
+  const { cleanTitle, editorialSummary } = params;
 
   return [
     `🔥 ${cleanTitle.toLocaleUpperCase('tr-TR')}`,
     '',
     editorialSummary,
     '',
-    `📊 GÜNÜN TARAFTAR ANKETİ: ${pollQuestion}`,
-    `👍 EVET diyorsanız videoyu BEĞENİN!`,
-    `💬 HAYIR diyorsanız nedenini YORUMLARA yazın!`,
+    `💬 Siz bu görüntüler hakkında ne düşünüyorsunuz? Görüşlerinizi yorumlarda paylaşın!`,
     '',
     `✍️ Editör`,
     '',
@@ -226,16 +224,16 @@ export async function processViralVideoIntoBrandedReel(params: {
       }
     }
 
-    // 5. 1080x1920 Bordo-Mavi Viral Stüdyo HUD Katmanını Oluştur
-    // Dikey Video Vitrini: x=36, y=205, w=1008, h=945
+    // 5. 1080x1920 Bordo-Mavi Viral Stüdyo HUD Katmanını Oluştur (Anket Kartı Kaldırıldı, Geniş Dikey Video Vitrini)
+    // Dikey Video Vitrini: x=36, y=205, w=1008, h=1185
     const width = 1080;
     const height = 1920;
     const viewportX = 36;
     const viewportY = 205;
     const viewportW = 1008;
-    const viewportH = 945;
+    const viewportH = 1185;
     const progX = 64;
-    const progY = 1166;
+    const progY = 1408;
     const progW = 952;
     const progH = 12;
 
@@ -272,26 +270,25 @@ export async function processViralVideoIntoBrandedReel(params: {
       .png()
       .toBuffer();
 
-    // Manşet satırları (x: 36, y: 1190, w: 1008, h: 205)
+    // Manşet satırları (x: 36, y: 1435, w: 1008, h: 215)
     const upperTitle = cleanTitle.toLocaleUpperCase('tr-TR');
     const headlineLines = wrapTextToLines(upperTitle, 31, 3);
-    const escapedPoll = escapeXml(pollQuestion);
 
     let headlineSvgElements = '';
     if (headlineLines.length === 1) {
       headlineSvgElements = `
-        <text x="540" y="1306" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="900">${escapeXml(headlineLines[0])}</text>
+        <text x="540" y="1556" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="900">${escapeXml(headlineLines[0])}</text>
       `;
     } else if (headlineLines.length === 2) {
       headlineSvgElements = `
-        <text x="540" y="1276" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="41" font-weight="900">${escapeXml(headlineLines[0])}</text>
-        <text x="540" y="1334" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="41" font-weight="900">${escapeXml(headlineLines[1])}</text>
+        <text x="540" y="1526" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="41" font-weight="900">${escapeXml(headlineLines[0])}</text>
+        <text x="540" y="1584" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="41" font-weight="900">${escapeXml(headlineLines[1])}</text>
       `;
     } else {
       headlineSvgElements = `
-        <text x="540" y="1254" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="900">${escapeXml(headlineLines[0])}</text>
-        <text x="540" y="1304" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="900">${escapeXml(headlineLines[1])}</text>
-        <text x="540" y="1354" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="900">${escapeXml(headlineLines[2])}</text>
+        <text x="540" y="1504" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="900">${escapeXml(headlineLines[0])}</text>
+        <text x="540" y="1554" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="900">${escapeXml(headlineLines[1])}</text>
+        <text x="540" y="1604" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="900">${escapeXml(headlineLines[2])}</text>
       `;
     }
 
@@ -308,18 +305,6 @@ export async function processViralVideoIntoBrandedReel(params: {
             <stop offset="50%" stop-color="#FBBF24"/>
             <stop offset="100%" stop-color="#38BDF8"/>
           </linearGradient>
-          <linearGradient id="pollCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#0F1D36" stop-opacity="0.96"/>
-            <stop offset="100%" stop-color="#2D0A1B" stop-opacity="0.96"/>
-          </linearGradient>
-          <linearGradient id="btnGreenGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#059669"/>
-            <stop offset="100%" stop-color="#10B981"/>
-          </linearGradient>
-          <linearGradient id="btnBordoGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#9F1239"/>
-            <stop offset="100%" stop-color="#E11D48"/>
-          </linearGradient>
           <filter id="dropShadow" x="-5%" y="-5%" width="110%" height="115%">
             <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.45"/>
           </filter>
@@ -331,34 +316,14 @@ export async function processViralVideoIntoBrandedReel(params: {
         <text x="174" y="121" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="35" font-weight="900" letter-spacing="1.5">BORDO MAVİ HABER</text>
         <text x="174" y="156" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="bold" letter-spacing="2">🔥 SOSYAL MEDYADA VİRAL GÜNDEM</text>
 
-        <!-- 2. MANŞET KARTI (x: 36, y: 1190, w: 1008, h: 205) -->
-        <rect x="36" y="1190" width="1008" height="205" rx="28" ry="28" fill="#0B1426" fill-opacity="0.95" stroke="#334155" stroke-width="2" filter="url(#dropShadow)"/>
-        <rect x="36" y="1190" width="14" height="205" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
-        <rect x="1030" y="1190" width="14" height="205" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
+        <!-- 2. MANŞET KARTI (x: 36, y: 1435, w: 1008, h: 215) -->
+        <rect x="36" y="1435" width="1008" height="215" rx="28" ry="28" fill="#0B1426" fill-opacity="0.95" stroke="#334155" stroke-width="2" filter="url(#dropShadow)"/>
+        <rect x="36" y="1435" width="14" height="215" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
+        <rect x="1030" y="1435" width="14" height="215" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
         ${headlineSvgElements}
 
-        <!-- 3. İNTERAKTİF TARAFTAR ANKET KARTI (x: 36, y: 1415, w: 1008, h: 245) -->
-        <rect x="36" y="1415" width="1008" height="245" rx="28" ry="28" fill="url(#pollCardGrad)" stroke="url(#goldAccent)" stroke-width="2.5" filter="url(#dropShadow)"/>
-        <text x="540" y="1480" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="${
-          escapedPoll.length > 44 ? 30 : escapedPoll.length > 36 ? 33 : 36
-        }" font-weight="900">${escapedPoll}</text>
-
-        <!-- Sol Seçenek: ✓ Evet, Beğen -->
-        <rect x="64" y="1512" width="456" height="114" rx="57" ry="57" fill="url(#btnGreenGrad)" stroke="#6EE7B7" stroke-width="2.5"/>
-        <g transform="translate(106, 1546) scale(1.75)" fill="#FFFFFF">
-          <path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83v7.84C7 18.95 8.05 20 9.34 20h8.11c.7 0 1.36-.37 1.72-.97l2.66-6.15z"/>
-        </g>
-        <text x="318" y="1581" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="900">✓ Evet, Beğen</text>
-
-        <!-- Sağ Seçenek: Hayır, Yorum Yap -->
-        <rect x="560" y="1512" width="456" height="114" rx="57" ry="57" fill="url(#btnBordoGrad)" stroke="#FDA4AF" stroke-width="2.5"/>
-        <g transform="translate(596, 1548) scale(1.7)" fill="#FFFFFF">
-          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
-        </g>
-        <text x="808" y="1581" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="900">Hayır, Yorum Yap</text>
-
-        <!-- 4. ALT GÜVENLİ BÖLGE İMZASI -->
-        <text x="540" y="1705" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" letter-spacing="3">BORDO MAVİ • TARAFTARIN SESİ • YORUMLARDA BULUŞALIM</text>
+        <!-- 3. ALT GÜVENLİ BÖLGE İMZASI -->
+        <text x="540" y="1700" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" letter-spacing="3">BORDO MAVİ • TARAFTARIN SESİ • YORUMLARDA BULUŞALIM</text>
       </svg>
     `);
 
