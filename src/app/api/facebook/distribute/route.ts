@@ -4,11 +4,14 @@ import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { followedPages, connectedPages } = await FacebookService.getFollowedAndConnectedPages();
+    const { searchParams } = new URL(req.url);
+    const shouldSync = searchParams.get('sync') !== 'false';
+    const { followedPages, connectedPages } = await FacebookService.getFollowedAndConnectedPages(shouldSync);
+
     const lastLogRow = await prisma.setting.findUnique({
-      where: { key: 'FACEBOOK_LAST_CROSS_SHARE_LOG' },
+      where: { key: 'LAST_CROSS_SHARE_LOG' },
     });
 
     let lastCrossShareLog = null;
@@ -23,6 +26,8 @@ export async function GET() {
       followedPages: followedPages.map((p) => ({
         name: p.name,
         handle: p.idOrHandle,
+        fbId: p.fbId,
+        source: p.source || 'facebook_following',
         enabled: true,
       })),
       connectedPages: connectedPages.map((p) => ({
@@ -42,7 +47,21 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { action } = body;
 
-    const { followedPages } = await FacebookService.getFollowedAndConnectedPages();
+    if (action === 'sync_from_facebook') {
+      const synced = await FacebookService.syncFollowedPagesFromFacebook(true);
+      return NextResponse.json({
+        success: true,
+        followedPages: synced.map((p) => ({
+          name: p.name,
+          handle: p.idOrHandle,
+          fbId: p.fbId,
+          source: p.source || 'facebook_following',
+          enabled: true,
+        })),
+      });
+    }
+
+    const { followedPages } = await FacebookService.getFollowedAndConnectedPages(false);
 
     if (action === 'add_page') {
       const rawHandle = String(body.handle || body.name || '').trim().replace(/^@/, '');
@@ -65,6 +84,7 @@ export async function POST(req: Request) {
             {
               idOrHandle: rawHandle,
               name: rawName,
+              source: 'manual',
             },
           ];
 
@@ -74,6 +94,8 @@ export async function POST(req: Request) {
         followedPages: updated.map((p) => ({
           name: p.name,
           handle: p.idOrHandle,
+          fbId: p.fbId,
+          source: p.source || 'manual',
           enabled: true,
         })),
       });
@@ -90,6 +112,8 @@ export async function POST(req: Request) {
         followedPages: updated.map((p) => ({
           name: p.name,
           handle: p.idOrHandle,
+          fbId: p.fbId,
+          source: p.source,
           enabled: true,
         })),
       });
@@ -107,6 +131,7 @@ export async function POST(req: Request) {
         );
       }
 
+      await FacebookService.syncFollowedPagesFromFacebook(true);
       const result = await FacebookService.autoDistributePublishedPost({
         postId: fbPostId,
         isReel,

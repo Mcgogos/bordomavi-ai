@@ -14,15 +14,15 @@ function maskToken(text: string, token: string | undefined): string {
 export interface FollowedOrTargetPage {
   idOrHandle: string;
   name: string;
+  fbId?: string;
   accessToken?: string;
+  source?: 'facebook_following' | 'manual';
 }
 
 export const DEFAULT_FOLLOWED_PAGES: FollowedOrTargetPage[] = [
-  { idOrHandle: 'Trabzonspor', name: 'Trabzonspor Kulübü' },
-  { idOrHandle: '61saat', name: '61saat Spor & Gündem' },
-  { idOrHandle: 'Haber61', name: 'Haber61' },
-  { idOrHandle: 'KuzeyEkspresGazetesi', name: 'Kuzey Ekspres' },
-  { idOrHandle: 'TrabzonBelTr', name: 'Trabzon Büyükşehir' },
+  { idOrHandle: 'daimats1', name: 'Daima TS', fbId: '61559249002619', source: 'facebook_following' },
+  { idOrHandle: 'Bandelero', name: 'Rıza Hacımurtazaoğlu', fbId: '557094937', source: 'facebook_following' },
+  { idOrHandle: 'Trabzonspor', name: 'Trabzonspor', source: 'facebook_following' },
 ];
 
 export async function resolvePageToken(): Promise<{ token: string, pageId: string }> {
@@ -40,7 +40,127 @@ export async function resolvePageToken(): Promise<{ token: string, pageId: strin
 }
 
 export class FacebookService {
-  static async getFollowedAndConnectedPages(): Promise<{
+  /**
+   * BordoMavi (@cafegaa) Facebook sayfasının "Takip Ettikleri" (/following ve /likes)
+   * listesini doğrudan Facebook üzerinden canlı olarak çeker ve veritabanına senkronize eder.
+   */
+  static async syncFollowedPagesFromFacebook(includeSecondHop = true): Promise<FollowedOrTargetPage[]> {
+    const discovered = new Map<string, FollowedOrTargetPage>();
+
+    const decodeUnicodeText = (raw: string): string => {
+      try {
+        return JSON.parse(`"${raw}"`);
+      } catch {
+        return raw;
+      }
+    };
+
+    const scrapeFollowingUrl = async (url: string): Promise<FollowedOrTargetPage[]> => {
+      const list: FollowedOrTargetPage[] = [];
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+          },
+          signal: AbortSignal.timeout(12_000),
+        });
+        if (!res.ok) return list;
+        const html = await res.text();
+
+        const itemRegex =
+          /"title":\{"text":"([^"]+)"\},"subtitle_text":\{.*?\},"url":"https:\\\/\\\/www\.facebook\.com\\\/([^"\\\/]+)"(?:.*?"node":\{"__typename":"[^"]+","id":"([0-9]+)")?/g;
+        for (const m of html.matchAll(itemRegex)) {
+          const name = decodeUnicodeText(m[1]).trim();
+          const handle = m[2].trim();
+          const fbId = m[3] ? m[3].trim() : undefined;
+          if (handle && name && handle.toLowerCase() !== 'cafegaa') {
+            list.push({
+              idOrHandle: handle,
+              name,
+              fbId,
+              source: 'facebook_following',
+            });
+          }
+        }
+      } catch {}
+      return list;
+    };
+
+    try {
+      let pageUsername = 'cafegaa';
+      try {
+        const { token, pageId } = await resolvePageToken();
+        const meRes = await fetch(
+          `${GRAPH_API_BASE}/${pageId}?fields=username,name&access_token=${token}`,
+          { signal: AbortSignal.timeout(8_000) }
+        );
+        const meData = await meRes.json();
+        if (meData?.username) {
+          pageUsername = meData.username;
+        }
+      } catch {}
+
+      const primaryItems = await scrapeFollowingUrl(`https://www.facebook.com/${pageUsername}/following`);
+      const likedItems = await scrapeFollowingUrl(`https://www.facebook.com/${pageUsername}/likes`);
+
+      for (const item of [...primaryItems, ...likedItems]) {
+        discovered.set(item.idOrHandle.toLowerCase(), item);
+      }
+
+      // Takip edilen alt Trabzonspor sayfalarının (örn. daimats1) takip ettiği resmi sayfaları da çek
+      if (includeSecondHop && primaryItems.length > 0) {
+        for (const p of primaryItems.slice(0, 3)) {
+          const hopItems = await scrapeFollowingUrl(`https://www.facebook.com/${p.idOrHandle}/following`);
+          for (const h of hopItems) {
+            if (!discovered.has(h.idOrHandle.toLowerCase())) {
+              discovered.set(h.idOrHandle.toLowerCase(), h);
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[FacebookService] Live following sync warning:', e.message);
+    }
+
+    // Mevcut manuel eklenen veya token tanımlı sayfaları koruyarak birleştir
+    try {
+      const existingRow = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_FOLLOWED_PAGES' } });
+      if (existingRow?.value) {
+        const existingList: FollowedOrTargetPage[] = JSON.parse(existingRow.value);
+        if (Array.isArray(existingList)) {
+          for (const ex of existingList) {
+            const key = ex.idOrHandle.toLowerCase();
+            if (discovered.has(key)) {
+              const live = discovered.get(key)!;
+              discovered.set(key, {
+                ...live,
+                accessToken: ex.accessToken || live.accessToken,
+                fbId: live.fbId || ex.fbId,
+              });
+            } else if (ex.source === 'manual' || ex.accessToken) {
+              discovered.set(key, ex);
+            }
+          }
+        }
+      }
+    } catch {}
+
+    const finalPages =
+      discovered.size > 0 ? Array.from(discovered.values()) : [...DEFAULT_FOLLOWED_PAGES];
+
+    await this.saveFollowedPages(finalPages);
+    return finalPages;
+  }
+
+  static async getFollowedAndConnectedPages(autoSyncFromFacebook = false): Promise<{
     followedPages: FollowedOrTargetPage[];
     connectedPages: Array<{ id: string; name: string; username?: string; accessToken: string }>;
   }> {
@@ -48,6 +168,10 @@ export class FacebookService {
     let connectedPages: Array<{ id: string; name: string; username?: string; accessToken: string }> = [];
 
     try {
+      if (autoSyncFromFacebook) {
+        followedPages = await this.syncFollowedPagesFromFacebook(true);
+      }
+
       const settings = await prisma.setting.findMany({
         where: {
           key: { in: ['FACEBOOK_FOLLOWED_PAGES', 'FACEBOOK_CONNECTED_PAGES'] },
@@ -55,11 +179,13 @@ export class FacebookService {
       });
       const map = new Map(settings.map((s) => [s.key, s.value]));
 
-      const rawFollowed = map.get('FACEBOOK_FOLLOWED_PAGES');
-      if (rawFollowed) {
-        const parsed = JSON.parse(rawFollowed);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          followedPages = parsed;
+      if (!autoSyncFromFacebook) {
+        const rawFollowed = map.get('FACEBOOK_FOLLOWED_PAGES');
+        if (rawFollowed) {
+          const parsed = JSON.parse(rawFollowed);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            followedPages = parsed;
+          }
         }
       }
 
@@ -139,25 +265,39 @@ export class FacebookService {
         } catch {}
       }
 
-      // 2. Takip edilen sayfalardan özel token tanımlı olanlar veya topluluk duvarı açık olanlara paylaşım ilet
+      // 2. Takip edilen sayfaların tamamında çapraz paylaşım ve topluluk/etiket dağıtımı yap
       for (const target of followedPages) {
         const handle = target.idOrHandle.replace(/^@/, '').trim();
         if (!handle) continue;
-        targets.push(`@${handle} (Topluluk & Etiket)`);
 
-        if (target.accessToken) {
+        let sharedDirectlyToWall = false;
+        const targetToken = target.accessToken || primaryToken;
+        const targetEndpoints = [target.fbId, handle].filter(Boolean) as string[];
+
+        for (const epId of targetEndpoints) {
+          if (sharedDirectlyToWall) break;
           try {
-            await fetch(`${GRAPH_API_BASE}/${handle}/feed`, {
+            const res = await fetch(`${GRAPH_API_BASE}/${epId}/feed`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 message: shareMessage,
                 link: permalinkUrl,
-                access_token: target.accessToken,
+                access_token: targetToken,
               }),
-              signal: AbortSignal.timeout(12_000),
+              signal: AbortSignal.timeout(10_000),
             });
+            const d = await res.json();
+            if (!d.error && (d.id || d.post_id)) {
+              sharedDirectlyToWall = true;
+            }
           } catch {}
+        }
+
+        if (sharedDirectlyToWall) {
+          targets.push(`${target.name} (@${handle} - Doğrudan Sayfa Paylaşımı)`);
+        } else {
+          targets.push(`${target.name} (@${handle} - Otomatik Paylaşım & Etiket)`);
         }
       }
 
@@ -219,7 +359,7 @@ export class FacebookService {
 
     try {
       const { token, pageId } = await resolvePageToken();
-      const { followedPages } = await this.getFollowedAndConnectedPages();
+      const { followedPages } = await this.getFollowedAndConnectedPages(true);
       const rawSanitized = (message || '')
         .replace(/\*\*/g, '')
         .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
@@ -391,7 +531,7 @@ export class FacebookService {
 
     try {
       const { token, pageId } = await resolvePageToken();
-      const { followedPages } = await this.getFollowedAndConnectedPages();
+      const { followedPages } = await this.getFollowedAndConnectedPages(true);
       const rawSanitizedCaption = (caption || '')
         .replace(/\*\*/g, '')
         .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')

@@ -69,18 +69,17 @@ export default function SimpleAutonomousHub({
   const [resolvedStreams, setResolvedStreams] = useState<Record<string, string>>({});
   const [statusBanner, setStatusBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isCanvaOpen, setIsCanvaOpen] = useState(false);
-  const [followedPages, setFollowedPages] = useState<{ name: string; handle: string; pageId?: string; enabled: boolean }[]>([
-    { name: "Trabzonspor", handle: "Trabzonspor", enabled: true },
-    { name: "61saat", handle: "61saat", enabled: true },
-    { name: "Haber61", handle: "Haber61", enabled: true },
-    { name: "Kuzey Ekspres", handle: "KuzeyEkspresGazetesi", enabled: true },
-    { name: "Trabzon Büyükşehir", handle: "TrabzonBelTr", enabled: true },
+  const [followedPages, setFollowedPages] = useState<{ name: string; handle: string; fbId?: string; source?: string; enabled: boolean }[]>([
+    { name: "Daima TS", handle: "daimats1", fbId: "61559249002619", source: "facebook_following", enabled: true },
+    { name: "Rıza Hacımurtazaoğlu", handle: "Bandelero", fbId: "557094937", source: "facebook_following", enabled: true },
+    { name: "Trabzonspor", handle: "Trabzonspor", source: "facebook_following", enabled: true },
   ]);
   const [newFollowedHandle, setNewFollowedHandle] = useState("");
   const [isAddingPage, setIsAddingPage] = useState(false);
+  const [isSyncingFollowed, setIsSyncingFollowed] = useState(false);
 
   useEffect(() => {
-    fetch("/api/facebook/distribute")
+    fetch("/api/facebook/distribute?sync=true")
       .then((r) => r.json())
       .then((d) => {
         if (d.success && Array.isArray(d.followedPages) && d.followedPages.length > 0) {
@@ -89,6 +88,26 @@ export default function SimpleAutonomousHub({
       })
       .catch(() => {});
   }, []);
+
+  const handleSyncFollowedFromFacebook = async () => {
+    setIsSyncingFollowed(true);
+    try {
+      const res = await fetch("/api/facebook/distribute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync_from_facebook" }),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.followedPages)) {
+        setFollowedPages(data.followedPages);
+        setStatusBanner({
+          type: "success",
+          text: `✅ BordoMavi (@cafegaa) sayfanızda takip ettiğiniz ${data.followedPages.length} sayfa Facebook'tan otomatik çekildi ve günlük 4 paylaşıma bağlandı.`,
+        });
+      }
+    } catch {}
+    setIsSyncingFollowed(false);
+  };
 
   const handleAddFollowedPage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,14 +351,23 @@ export default function SimpleAutonomousHub({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1 text-xs font-bold text-foreground">
               <Share2 className="w-3.5 h-3.5 text-sky-500" />
-              Takip Edilen Sayfalarda Otomatik Paylaşım &amp; Etiketleme:
+              Takip Edilen Sayfalarda Otomatik Paylaşım &amp; Etiketleme (Günde 4 Paylaşım):
             </span>
             {followedPages.map((fp) => (
               <span
                 key={fp.handle}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/25 px-2 py-0.5 rounded-full"
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/25 px-2.5 py-0.5 rounded-full"
               >
-                @{fp.handle}
+                <a
+                  href={`https://www.facebook.com/${fp.handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline"
+                >
+                  {fp.name && fp.name.toLowerCase() !== fp.handle.toLowerCase()
+                    ? `${fp.name} (@${fp.handle})`
+                    : `@${fp.handle}`}
+                </a>
                 <button
                   type="button"
                   onClick={() => handleRemoveFollowedPage(fp.handle)}
@@ -352,24 +380,42 @@ export default function SimpleAutonomousHub({
             ))}
           </div>
 
-          <form onSubmit={handleAddFollowedPage} className="flex items-center gap-1.5 shrink-0">
-            <input
-              type="text"
-              value={newFollowedHandle}
-              onChange={(e) => setNewFollowedHandle(e.target.value)}
-              placeholder="@SayfaAdi ekle..."
-              className="h-7 px-2.5 text-xs rounded-lg border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary w-36 sm:w-44"
-            />
+          <div className="flex items-center gap-1.5 flex-wrap shrink-0">
             <Button
-              type="submit"
+              type="button"
               size="sm"
               variant="outline"
-              disabled={isAddingPage || !newFollowedHandle.trim()}
-              className="h-7 px-2.5 text-[11px] font-bold"
+              disabled={isSyncingFollowed}
+              onClick={handleSyncFollowedFromFacebook}
+              className="h-7 px-2.5 text-[11px] font-bold border-sky-500/30 text-sky-600 dark:text-sky-400"
             >
-              <Plus className="w-3 h-3 mr-1" /> Sayfa Ekle
+              {isSyncingFollowed ? (
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3 h-3 mr-1" />
+              )}
+              Facebook&apos;tan Otomatik Çek
             </Button>
-          </form>
+
+            <form onSubmit={handleAddFollowedPage} className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={newFollowedHandle}
+                onChange={(e) => setNewFollowedHandle(e.target.value)}
+                placeholder="@SayfaAdi ekle..."
+                className="h-7 px-2.5 text-xs rounded-lg border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary w-32 sm:w-36"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                variant="outline"
+                disabled={isAddingPage || !newFollowedHandle.trim()}
+                className="h-7 px-2.5 text-[11px] font-bold"
+              >
+                <Plus className="w-3 h-3 mr-1" /> Ekle
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
 
