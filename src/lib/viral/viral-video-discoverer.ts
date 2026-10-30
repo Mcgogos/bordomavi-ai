@@ -517,6 +517,12 @@ export async function discoverTrendingTrabzonsporVideos(options?: {
 
   if (detailedCandidates.length > 0) {
     await saveDailyTrendingVideos(detailedCandidates.slice(0, 8));
+  } else {
+    // Sunucusuz ortamda anlık tarama kısıtlandıysa veritabanındaki güncel önbelleği koru ve döndür
+    const cached = await getCachedDailyTrendingVideos();
+    if (cached.items.length > 0) {
+      detailedCandidates.push(...cached.items);
+    }
   }
 
   console.log(
