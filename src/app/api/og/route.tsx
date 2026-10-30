@@ -1,45 +1,89 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
-import { CorporateVisualEngine } from '@/services/visual/CorporateVisualEngine';
-import { TemplateSelector, VisualTemplateType } from '@/services/visual/TemplateSelector';
+import { TRABZONSPOR_CANVA_TEMPLATES, CanvaTemplate } from '@/lib/canva/canva-service';
 import { BORDOMAVI_BRAND_LOGO_DATA_URI } from '@/lib/canva/brand-logo-data';
+
+function resolveCanvaTemplate(
+  requestedCategory: string | undefined,
+  title: string,
+  summary: string
+): CanvaTemplate {
+  if (requestedCategory) {
+    const found = TRABZONSPOR_CANVA_TEMPLATES.find(
+      (t) => t.category === requestedCategory.toUpperCase() || t.id === requestedCategory
+    );
+    if (found) return found;
+  }
+
+  const text = `${title} ${summary}`.toLocaleLowerCase('tr-TR');
+  if (/(transfer|imza|kadroya|anla[sş]ma|bonservis|teklif)/i.test(text)) {
+    return TRABZONSPOR_CANVA_TEMPLATES.find((t) => t.category === 'TRANSFER')!;
+  }
+  if (/(ilk\s*11|11'i|kadrosu\s*belli)/i.test(text)) {
+    return TRABZONSPOR_CANVA_TEMPLATES.find((t) => t.category === 'LINEUP')!;
+  }
+  if (/(goool|gol\b|[sş]ut|asist)/i.test(text)) {
+    return TRABZONSPOR_CANVA_CANVA_FALLBACK('GOAL');
+  }
+  if (/(ma[cç]\s*sonucu|galibiyet|3\s*puan|ma[cç]\s*bitti)/i.test(text)) {
+    return TRABZONSPOR_CANVA_CANVA_FALLBACK('RESULT');
+  }
+  if (/(ma[cç]\s*g[üu]n[üu]|derbi|deplasman|papara\s*park)/i.test(text)) {
+    return TRABZONSPOR_CANVA_CANVA_FALLBACK('MATCH_DAY');
+  }
+  if (/(hakem|penalt[ıi]|k[ıi]rm[ıi]z[ıi]\s*kart|var\s*karar)/i.test(text)) {
+    return TRABZONSPOR_CANVA_CANVA_FALLBACK('PENALTY_CARD');
+  }
+  if (/(a[cç][ıi]klama|deme[cç]|bas[ıi]n\s*toplant[ıi]s[ıi]|konu[sş]tu)/i.test(text)) {
+    return TRABZONSPOR_CANVA_CANVA_FALLBACK('QUOTE');
+  }
+  if (/(resmi|kamuoyu|duyuru|kul[üu]b[üu]m[üu]z)/i.test(text)) {
+    return TRABZONSPOR_CANVA_CANVA_FALLBACK('OFFICIAL');
+  }
+  return TRABZONSPOR_CANVA_TEMPLATES[0];
+}
+
+function TRABZONSPOR_CANVA_CANVA_FALLBACK(cat: string): CanvaTemplate {
+  return (
+    TRABZONSPOR_CANVA_TEMPLATES.find((t) => t.category === cat) || TRABZONSPOR_CANVA_TEMPLATES[0]
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const rawTitle = searchParams.get('title') || "Trabzonspor'da Flaş Gelişme!";
-    const title = rawTitle.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    const title = rawTitle
+      .replace(/\*\*/g, '')
+      .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+      .trim();
     const rawSummary = searchParams.get('summary') || '';
-    const summary = rawSummary.replace(/\*\*/g, '').replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3').trim();
+    const summary = rawSummary
+      .replace(/\*\*/g, '')
+      .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+      .trim();
     const externalImageUrl = searchParams.get('imageUrl') || null;
-    
-    // 1. TemplateSelector (Haber türünü analiz edip template seçer)
-    const template = TemplateSelector.selectTemplate(title, summary);
-    
-    // 2. Colors
-    const colors = CorporateVisualEngine.getColors();
+
     const requestedTemplate = searchParams.get('template')?.toUpperCase();
     const minute = searchParams.get('minute');
     const score = searchParams.get('score');
-    const player = searchParams.get('player');
     const format = searchParams.get('format')?.toLowerCase();
 
+    const canvaTemplate = resolveCanvaTemplate(requestedTemplate, title, summary);
     const isVertical = requestedTemplate === 'REELS' || format === 'vertical' || format === 'reels';
     const canvasWidth = isVertical ? 1080 : 1200;
     const canvasHeight = isVertical ? 1920 : 630;
-    
-    // 3. Kullanıcının Orijinal BordoMavi Logosu (Bellek içi Base64 - Sıfır fs / Sıfır Vercel hatası)
+
     const logoDataUrl = BORDOMAVI_BRAND_LOGO_DATA_URI;
 
-    // 4. Harici Haber Görselini Güvenli İndirme (WebP / 403 / Timeout Koruması)
     let safeExternalImageDataUrl: string | null = null;
     const isSafeUrl = Boolean(
       externalImageUrl &&
-      (externalImageUrl.startsWith('http://') || externalImageUrl.startsWith('https://')) &&
-      !externalImageUrl.includes('localhost') &&
-      !externalImageUrl.includes('127.0.0.1') &&
-      !externalImageUrl.includes('169.254.') &&
-      !externalImageUrl.includes('[::1]')
+        (externalImageUrl.startsWith('http://') || externalImageUrl.startsWith('https://')) &&
+        !externalImageUrl.includes('localhost') &&
+        !externalImageUrl.includes('127.0.0.1') &&
+        !externalImageUrl.includes('169.254.') &&
+        !externalImageUrl.includes('[::1]')
     );
 
     if (isSafeUrl && externalImageUrl) {
@@ -48,25 +92,35 @@ export async function GET(request: NextRequest) {
         const timeoutId = setTimeout(() => controller.abort(), 3500);
         const imgRes = await fetch(externalImageUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'image/jpeg,image/png,image/*;q=0.8'
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            Accept: 'image/jpeg,image/png,image/*;q=0.8',
           },
-          signal: controller.signal
+          signal: controller.signal,
         });
         clearTimeout(timeoutId);
         if (imgRes.ok) {
           const contentType = (imgRes.headers.get('content-type') || '').toLowerCase();
-          // Satori data-uri olarak JPEG ve PNG'yi kusursuz işler
-          if (contentType.includes('jpeg') || contentType.includes('jpg') || contentType.includes('png')) {
+          if (
+            contentType.includes('jpeg') ||
+            contentType.includes('jpg') ||
+            contentType.includes('png')
+          ) {
             const arrayBuffer = await imgRes.arrayBuffer();
             const mime = contentType.includes('png') ? 'image/png' : 'image/jpeg';
-            safeExternalImageDataUrl = `data:${mime};base64,${Buffer.from(arrayBuffer).toString('base64')}`;
+            safeExternalImageDataUrl = `data:${mime};base64,${Buffer.from(arrayBuffer).toString(
+              'base64'
+            )}`;
           }
         }
       } catch (e) {
-        console.warn("[OG Route] Harici görsel indirilemedi, kurumsal dinamik zemin kullanılıyor:", e);
+        console.warn('[OG Route] Harici görsel indirilemedi, Canva kurumsal zemin kullanılıyor:', e);
       }
     }
+
+    const primaryColor = canvaTemplate.primaryColor || '#781324';
+    const accentColor = canvaTemplate.accentColor || '#38BDF8';
+    const badgeText = canvaTemplate.badgeText || '🔥 BORDO MAVİ GÜNDEM';
 
     if (isVertical) {
       return new ImageResponse(
@@ -83,10 +137,9 @@ export async function GET(request: NextRequest) {
               overflow: 'hidden',
               fontFamily: 'sans-serif',
               justifyContent: 'space-between',
-              padding: '70px 60px 80px 60px'
+              padding: '70px 64px 80px 64px',
             }}
           >
-            {/* BACKGROUND IMAGE / GRADIENT */}
             {safeExternalImageDataUrl ? (
               <>
                 <img
@@ -97,7 +150,7 @@ export async function GET(request: NextRequest) {
                     left: 0,
                     width: '100%',
                     height: '100%',
-                    objectFit: 'cover'
+                    objectFit: 'cover',
                   }}
                 />
                 <div
@@ -107,132 +160,147 @@ export async function GET(request: NextRequest) {
                     left: 0,
                     width: '100%',
                     height: '100%',
-                    background: 'linear-gradient(to bottom, rgba(10,15,29,0.85) 0%, rgba(123,15,29,0.3) 35%, rgba(10,15,29,0.95) 75%, #070B14 100%)'
+                    background: `linear-gradient(155deg, ${primaryColor}CC 0%, rgba(10,15,29,0.75) 45%, #070B14 100%)`,
                   }}
                 />
               </>
             ) : (
-              <>
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '-20%',
-                    left: '-20%',
-                    width: '1400px',
-                    height: '1400px',
-                    background: 'radial-gradient(circle, rgba(123,15,28,0.8) 0%, rgba(10,15,29,0) 70%)'
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '-20%',
-                    right: '-20%',
-                    width: '1400px',
-                    height: '1400px',
-                    background: 'radial-gradient(circle, rgba(46,139,201,0.6) 0%, rgba(10,15,29,0) 70%)'
-                  }}
-                />
-              </>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: `linear-gradient(145deg, ${primaryColor} 0%, #0B1120 55%, ${accentColor}99 100%)`,
+                }}
+              />
             )}
 
-            {/* TOP HEADER: BRAND + REELS BADGE */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', zIndex: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                {logoDataUrl && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: '9999px',
-                    border: '4px solid #F59E0B',
-                    padding: '8px',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)'
-                  }}>
-                    <img src={logoDataUrl} width={90} height={90} style={{ borderRadius: '9999px', objectFit: 'contain' }} />
-                  </div>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '32px', fontWeight: '900', color: '#FFFFFF', letterSpacing: '2px' }}>
-                    BORDOMAVI
-                  </span>
-                  <span style={{ fontSize: '20px', fontWeight: '700', color: '#38BDF8', letterSpacing: '1px' }}>
-                    ÖZEL HABER MERKEZİ
-                  </span>
-                </div>
-              </div>
+            {/* Canva Çerçeve Border */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '28px',
+                left: '28px',
+                right: '28px',
+                bottom: '28px',
+                border: '3px solid rgba(255,255,255,0.18)',
+                borderRadius: '24px',
+                pointerEvents: 'none',
+              }}
+            />
 
-              <div style={{
+            {/* Sağ Üst Köşede 2x Bordo-Mavi Logosu */}
+            {logoDataUrl && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '52px',
+                  right: '52px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '9999px',
+                  border: '4px solid #F59E0B',
+                  padding: '8px',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.75)',
+                  zIndex: 20,
+                }}
+              >
+                <img
+                  src={logoDataUrl}
+                  width={156}
+                  height={156}
+                  style={{ borderRadius: '9999px', objectFit: 'contain' }}
+                />
+              </div>
+            )}
+
+            {/* Alt Manşet Alanı */}
+            <div
+              style={{
                 display: 'flex',
-                alignItems: 'center',
-                backgroundColor: 'rgba(225, 29, 72, 0.9)',
-                border: '2px solid rgba(255, 255, 255, 0.4)',
-                borderRadius: '9999px',
-                padding: '12px 28px',
-                boxShadow: '0 8px 20px rgba(0,0,0,0.5)'
-              }}>
-                <span style={{ fontSize: '22px', fontWeight: '900', color: '#FFFFFF', letterSpacing: '1px' }}>
-                  🎬 REELS & SHORTS
+                flexDirection: 'column',
+                width: '100%',
+                zIndex: 10,
+                marginTop: 'auto',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: primaryColor,
+                  border: `2px solid ${accentColor}`,
+                  borderRadius: '12px',
+                  padding: '10px 24px',
+                  alignSelf: 'flex-start',
+                  marginBottom: '24px',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '24px',
+                    fontWeight: '900',
+                    color: '#FFFFFF',
+                    letterSpacing: '1.5px',
+                  }}
+                >
+                  {badgeText}
                 </span>
               </div>
-            </div>
 
-            {/* BOTTOM SECTION: BADGE + TITLE + SUMMARY + ENGAGEMENT */}
-            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', zIndex: 10, marginTop: 'auto' }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: 'rgba(245, 158, 11, 0.25)',
-                border: '2px solid #F59E0B',
-                borderRadius: '8px',
-                padding: '10px 24px',
-                alignSelf: 'flex-start',
-                marginBottom: '24px'
-              }}>
-                <span style={{ fontSize: '24px', fontWeight: '900', color: '#FCD34D', letterSpacing: '1.5px' }}>
-                  ⚡ FLAŞ GELİŞME
-                </span>
-              </div>
-
-              <h1 style={{
-                fontSize: title.length > 60 ? '56px' : '68px',
-                fontWeight: '900',
-                lineHeight: 1.15,
-                color: '#FFFFFF',
-                margin: '0 0 24px 0',
-                textShadow: '0 6px 24px rgba(0,0,0,0.9)'
-              }}>
+              <h1
+                style={{
+                  fontSize: title.length > 60 ? '56px' : '68px',
+                  fontWeight: '900',
+                  lineHeight: 1.15,
+                  color: '#FFFFFF',
+                  margin: '0 0 24px 0',
+                  textShadow: '0 6px 24px rgba(0,0,0,0.9)',
+                }}
+              >
                 {title}
               </h1>
 
               {summary && (
-                <p style={{
-                  fontSize: '34px',
-                  fontWeight: '500',
-                  color: '#E2E8F0',
-                  lineHeight: 1.35,
-                  margin: '0 0 36px 0',
-                  textShadow: '0 4px 16px rgba(0,0,0,0.8)'
-                }}>
+                <p
+                  style={{
+                    fontSize: '32px',
+                    fontWeight: '500',
+                    color: '#E2E8F0',
+                    lineHeight: 1.35,
+                    margin: '0 0 36px 0',
+                  }}
+                >
                   {summary}
                 </p>
               )}
 
-              {/* FOOTER CALL TO ACTION */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingTop: '28px',
-                borderTop: '3px solid rgba(255,255,255,0.2)',
-                width: '100%'
-              }}>
-                <span style={{ fontSize: '28px', fontWeight: '900', color: '#38BDF8', letterSpacing: '1px' }}>
-                  #Trabzonspor #BordoMavi
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingTop: '28px',
+                  borderTop: '3px solid rgba(255,255,255,0.2)',
+                  width: '100%',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '28px',
+                    fontWeight: '900',
+                    color: '#FFFFFF',
+                    letterSpacing: '1px',
+                  }}
+                >
+                  BordoMavi
                 </span>
-                <span style={{ fontSize: '24px', fontWeight: '800', color: '#FCD34D' }}>
-                  💬 Yorumlarda Buluşalım! 👇
+                <span style={{ fontSize: '24px', fontWeight: '800', color: '#38BDF8' }}>
+                  #Trabzonspor #BordoMavi
                 </span>
               </div>
             </div>
@@ -242,6 +310,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // YATAY CANVA HABER KARTI (1200x630)
     return new ImageResponse(
       (
         <div
@@ -249,238 +318,260 @@ export async function GET(request: NextRequest) {
             height: '100%',
             width: '100%',
             display: 'flex',
-            backgroundColor: '#0a0f1d', 
-            color: colors.beyaz,
+            backgroundColor: '#0A0F1D',
+            color: '#FFFFFF',
             position: 'relative',
             overflow: 'hidden',
-            fontFamily: 'sans-serif'
+            fontFamily: 'sans-serif',
           }}
         >
-          {/* EXTERNAL IMAGE BACKGROUND (If Available & Verified Safe) */}
           {safeExternalImageDataUrl ? (
             <>
-              <img 
-                src={safeExternalImageDataUrl} 
+              <img
+                src={safeExternalImageDataUrl}
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover'
+                  objectFit: 'cover',
                 }}
               />
-              {/* BORDO-MAVI COLOR FILTER OVER EXTERNAL IMAGE */}
-              <div style={{
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: `linear-gradient(135deg, ${primaryColor}E6 0%, rgba(11,17,32,0.88) 55%, ${accentColor}CC 100%)`,
+                }}
+              />
+            </>
+          ) : (
+            <div
+              style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 width: '100%',
                 height: '100%',
-                background: 'linear-gradient(135deg, rgba(123,15,29,0.85) 0%, rgba(46,139,201,0.85) 100%)',
-              }} />
-            </>
-          ) : (
-            <>
-              {/* DEFAULT DIKKAT CEKICI ARKA PLAN (Dinamik ve Sert Renk Gecisleri) */}
-              <div style={{
-                position: 'absolute',
-                top: '-30%',
-                right: '-10%',
-                width: '900px',
-                height: '900px',
-                background: 'radial-gradient(circle, rgba(123,15,28,0.7) 0%, rgba(10,15,29,0) 70%)',
-              }} />
-              
-              <div style={{
-                position: 'absolute',
-                bottom: '-40%',
-                left: '-10%',
-                width: '1000px',
-                height: '1000px',
-                background: 'radial-gradient(circle, rgba(46,139,201,0.5) 0%, rgba(10,15,29,0) 60%)',
-              }} />
-            </>
+                background: `linear-gradient(135deg, ${primaryColor} 0%, #0B1120 55%, ${accentColor} 100%)`,
+              }}
+            />
           )}
 
-          {/* Aksiyon Katmani (Cizgiler) */}
-          <div style={{
-            position: 'absolute',
-            top: '0',
-            right: '15%',
-            width: '2px',
-            height: '100%',
-            backgroundColor: 'rgba(255,255,255,0.05)',
-            transform: 'rotate(15deg)'
-          }} />
-          <div style={{
-            position: 'absolute',
-            top: '0',
-            right: '25%',
-            width: '2px',
-            height: '100%',
-            backgroundColor: 'rgba(255,255,255,0.03)',
-            transform: 'rotate(15deg)'
-          }} />
+          {/* Canva Stüdyo Çapraz Işık Hüzmesi */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '-20%',
+              right: '18%',
+              width: '220px',
+              height: '150%',
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              transform: 'rotate(18deg)',
+            }}
+          />
 
-          {/* OVERLAY ENGINE: Sol taraf icin sert karartma (Metin okunabilirligi) */}
-          <div style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: '75%', 
-            background: 'linear-gradient(to right, rgba(10,15,29, 0.95) 0%, rgba(10,15,29, 0.6) 60%, transparent 100%)',
-            zIndex: 1
-          }} />
+          {/* Canva Stüdyo Çerçeve Border */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '20px',
+              left: '20px',
+              right: '20px',
+              bottom: '20px',
+              border: '2px solid rgba(255,255,255,0.18)',
+              borderRadius: '18px',
+              pointerEvents: 'none',
+              zIndex: 5,
+            }}
+          />
 
-          {/* MAIN CONTENT / TYPOGRAPHY ENGINE */}
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            paddingLeft: '70px',
-            paddingRight: '35%',
-            paddingTop: '50px',
-            paddingBottom: '50px',
-            width: '100%',
-            height: '100%',
-            zIndex: 10
-          }}>
-            {/* Canlı Skor & Dakika Bilgisi (Sadece maç anında parametre iletilmişse gösterilir) */}
-            {(score || minute) && (
-              <div style={{
+          {/* Sol Karartma Katmanı */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: '80%',
+              background:
+                'linear-gradient(to right, rgba(10,15,29,0.92) 0%, rgba(10,15,29,0.65) 65%, transparent 100%)',
+              zIndex: 2,
+            }}
+          />
+
+          {/* Ana İçerik Alanı */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              paddingLeft: '64px',
+              paddingRight: '240px',
+              paddingTop: '44px',
+              paddingBottom: '44px',
+              width: '100%',
+              height: '100%',
+              zIndex: 10,
+            }}
+          >
+            {/* Canva Kategori Rozeti + Canlı Skor */}
+            <div
+              style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '16px',
-                marginBottom: '25px',
-                alignSelf: 'flex-start'
-              }}>
-                {score && (
-                  <div style={{
+                gap: '14px',
+                marginBottom: '20px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: primaryColor,
+                  border: `2px solid ${accentColor}`,
+                  padding: '8px 20px',
+                  borderRadius: '9999px',
+                  fontWeight: '900',
+                  fontSize: '20px',
+                  letterSpacing: '1px',
+                  color: '#FFFFFF',
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.45)',
+                }}
+              >
+                {badgeText}
+              </div>
+
+              {score && (
+                <div
+                  style={{
                     display: 'flex',
                     alignItems: 'center',
                     backgroundColor: 'rgba(255,255,255,0.15)',
                     border: '2px solid rgba(255,255,255,0.4)',
-                    padding: '10px 22px',
-                    borderRadius: '8px',
-                    fontWeight: '900',
-                    fontSize: '22px',
-                    letterSpacing: '1px',
-                    color: '#FFFFFF'
-                  }}>
-                    SKOR: {score}
-                  </div>
-                )}
-
-                {minute && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    backgroundColor: 'rgba(220,38,38,0.3)',
-                    border: '2px solid #EF4444',
-                    padding: '10px 18px',
-                    borderRadius: '8px',
+                    padding: '8px 18px',
+                    borderRadius: '9999px',
                     fontWeight: '900',
                     fontSize: '20px',
-                    color: '#FEE2E2'
-                  }}>
-                    {minute}
-                  </div>
-                )}
-              </div>
-            )}
+                    color: '#FFFFFF',
+                  }}
+                >
+                  SKOR: {score}
+                </div>
+              )}
 
-            {/* Headline (Title) - MAXIMUM CONTRAST */}
-            <h1 style={{
-              fontSize: title.length > 50 ? '54px' : '64px',
-              fontWeight: '900',
-              lineHeight: 1.15,
-              margin: '0 0 30px 0',
-              letterSpacing: '-1px',
-              textShadow: '0 4px 16px rgba(0,0,0,0.8)',
-              color: colors.beyaz
-            }}>
+              {minute && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(220,38,38,0.35)',
+                    border: '2px solid #EF4444',
+                    padding: '8px 16px',
+                    borderRadius: '9999px',
+                    fontWeight: '900',
+                    fontSize: '18px',
+                    color: '#FEE2E2',
+                  }}
+                >
+                  {minute}
+                </div>
+              )}
+            </div>
+
+            {/* Manşet */}
+            <h1
+              style={{
+                fontSize: title.length > 55 ? '50px' : '60px',
+                fontWeight: '900',
+                lineHeight: 1.15,
+                margin: '0 0 22px 0',
+                letterSpacing: '-1px',
+                textShadow: '0 4px 16px rgba(0,0,0,0.85)',
+                color: '#FFFFFF',
+              }}
+            >
               {title}
             </h1>
 
-            {/* Sub-headline (Summary) */}
+            {/* Spot Metin */}
             {summary && (
-              <p style={{
-                fontSize: '28px',
-                fontWeight: '500',
-                color: '#E2E8F0',
-                lineHeight: 1.4,
-                margin: 0,
-                opacity: 0.9,
-                display: '-webkit-box',
-                WebkitLineClamp: 3,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden'
-              }}>
-                {summary}
+              <p
+                style={{
+                  fontSize: '25px',
+                  fontWeight: '500',
+                  color: '#E2E8F0',
+                  lineHeight: 1.38,
+                  margin: 0,
+                  opacity: 0.92,
+                }}
+              >
+                {summary.length > 140 ? summary.slice(0, 137) + '...' : summary}
               </p>
             )}
 
-            {/* BRANDING FOOTER (Strictly BordoMavi) */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              marginTop: 'auto',
-              paddingTop: '20px',
-              borderTop: '2px solid rgba(255,255,255,0.15)'
-            }}>
-              <span style={{ fontSize: '28px', fontWeight: '900', color: '#FFFFFF', letterSpacing: '1px' }}>
+            {/* Kurumsal Alt Bilgi Bandı */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                marginTop: 'auto',
+                paddingTop: '18px',
+                borderTop: '2px solid rgba(255,255,255,0.18)',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '26px',
+                  fontWeight: '900',
+                  color: '#FFFFFF',
+                  letterSpacing: '1px',
+                }}
+              >
                 BordoMavi
               </span>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#38BDF8' }}>
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#FBBF24' }}>
                 #Trabzonspor #BordoMavi
               </span>
             </div>
           </div>
 
-          {/* BRANDING ENGINE (Sağ Alt: Kullanıcının Orijinal Dairesel BordoMavi Logosu) */}
+          {/* Sağ Üst Köşede 2x Bordo-Mavi Logosu */}
           {logoDataUrl && (
-            <div style={{
-              position: 'absolute',
-              top: '28px',
-              right: '48px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: '#FFFFFF',
-              borderRadius: '9999px',
-              border: '3px solid #F59E0B',
-              padding: '8px',
-              boxShadow: '0 12px 32px rgba(0,0,0,0.7)',
-              zIndex: 15
-            }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: '32px',
+                right: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '9999px',
+                border: '4px solid #F59E0B',
+                padding: '8px',
+                boxShadow: '0 12px 32px rgba(0,0,0,0.75)',
+                zIndex: 15,
+              }}
+            >
               <img
                 src={logoDataUrl}
-                width={156}
-                height={156}
-                style={{ 
+                width={152}
+                height={152}
+                style={{
                   display: 'block',
                   borderRadius: '9999px',
-                  objectFit: 'contain'
+                  objectFit: 'contain',
                 }}
               />
             </div>
           )}
-
-          {/* VIGNETTE ENGINE (Kenar Karartmalari) */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            boxShadow: 'inset 0 0 150px rgba(0,0,0,0.5)',
-            pointerEvents: 'none',
-            zIndex: 20
-          }} />
         </div>
       ),
       {
@@ -490,36 +581,51 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     console.error('OG Image Generation Error (Failsafe activated):', error);
-    // Asla 500 dönme! Facebook'un ve uygulamanın görselsiz kalmaması için garantili kurumsal görsel üret.
     return new ImageResponse(
       (
-        <div style={{
-          height: '100%',
-          width: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          background: 'linear-gradient(135deg, #7B0F1C 0%, #121E35 60%, #2E8BC9 100%)',
-          color: '#FFFFFF',
-          padding: '60px',
-          fontFamily: 'sans-serif',
-          position: 'relative'
-        }}>
-          <div style={{
+        <div
+          style={{
+            height: '100%',
+            width: '100%',
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: 'column',
             justifyContent: 'center',
-            backgroundColor: '#FFFFFF',
-            borderRadius: '9999px',
-            border: '4px solid #F59E0B',
-            padding: '12px',
-            marginBottom: '30px',
-            boxShadow: '0 12px 32px rgba(0,0,0,0.6)'
-          }}>
-            <img src={BORDOMAVI_BRAND_LOGO_DATA_URI} width={130} height={130} style={{ borderRadius: '9999px' }} />
+            alignItems: 'center',
+            background: 'linear-gradient(135deg, #7B0F1C 0%, #121E35 60%, #2E8BC9 100%)',
+            color: '#FFFFFF',
+            padding: '60px',
+            fontFamily: 'sans-serif',
+            position: 'relative',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '9999px',
+              border: '4px solid #F59E0B',
+              padding: '12px',
+              marginBottom: '30px',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
+            }}
+          >
+            <img
+              src={BORDOMAVI_BRAND_LOGO_DATA_URI}
+              width={130}
+              height={130}
+              style={{ borderRadius: '9999px' }}
+            />
           </div>
-          <h1 style={{ fontSize: '48px', fontWeight: '900', textAlign: 'center', margin: '0 0 20px 0' }}>
+          <h1
+            style={{
+              fontSize: '48px',
+              fontWeight: '900',
+              textAlign: 'center',
+              margin: '0 0 20px 0',
+            }}
+          >
             BordoMavi Özel Haber
           </h1>
           <p style={{ fontSize: '24px', fontWeight: '700', color: '#38BDF8', margin: 0 }}>

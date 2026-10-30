@@ -9,6 +9,7 @@ import { wrapTextToLines } from '../reels/reels-visual-composer';
 import { determineContextualReelPoll } from '../reels/reels-script-generator';
 import { verifyReelQuality, ReelQualityCheckResult } from '../reels/reels-quality-checker';
 import { getYtDlpPath, ViralVideoCandidate, sanitizeViralTitle, buildViralEditorialContext } from './viral-video-discoverer';
+import { CanvaService, TRABZONSPOR_CANVA_TEMPLATES } from '../canva/canva-service';
 
 const execFileAsync = promisify(execFile);
 
@@ -259,11 +260,34 @@ export async function processViralVideoIntoBrandedReel(params: {
           .png()
           .toBuffer();
 
+    // Canva Connect API ve Canva Şablon Motoru ile entegre renk ve kategori rozeti seçimi
+    await CanvaService.createDesignWithConnectApi({
+      title: cleanTitle,
+      width: 1080,
+      height: 1920,
+    }).catch(() => {});
+
+    const canvaTemplate =
+      category === 'Transfer'
+        ? TRABZONSPOR_CANVA_TEMPLATES.find((t) => t.category === 'TRANSFER')!
+        : category === 'Maç & Saha İçi'
+        ? TRABZONSPOR_CANVA_TEMPLATES.find((t) => t.category === 'GOAL')!
+        : category === 'Taraftar & Tribün'
+        ? TRABZONSPOR_CANVA_TEMPLATES.find((t) => t.category === 'MATCH_DAY')!
+        : TRABZONSPOR_CANVA_TEMPLATES.find((t) => t.category === 'REELS')!;
+
+    const canvaPrimary = category === 'Trabzon Yöresi' ? '#065F46' : canvaTemplate.primaryColor;
+    const canvaAccent = category === 'Trabzon Yöresi' ? '#10B981' : canvaTemplate.accentColor;
+    const canvaBadge =
+      category === 'Trabzon Yöresi'
+        ? '🌲 TRABZON YÖRESİ VİRAL GÜNDEM'
+        : `${canvaTemplate.badgeText} • VİRAL GÜNDEM`;
+
     const atmosphereOverlaySvg = Buffer.from(`
       <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="studioGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#3B0718" stop-opacity="0.88"/>
+            <stop offset="0%" stop-color="${canvaPrimary}" stop-opacity="0.88"/>
             <stop offset="35%" stop-color="#091326" stop-opacity="0.93"/>
             <stop offset="75%" stop-color="#060B16" stop-opacity="0.96"/>
             <stop offset="100%" stop-color="#04070F" stop-opacity="0.98"/>
@@ -307,26 +331,30 @@ export async function processViralVideoIntoBrandedReel(params: {
           <linearGradient id="goldAccent" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stop-color="#F59E0B"/>
             <stop offset="50%" stop-color="#FDE68A"/>
-            <stop offset="100%" stop-color="#38BDF8"/>
+            <stop offset="100%" stop-color="${canvaAccent}"/>
           </linearGradient>
           <linearGradient id="bordoGoldBar" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#E11D48"/>
+            <stop offset="0%" stop-color="${canvaPrimary}"/>
             <stop offset="50%" stop-color="#FBBF24"/>
-            <stop offset="100%" stop-color="#38BDF8"/>
+            <stop offset="100%" stop-color="${canvaAccent}"/>
           </linearGradient>
           <filter id="dropShadow" x="-5%" y="-5%" width="110%" height="115%">
             <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.45"/>
           </filter>
         </defs>
 
-        <!-- 1. ÜST KURUMSAL YAYIN BARI (y: 65 .. 185) -->
+        <!-- Canva Stüdyo Köşe Vurguları -->
+        <path d="M 24 84 L 24 36 L 72 36" fill="none" stroke="${canvaAccent}" stroke-width="6" stroke-linecap="round"/>
+        <path d="M 1056 1680 L 1056 1728 L 1008 1728" fill="none" stroke="${canvaAccent}" stroke-width="6" stroke-linecap="round"/>
+
+        <!-- 1. ÜST KURUMSAL CANVA YAYIN BARI (y: 65 .. 185) -->
         <rect x="36" y="65" width="1008" height="120" rx="30" ry="30" fill="#0B1324" fill-opacity="0.94" stroke="url(#goldAccent)" stroke-width="2" filter="url(#dropShadow)"/>
         <circle cx="104" cy="125" r="46" fill="#FFFFFF"/>
         <text x="174" y="121" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="35" font-weight="900" letter-spacing="1.5">BORDO MAVİ HABER</text>
-        <text x="174" y="156" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="bold" letter-spacing="2">🔥 SOSYAL MEDYADA VİRAL GÜNDEM</text>
+        <text x="174" y="156" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="bold" letter-spacing="2">${escapeXml(canvaBadge)}</text>
 
         <!-- 2. MANŞET KARTI (x: 36, y: 1435, w: 1008, h: 215) -->
-        <rect x="36" y="1435" width="1008" height="215" rx="28" ry="28" fill="#0B1426" fill-opacity="0.95" stroke="#334155" stroke-width="2" filter="url(#dropShadow)"/>
+        <rect x="36" y="1435" width="1008" height="215" rx="28" ry="28" fill="#0B1426" fill-opacity="0.95" stroke="${canvaAccent}" stroke-opacity="0.5" stroke-width="2" filter="url(#dropShadow)"/>
         <rect x="36" y="1435" width="14" height="215" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
         <rect x="1030" y="1435" width="14" height="215" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
         ${headlineSvgElements}

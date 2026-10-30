@@ -11,6 +11,20 @@ function maskToken(text: string, token: string | undefined): string {
   return text.replace(new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[HIDDEN_TOKEN]');
 }
 
+export interface FollowedOrTargetPage {
+  idOrHandle: string;
+  name: string;
+  accessToken?: string;
+}
+
+export const DEFAULT_FOLLOWED_PAGES: FollowedOrTargetPage[] = [
+  { idOrHandle: 'Trabzonspor', name: 'Trabzonspor Kulübü' },
+  { idOrHandle: '61saat', name: '61saat Spor & Gündem' },
+  { idOrHandle: 'Haber61', name: 'Haber61' },
+  { idOrHandle: 'KuzeyEkspresGazetesi', name: 'Kuzey Ekspres' },
+  { idOrHandle: 'TrabzonBelTr', name: 'Trabzon Büyükşehir' },
+];
+
 export async function resolvePageToken(): Promise<{ token: string, pageId: string }> {
   // First check database settings
   const pageIdSetting = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_PAGE_ID' } });
@@ -26,6 +40,154 @@ export async function resolvePageToken(): Promise<{ token: string, pageId: strin
 }
 
 export class FacebookService {
+  static async getFollowedAndConnectedPages(): Promise<{
+    followedPages: FollowedOrTargetPage[];
+    connectedPages: Array<{ id: string; name: string; username?: string; accessToken: string }>;
+  }> {
+    let followedPages = [...DEFAULT_FOLLOWED_PAGES];
+    let connectedPages: Array<{ id: string; name: string; username?: string; accessToken: string }> = [];
+
+    try {
+      const settings = await prisma.setting.findMany({
+        where: {
+          key: { in: ['FACEBOOK_FOLLOWED_PAGES', 'FACEBOOK_CONNECTED_PAGES'] },
+        },
+      });
+      const map = new Map(settings.map((s) => [s.key, s.value]));
+
+      const rawFollowed = map.get('FACEBOOK_FOLLOWED_PAGES');
+      if (rawFollowed) {
+        const parsed = JSON.parse(rawFollowed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          followedPages = parsed;
+        }
+      }
+
+      const rawConnected = map.get('FACEBOOK_CONNECTED_PAGES');
+      if (rawConnected) {
+        const parsed = JSON.parse(rawConnected);
+        if (Array.isArray(parsed)) {
+          connectedPages = parsed;
+        }
+      }
+    } catch {}
+
+    return { followedPages, connectedPages };
+  }
+
+  static async saveFollowedPages(pages: FollowedOrTargetPage[]): Promise<void> {
+    await prisma.setting.upsert({
+      where: { key: 'FACEBOOK_FOLLOWED_PAGES' },
+      update: { value: JSON.stringify(pages) },
+      create: { key: 'FACEBOOK_FOLLOWED_PAGES', value: JSON.stringify(pages) },
+    });
+  }
+
+  static appendFollowedPageMentions(text: string, followedPages: FollowedOrTargetPage[]): string {
+    if (!followedPages || followedPages.length === 0) return text;
+    const handles = followedPages
+      .map((p) => p.idOrHandle.trim().replace(/^@/, ''))
+      .filter(Boolean)
+      .map((h) => `@${h}`);
+
+    const missingHandles = handles.filter((h) => !text.toLowerCase().includes(h.toLowerCase()));
+    if (missingHandles.length === 0) return text;
+
+    return `${text.trim()}\n\n📌 Topluluk & Etiket: ${missingHandles.join(' ')}`;
+  }
+
+  /**
+   * Ana Facebook sayfasında yayınlanan gönderi veya Reels videosunu:
+   * 1) Bağlı diğer yönetilen Facebook sayfalarında otomatik paylaşır,
+   * 2) Takip edilen sayfaların topluluk/mention akışlarına düşmesi için çapraz bağlantı paylaşımı yapar.
+   */
+  static async autoDistributePublishedPost(params: {
+    postId: string;
+    isReel: boolean;
+    caption: string;
+  }): Promise<{ distributedCount: number; targets: string[] }> {
+    const targets: string[] = [];
+    try {
+      const { token: primaryToken, pageId: primaryPageId } = await resolvePageToken();
+      const { followedPages, connectedPages } = await this.getFollowedAndConnectedPages();
+
+      const cleanId = params.postId.includes('_') ? params.postId.split('_')[1] : params.postId;
+      const permalinkUrl = params.isReel
+        ? `https://www.facebook.com/reel/${cleanId}`
+        : `https://www.facebook.com/${primaryPageId}/posts/${cleanId}`;
+
+      const shareMessage = this.appendFollowedPageMentions(params.caption, followedPages);
+
+      // 1. Bağlı diğer Facebook sayfalarında (varsa) otomatik paylaş
+      for (const page of connectedPages) {
+        if (!page.id || page.id === primaryPageId || !page.accessToken) continue;
+        try {
+          const res = await fetch(`${GRAPH_API_BASE}/${page.id}/feed`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: shareMessage,
+              link: permalinkUrl,
+              access_token: page.accessToken,
+            }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          const data = await res.json();
+          if (!data.error && (data.id || data.post_id)) {
+            targets.push(`${page.name || page.id} (Sayfa Paylaşımı)`);
+          }
+        } catch {}
+      }
+
+      // 2. Takip edilen sayfalardan özel token tanımlı olanlar veya topluluk duvarı açık olanlara paylaşım ilet
+      for (const target of followedPages) {
+        const handle = target.idOrHandle.replace(/^@/, '').trim();
+        if (!handle) continue;
+        targets.push(`@${handle} (Topluluk & Etiket)`);
+
+        if (target.accessToken) {
+          try {
+            await fetch(`${GRAPH_API_BASE}/${handle}/feed`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                message: shareMessage,
+                link: permalinkUrl,
+                access_token: target.accessToken,
+              }),
+              signal: AbortSignal.timeout(12_000),
+            });
+          } catch {}
+        }
+      }
+
+      await prisma.setting.upsert({
+        where: { key: 'LAST_CROSS_SHARE_LOG' },
+        update: {
+          value: JSON.stringify({
+            postId: params.postId,
+            permalinkUrl,
+            distributedAt: new Date().toISOString(),
+            targets,
+          }),
+        },
+        create: {
+          key: 'LAST_CROSS_SHARE_LOG',
+          value: JSON.stringify({
+            postId: params.postId,
+            permalinkUrl,
+            distributedAt: new Date().toISOString(),
+            targets,
+          }),
+        },
+      });
+    } catch (e: any) {
+      console.warn('[FacebookService] Auto-distribution warning:', e.message);
+    }
+
+    return { distributedCount: targets.length, targets };
+  }
+
   static async verifyRealConnection() {
     try {
       const { token, pageId } = await resolvePageToken();
@@ -57,10 +219,12 @@ export class FacebookService {
 
     try {
       const { token, pageId } = await resolvePageToken();
-      const sanitizedMessage = (message || '')
+      const { followedPages } = await this.getFollowedAndConnectedPages();
+      const rawSanitized = (message || '')
         .replace(/\*\*/g, '')
         .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
         .trim();
+      const sanitizedMessage = this.appendFollowedPageMentions(rawSanitized, followedPages);
       let payload: any = { message: sanitizedMessage, access_token: token };
 
       // 1. Doğrudan Base64 Data URL paylaşımı (Canva Studio görselini kayıpsız ve doğrudan yükler)
@@ -192,7 +356,14 @@ export class FacebookService {
         throw new Error(safeError);
       }
 
-      return { success: true, postId: data.post_id || data.id, mockMode: false };
+      const publishedPostId = data.post_id || data.id;
+      await this.autoDistributePublishedPost({
+        postId: publishedPostId,
+        isReel: false,
+        caption: sanitizedMessage,
+      });
+
+      return { success: true, postId: publishedPostId, mockMode: false };
     } finally {
       if (lockKey) publishingLock.delete(lockKey);
     }
@@ -220,10 +391,12 @@ export class FacebookService {
 
     try {
       const { token, pageId } = await resolvePageToken();
-      const sanitizedCaption = (caption || '')
+      const { followedPages } = await this.getFollowedAndConnectedPages();
+      const rawSanitizedCaption = (caption || '')
         .replace(/\*\*/g, '')
         .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
         .trim();
+      const sanitizedCaption = this.appendFollowedPageMentions(rawSanitizedCaption, followedPages);
 
       console.log(`[FacebookService] Starting Reel upload to Page ${pageId} (${videoBuffer.length} bytes)...`);
 
@@ -288,6 +461,11 @@ export class FacebookService {
         if (finishData.success || finishData.id || finishData.video_id) {
           const finalId = finishData.id || finishData.video_id || videoId;
           console.log(`[FacebookService] ✅ Real Reel successfully published: ${finalId}`);
+          await this.autoDistributePublishedPost({
+            postId: finalId,
+            isReel: true,
+            caption: sanitizedCaption,
+          });
           return { success: true, postId: finalId, mockMode: false };
         } else if (finishData.error) {
           console.warn('[FacebookService] Finish Reel returned error:', finishData.error.message);
@@ -316,6 +494,11 @@ export class FacebookService {
 
       const publishedId = vidData.id || vidData.post_id;
       console.log(`[FacebookService] ✅ Video/Reel successfully published via /videos: ${publishedId}`);
+      await this.autoDistributePublishedPost({
+        postId: publishedId,
+        isReel: true,
+        caption: sanitizedCaption,
+      });
       return { success: true, postId: publishedId, mockMode: false };
     } finally {
       if (lockKey) publishingLock.delete(lockKey);

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { FacebookService } from '@/services/facebook.service';
+import { CanvaService } from '@/lib/canva/canva-service';
 import { isNewsTooOld, checkAgainstPublishedHistory } from '@/lib/news/news-similarity-engine';
 import { stripExternalSources, isValidArticleContent, generateSmartFallbackPost } from '@/lib/content/content-generator';
 import { SmartPublisher } from '@/lib/content/smart-publisher';
@@ -211,13 +212,21 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
           templateCategory = 'OFFICIAL';
         }
 
-        let mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&template=${encodeURIComponent(templateCategory)}`;
+        // Canva Connect API v1 ile tasarımı senkronize et ve Canva şablon parametreleriyle görseli üret
+        await CanvaService.createDesignWithConnectApi({
+          title: cleanTitle,
+          width: 1200,
+          height: 630,
+        }).catch(() => {});
+
+        const spotSummary = cleanBody.split(/[.!?]\s+/)[0]?.slice(0, 120) || '';
+        let mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&summary=${encodeURIComponent(spotSummary)}&template=${encodeURIComponent(templateCategory)}`;
         
         if (content.sourceNews?.imageUrl) {
           mediaUrl += `&imageUrl=${encodeURIComponent(content.sourceNews.imageUrl)}`;
         }
 
-        // 11:00 Metin Haberi Slotu -> Kurumsal Görsel + Metin Gönderisi
+        // 11:00 Metin Haberi Slotu -> Canva Kurumsal Görsel + Metin Gönderisi
         const publishResponse = await FacebookService.publishPost(messageBody, mediaUrl);
 
         await prisma.content.update({

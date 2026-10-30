@@ -3,6 +3,7 @@ import path from 'path';
 import os from 'os';
 import sharp from 'sharp';
 import { ReelScriptData } from './reels-script-generator';
+import { CanvaService, TRABZONSPOR_CANVA_TEMPLATES } from '@/lib/canva/canva-service';
 
 export const CURATED_REEL_BACKGROUNDS = {
   stadium: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1080&h=1920&q=80',
@@ -145,27 +146,37 @@ export async function composeReelSlides(
     throw new Error(`Habere ait özgün ve geçerli bir görsel indirilemedi (${sourceImageUrl || 'Görsel URL bulunamadı'}). Kural gereği haberle ilgisiz generic görsel ile Reels üretilemez.`);
   }
 
-  // 2. Kulüp Logosu Tespiti & Hazırlığı (92x92 Net Rozet)
+  // 2. Kulüp Logosu Tespiti & Hazırlığı (2x Büyütülmüş En Sağ Üst Köşe Sabit Logo - 168x168)
   const brandLogo = path.join(process.cwd(), 'public', 'assets', 'brand', 'bordomavi-logo.png');
   const fallbackLogo = path.join(process.cwd(), 'public', 'logo.png');
   const logoPath = fs.existsSync(brandLogo) ? brandLogo : (fs.existsSync(fallbackLogo) ? fallbackLogo : null);
 
-  let logoBuf: Buffer | null = null;
   let badgeLogoBuf: Buffer | null = null;
   if (logoPath) {
     try {
-      logoBuf = await sharp(logoPath)
-        .resize({ width: 92, height: 92, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
-        .png()
-        .toBuffer();
       badgeLogoBuf = await sharp(logoPath)
-        .resize({ width: 112, height: 112, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+        .resize({ width: 148, height: 148, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
         .png()
         .toBuffer();
     } catch (e: any) {
       console.warn('[VisualComposer] Logo processing error:', e.message);
     }
   }
+
+  // Canva Şablon Seçimi ve Connect API Senkronizasyonu
+  const upperTitle = (scriptData.title || 'TRABZONSPOR GÜNDEMİ').toLocaleUpperCase('tr-TR');
+  const isTransfer = /TRANSFER|İMZA|KADRO|ANLAŞMA|TEKLİF/.test(upperTitle);
+  const isMatch = /MAÇ|SKOR|GOL|DERBİ|11/.test(upperTitle);
+  const canvaCategory = isTransfer ? 'TRANSFER' : isMatch ? 'MATCH_DAY' : 'REELS';
+  const canvaTpl =
+    TRABZONSPOR_CANVA_TEMPLATES.find((t) => t.category === canvaCategory) ||
+    TRABZONSPOR_CANVA_TEMPLATES.find((t) => t.category === 'REELS')!;
+
+  CanvaService.createDesignWithConnectApi({
+    title: `BordoMavi Haber Reels (${canvaCategory}) - ${upperTitle.slice(0, 60)}`,
+    width: 1080,
+    height: 1920,
+  }).catch(() => {});
 
   // 3. Tam 16:9 Sinematik Haber Vitrini (1008x567 - Yatay 1280x720 fotoğraflarda SIFIR kırpma ve SIFIR üst yazı!)
   const viewportW = 1008;
@@ -203,7 +214,7 @@ export async function composeReelSlides(
     .png()
     .toBuffer();
 
-  // 4. Tam Ekran Koyu Bordo-Mavi Atmosferik Stüdyo Arka Planı (1080x1920)
+  // 4. Tam Ekran Koyu Bordo-Mavi Canva Atmosferik Stüdyo Arka Planı (1080x1920)
   const blurredBackdrop = await sharp(downloadedNewsImg)
     .resize(width, height, { fit: 'cover', position: 'center' })
     .blur(48)
@@ -215,17 +226,17 @@ export async function composeReelSlides(
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="studioGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#3B0718" stop-opacity="0.88"/>
+          <stop offset="0%" stop-color="${canvaTpl.primaryColor}" stop-opacity="0.88"/>
           <stop offset="35%" stop-color="#091326" stop-opacity="0.93"/>
           <stop offset="75%" stop-color="#060B16" stop-opacity="0.96"/>
           <stop offset="100%" stop-color="#04070F" stop-opacity="0.98"/>
         </linearGradient>
         <radialGradient id="topGlow" cx="50%" cy="8%" r="55%">
-          <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.18"/>
+          <stop offset="0%" stop-color="${canvaTpl.accentColor}" stop-opacity="0.20"/>
           <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
         </radialGradient>
         <radialGradient id="bordoGlow" cx="15%" cy="55%" r="50%">
-          <stop offset="0%" stop-color="#9F1239" stop-opacity="0.24"/>
+          <stop offset="0%" stop-color="${canvaTpl.primaryColor}" stop-opacity="0.26"/>
           <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
         </radialGradient>
       </defs>
@@ -241,10 +252,8 @@ export async function composeReelSlides(
     .png()
     .toBuffer();
 
-  // 5. Manşet ve Anket Metinlerini Hazırla (Üst etiketler kaldırıldı, manşet kart içinde tam ortalandı)
-  const upperTitle = (scriptData.title || 'TRABZONSPOR GÜNDEMİ').toLocaleUpperCase('tr-TR');
+  // 5. Manşet Metnini Hazırla
   const headlineLines = wrapTextToLines(upperTitle, 30, 3);
-  const pollQuestion = escapeXml(scriptData.pollQuestion || 'Sizce bu gelişme doğru mu?');
 
   let headlineSvgElements = '';
   if (headlineLines.length === 1) {
@@ -270,53 +279,42 @@ export async function composeReelSlides(
   const progW = 952;
   const progH = 14;
 
-  // 6. Broadcast HUD SVG Katmanı (Kategori rozeti, Sıcak Gündem, Özel Gündem Manşeti, Spiker Anlatımı kaldırıldı)
+  // 6. Canva Studio Broadcast HUD SVG Katmanı (Üst yazı barı kaldırıldı, Canva rozeti + 2x sağ üst logo)
   const hudSvg = Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="goldAccent" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="#F59E0B"/>
           <stop offset="50%" stop-color="#FDE68A"/>
-          <stop offset="100%" stop-color="#38BDF8"/>
+          <stop offset="100%" stop-color="${canvaTpl.accentColor}"/>
         </linearGradient>
         <linearGradient id="bordoGoldBar" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#E11D48"/>
+          <stop offset="0%" stop-color="${canvaTpl.primaryColor}"/>
           <stop offset="50%" stop-color="#FBBF24"/>
-          <stop offset="100%" stop-color="#38BDF8"/>
-        </linearGradient>
-        <linearGradient id="pollCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#0F1D36" stop-opacity="0.96"/>
-          <stop offset="100%" stop-color="#2D0A1B" stop-opacity="0.96"/>
-        </linearGradient>
-        <linearGradient id="btnGreenGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#059669"/>
-          <stop offset="100%" stop-color="#10B981"/>
-        </linearGradient>
-        <linearGradient id="btnBordoGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#9F1239"/>
-          <stop offset="100%" stop-color="#E11D48"/>
+          <stop offset="100%" stop-color="${canvaTpl.accentColor}"/>
         </linearGradient>
         <filter id="dropShadow" x="-5%" y="-5%" width="110%" height="115%">
           <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.45"/>
         </filter>
       </defs>
 
-      <!-- 1. ÜST KURUMSAL YAYIN BARI (y: 75 .. 195) - Kategori Rozetsiz Sade Kurumsal Başlık -->
-      <rect x="36" y="75" width="1008" height="120" rx="30" ry="30" fill="#0B1324" fill-opacity="0.92" stroke="url(#goldAccent)" stroke-width="2" filter="url(#dropShadow)"/>
-      <circle cx="104" cy="135" r="48" fill="#FFFFFF"/>
-      <text x="176" y="132" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="900" letter-spacing="1.5">BORDO MAVİ HABER</text>
-      <text x="176" y="166" fill="#38BDF8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="bold" letter-spacing="2.5">TRABZONSPOR ÖZEL YAYINI</text>
+      <!-- CANVA STUDIO ROZETİ (Sol Üst) -->
+      <rect x="36" y="110" width="340" height="54" rx="27" ry="27" fill="${canvaTpl.primaryColor}" stroke="url(#goldAccent)" stroke-width="2" filter="url(#dropShadow)"/>
+      <circle cx="68" cy="137" r="8" fill="#FDE68A"/>
+      <text x="90" y="145" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="900" letter-spacing="1.5">${escapeXml(canvaTpl.badgeText)}</text>
 
-      <!-- 2. 16:9 TAM KADRAJ HABER VİTRİN ÇERÇEVESİ (x: 36, y: 220, w: 1008, h: 567) - Üst Etiketsiz -->
+      <!-- 2. 16:9 TAM KADRAJ HABER VİTRİN ÇERÇEVESİ (x: 36, y: 220, w: 1008, h: 567) -->
       <rect x="${viewportX}" y="${viewportY}" width="${viewportW}" height="${viewportH}" rx="28" ry="28" fill="none" stroke="url(#goldAccent)" stroke-width="4" filter="url(#dropShadow)"/>
 
-      <!-- 3. MANŞET BLOĞU (x: 36, y: 815, w: 1008, h: 245) - Üst Başlıksız, Tam Ortalı -->
+      <!-- 3. MANŞET BLOĞU (x: 36, y: 815, w: 1008, h: 245) - Canva Köşe Aksanlı -->
       <rect x="36" y="815" width="1008" height="245" rx="28" ry="28" fill="#0B1426" fill-opacity="0.94" stroke="#334155" stroke-width="2" filter="url(#dropShadow)"/>
       <rect x="36" y="815" width="14" height="245" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
       <rect x="1030" y="815" width="14" height="245" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
+      <path d="M 56 845 L 56 827 L 86 827" fill="none" stroke="#FDE68A" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M 1024 1030 L 1024 1048 L 994 1048" fill="none" stroke="${canvaTpl.accentColor}" stroke-width="3.5" stroke-linecap="round"/>
       ${headlineSvgElements}
 
-      <!-- 4. ALTYAZI & CANLI İLERLEME KARTI (x: 36, y: 1085, w: 1008, h: 295) - Üst Başlıksız -->
+      <!-- 4. ALTYAZI & CANLI İLERLEME KARTI (x: 36, y: 1085, w: 1008, h: 295) -->
       <rect x="36" y="1085" width="1008" height="295" rx="28" ry="28" fill="#070D19" fill-opacity="0.95" stroke="#1E293B" stroke-width="2" filter="url(#dropShadow)"/>
       <!-- İlerleme Çubuğu Arka İzi -->
       <rect x="${progX}" y="${progY}" width="${progW}" height="${progH}" rx="7" ry="7" fill="#1E293B" stroke="#334155" stroke-width="1"/>
@@ -327,7 +325,6 @@ export async function composeReelSlides(
   `);
 
   // 7. FFmpeg Dinamik Ken Burns Hareketi ve 30fps Akıcı Altın İlerleme Çubuğu İçin Şeffaf Pencereli HUD Katmanı (overlayHudPath)
-  // Hem 16:9 fotoğraf vitrinini (36, 220, 1008, 567) hem de ilerleme çubuğu yuvasını (64, 1344, 952, 14) şeffaf açıyoruz!
   const holeMaskSvg = Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <rect x="${viewportX}" y="${viewportY}" width="${viewportW}" height="${viewportH}" rx="28" ry="28" fill="black"/>
@@ -336,29 +333,26 @@ export async function composeReelSlides(
   `);
 
   const hudWithLayersBuf = await sharp(studioBgBuf)
-    .composite([
-      { input: hudSvg, left: 0, top: 0 },
-      ...(logoBuf ? [{ input: logoBuf, left: 58, top: 89 }] : [])
-    ])
+    .composite([{ input: hudSvg, left: 0, top: 0 }])
     .ensureAlpha()
     .png()
     .toBuffer();
 
-  // İlerleme çubuğu çerçevesi ve sağ üst 2x kurumsal logo rozeti
+  // İlerleme çubuğu çerçevesi ve EN SAĞ ÜST KÖŞEYE SABİTLENMİŞ 2X BÜYÜTÜLMÜŞ LOGO ROZETİ (cx: 956, cy: 118, r: 84)
   const borderRestoreSvg = Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="goldAccent2" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="#F59E0B"/>
           <stop offset="50%" stop-color="#FDE68A"/>
-          <stop offset="100%" stop-color="#38BDF8"/>
+          <stop offset="100%" stop-color="${canvaTpl.accentColor}"/>
         </linearGradient>
         <filter id="logoShadow" x="-15%" y="-15%" width="130%" height="130%">
-          <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.55"/>
+          <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.65"/>
         </filter>
       </defs>
       <rect x="${viewportX}" y="${viewportY}" width="${viewportW}" height="${viewportH}" rx="28" ry="28" fill="none" stroke="url(#goldAccent2)" stroke-width="4"/>
-      <circle cx="962" cy="300" r="60" fill="#FFFFFF" stroke="url(#goldAccent2)" stroke-width="3.5" filter="url(#logoShadow)"/>
+      <circle cx="956" cy="118" r="84" fill="#FFFFFF" stroke="url(#goldAccent2)" stroke-width="4.5" filter="url(#logoShadow)"/>
       <rect x="${progX}" y="${progY}" width="${progW}" height="${progH}" rx="7" ry="7" fill="none" stroke="#475569" stroke-width="1.5"/>
     </svg>
   `);
@@ -368,7 +362,7 @@ export async function composeReelSlides(
     { input: borderRestoreSvg, blend: 'over' }
   ];
   if (badgeLogoBuf) {
-    hudOverlays.push({ input: badgeLogoBuf, left: 906, top: 244, blend: 'over' });
+    hudOverlays.push({ input: badgeLogoBuf, left: 882, top: 44, blend: 'over' });
   }
 
   await sharp(hudWithLayersBuf)
@@ -376,17 +370,14 @@ export async function composeReelSlides(
     .png()
     .toFile(overlayHudPath);
 
-  // 8. Tam Statik Önizleme Görseli (baseFramePath) Üret (Arka planda ilerleme çubuğu yuvası #1E293B koyu gri olarak hazır)
+  // 8. Tam Statik Önizleme Görseli (baseFramePath) Üret
   const baseLayers: any[] = [
     { input: staticViewportPhotoBuf, left: viewportX, top: viewportY },
     { input: hudSvg, left: 0, top: 0 },
     { input: borderRestoreSvg, left: 0, top: 0 }
   ];
-  if (logoBuf) {
-    baseLayers.push({ input: logoBuf, left: 58, top: 89 });
-  }
   if (badgeLogoBuf) {
-    baseLayers.push({ input: badgeLogoBuf, left: 906, top: 244 });
+    baseLayers.push({ input: badgeLogoBuf, left: 882, top: 44 });
   }
 
   await sharp(studioBgBuf)

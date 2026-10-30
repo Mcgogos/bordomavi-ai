@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Play,
   ExternalLink,
@@ -16,6 +16,8 @@ import {
   Loader2,
   Mountain,
   Palette,
+  Share2,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +69,64 @@ export default function SimpleAutonomousHub({
   const [resolvedStreams, setResolvedStreams] = useState<Record<string, string>>({});
   const [statusBanner, setStatusBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isCanvaOpen, setIsCanvaOpen] = useState(false);
+  const [followedPages, setFollowedPages] = useState<{ name: string; handle: string; pageId?: string; enabled: boolean }[]>([
+    { name: "Trabzonspor", handle: "Trabzonspor", enabled: true },
+    { name: "61saat", handle: "61saat", enabled: true },
+    { name: "Haber61", handle: "Haber61", enabled: true },
+    { name: "Kuzey Ekspres", handle: "KuzeyEkspresGazetesi", enabled: true },
+    { name: "Trabzon Büyükşehir", handle: "TrabzonBelTr", enabled: true },
+  ]);
+  const [newFollowedHandle, setNewFollowedHandle] = useState("");
+  const [isAddingPage, setIsAddingPage] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/facebook/distribute")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && Array.isArray(d.followedPages) && d.followedPages.length > 0) {
+          setFollowedPages(d.followedPages);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleAddFollowedPage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleaned = newFollowedHandle.trim().replace(/^@/, "");
+    if (!cleaned) return;
+    setIsAddingPage(true);
+    try {
+      const res = await fetch("/api/facebook/distribute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "add_page", handle: cleaned, name: cleaned }),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.followedPages)) {
+        setFollowedPages(data.followedPages);
+        setNewFollowedHandle("");
+        setStatusBanner({
+          type: "success",
+          text: `✅ @${cleaned} sayfası otomatik çapraz paylaşım ve etiketleme listesine eklendi.`,
+        });
+      }
+    } catch {}
+    setIsAddingPage(false);
+  };
+
+  const handleRemoveFollowedPage = async (handle: string) => {
+    try {
+      const res = await fetch("/api/facebook/distribute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "remove_page", handle }),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.followedPages)) {
+        setFollowedPages(data.followedPages);
+      }
+    } catch {}
+  };
 
   // Sayfa içi aktif video/görsel oynatıcı modalı
   const [activePlayer, setActivePlayer] = useState<{
@@ -265,6 +325,51 @@ export default function SimpleAutonomousHub({
               </div>
             );
           })}
+        </div>
+
+        {/* Otomatik Takip Edilen Sayfalarda Paylaşım & Canva Motoru Özeti */}
+        <div className="pt-2.5 border-t border-border/60 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-foreground">
+              <Share2 className="w-3.5 h-3.5 text-sky-500" />
+              Takip Edilen Sayfalarda Otomatik Paylaşım &amp; Etiketleme:
+            </span>
+            {followedPages.map((fp) => (
+              <span
+                key={fp.handle}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/25 px-2 py-0.5 rounded-full"
+              >
+                @{fp.handle}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFollowedPage(fp.handle)}
+                  className="hover:text-rose-500 ml-0.5"
+                  title="Listeden çıkar"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+
+          <form onSubmit={handleAddFollowedPage} className="flex items-center gap-1.5 shrink-0">
+            <input
+              type="text"
+              value={newFollowedHandle}
+              onChange={(e) => setNewFollowedHandle(e.target.value)}
+              placeholder="@SayfaAdi ekle..."
+              className="h-7 px-2.5 text-xs rounded-lg border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary w-36 sm:w-44"
+            />
+            <Button
+              type="submit"
+              size="sm"
+              variant="outline"
+              disabled={isAddingPage || !newFollowedHandle.trim()}
+              className="h-7 px-2.5 text-[11px] font-bold"
+            >
+              <Plus className="w-3 h-3 mr-1" /> Sayfa Ekle
+            </Button>
+          </form>
         </div>
       </div>
 
