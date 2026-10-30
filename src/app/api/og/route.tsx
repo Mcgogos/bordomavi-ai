@@ -445,7 +445,7 @@ export async function GET(request: NextRequest) {
           {logoDataUrl && (
             <div style={{
               position: 'absolute',
-              bottom: '36px',
+              top: '28px',
               right: '48px',
               display: 'flex',
               alignItems: 'center',
@@ -459,8 +459,8 @@ export async function GET(request: NextRequest) {
             }}>
               <img
                 src={logoDataUrl}
-                width={136}
-                height={136}
+                width={156}
+                height={156}
                 style={{ 
                   display: 'block',
                   borderRadius: '9999px',

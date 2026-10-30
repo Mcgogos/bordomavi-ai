@@ -216,7 +216,7 @@ export async function processViralVideoIntoBrandedReel(params: {
           .png()
           .toBuffer();
         badgeLogoBuf = await sharp(logoPath)
-          .resize({ width: 54, height: 54, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+          .resize({ width: 112, height: 112, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
           .png()
           .toBuffer();
       } catch (e: any) {
@@ -345,15 +345,15 @@ export async function processViralVideoIntoBrandedReel(params: {
             <stop offset="50%" stop-color="#FDE68A"/>
             <stop offset="100%" stop-color="#38BDF8"/>
           </linearGradient>
+          <filter id="logoShadow" x="-15%" y="-15%" width="130%" height="130%">
+            <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.55"/>
+          </filter>
         </defs>
         <!-- Video Vitrini Altın Çerçevesi -->
         <rect x="${viewportX}" y="${viewportY}" width="${viewportW}" height="${viewportH}" rx="28" ry="28" fill="none" stroke="url(#goldAccent2)" stroke-width="4"/>
 
-        <!-- Video İçi Sağ Üst Kurumsal Logo Filigran Rozeti (x: 726, y: 225, w: 296, h: 74) -->
-        <rect x="726" y="225" width="296" height="74" rx="37" ry="37" fill="#091326" fill-opacity="0.88" stroke="url(#goldAccent2)" stroke-width="2"/>
-        <circle cx="765" cy="262" r="30" fill="#FFFFFF"/>
-        <text x="808" y="258" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="900" letter-spacing="0.8">BORDO MAVİ</text>
-        <text x="808" y="281" fill="#38BDF8" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="bold" letter-spacing="1.5">ÖZEL GÜNDEM</text>
+        <!-- Video İçi En Sağ Üst Köşe 2x Büyük Kurumsal Logo Rozeti (Yazısız, cx: 962, cy: 285, r: 60) -->
+        <circle cx="962" cy="285" r="60" fill="#FFFFFF" stroke="url(#goldAccent2)" stroke-width="3.5" filter="url(#logoShadow)"/>
 
         <!-- Alt İlerleme Çubuğu Çerçevesi -->
         <rect x="${progX}" y="${progY}" width="${progW}" height="${progH}" rx="6" ry="6" fill="none" stroke="#475569" stroke-width="1.5"/>
@@ -374,7 +374,7 @@ export async function processViralVideoIntoBrandedReel(params: {
       { input: videoWatermarkAndBorderSvg, blend: 'over' },
     ];
     if (badgeLogoBuf) {
-      finalHudOverlays.push({ input: badgeLogoBuf, left: 738, top: 235, blend: 'over' });
+      finalHudOverlays.push({ input: badgeLogoBuf, left: 906, top: 229, blend: 'over' });
     }
 
     await sharp(hudBase).composite(finalHudOverlays).png().toFile(overlayHudPath);

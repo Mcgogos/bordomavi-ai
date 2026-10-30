@@ -151,10 +151,15 @@ export async function composeReelSlides(
   const logoPath = fs.existsSync(brandLogo) ? brandLogo : (fs.existsSync(fallbackLogo) ? fallbackLogo : null);
 
   let logoBuf: Buffer | null = null;
+  let badgeLogoBuf: Buffer | null = null;
   if (logoPath) {
     try {
       logoBuf = await sharp(logoPath)
         .resize({ width: 92, height: 92, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+        .png()
+        .toBuffer();
+      badgeLogoBuf = await sharp(logoPath)
+        .resize({ width: 112, height: 112, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
         .png()
         .toBuffer();
     } catch (e: any) {
@@ -339,7 +344,7 @@ export async function composeReelSlides(
     .png()
     .toBuffer();
 
-  // İlerleme çubuğu çerçevesi (delik açıldıktan sonra üstüne ince çerçeve çizmek için)
+  // İlerleme çubuğu çerçevesi ve sağ üst 2x kurumsal logo rozeti
   const borderRestoreSvg = Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -348,27 +353,40 @@ export async function composeReelSlides(
           <stop offset="50%" stop-color="#FDE68A"/>
           <stop offset="100%" stop-color="#38BDF8"/>
         </linearGradient>
+        <filter id="logoShadow" x="-15%" y="-15%" width="130%" height="130%">
+          <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.55"/>
+        </filter>
       </defs>
       <rect x="${viewportX}" y="${viewportY}" width="${viewportW}" height="${viewportH}" rx="28" ry="28" fill="none" stroke="url(#goldAccent2)" stroke-width="4"/>
+      <circle cx="962" cy="300" r="60" fill="#FFFFFF" stroke="url(#goldAccent2)" stroke-width="3.5" filter="url(#logoShadow)"/>
       <rect x="${progX}" y="${progY}" width="${progW}" height="${progH}" rx="7" ry="7" fill="none" stroke="#475569" stroke-width="1.5"/>
     </svg>
   `);
 
+  const hudOverlays: any[] = [
+    { input: holeMaskSvg, blend: 'dest-out' },
+    { input: borderRestoreSvg, blend: 'over' }
+  ];
+  if (badgeLogoBuf) {
+    hudOverlays.push({ input: badgeLogoBuf, left: 906, top: 244, blend: 'over' });
+  }
+
   await sharp(hudWithLayersBuf)
-    .composite([
-      { input: holeMaskSvg, blend: 'dest-out' },
-      { input: borderRestoreSvg, blend: 'over' }
-    ])
+    .composite(hudOverlays)
     .png()
     .toFile(overlayHudPath);
 
   // 8. Tam Statik Önizleme Görseli (baseFramePath) Üret (Arka planda ilerleme çubuğu yuvası #1E293B koyu gri olarak hazır)
   const baseLayers: any[] = [
     { input: staticViewportPhotoBuf, left: viewportX, top: viewportY },
-    { input: hudSvg, left: 0, top: 0 }
+    { input: hudSvg, left: 0, top: 0 },
+    { input: borderRestoreSvg, left: 0, top: 0 }
   ];
   if (logoBuf) {
     baseLayers.push({ input: logoBuf, left: 58, top: 89 });
+  }
+  if (badgeLogoBuf) {
+    baseLayers.push({ input: badgeLogoBuf, left: 906, top: 244 });
   }
 
   await sharp(studioBgBuf)
