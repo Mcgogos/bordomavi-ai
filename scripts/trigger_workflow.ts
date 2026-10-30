@@ -8,6 +8,7 @@ import { runAutonomousReelWorkflow } from '../src/lib/reels/reels-publisher';
 import { runAutonomousViralReelPublisher } from '../src/lib/viral/viral-publisher';
 import { discoverTrendingTrabzonsporVideos } from '../src/lib/viral/viral-video-discoverer';
 import { SmartPublisher, PublishingQuotaInfo } from '../src/lib/content/smart-publisher';
+import { FacebookService } from '../src/services/facebook.service';
 
 /**
  * 11:00 metin haberi Vercel cron'u tarafından tam saatinde yayınlanır. Aynı anda iki yayın
@@ -64,6 +65,14 @@ async function main() {
     await discoverTrendingTrabzonsporVideos({ limit: 8 });
   } catch (e: any) {
     console.warn('[TRIGGER_WORKFLOW] Viral discovery cache refresh warning:', e.message);
+  }
+
+  // BordoMavi (@cafegaa) Facebook sayfasının takip ettiği tüm sayfaları canlı olarak çek ve güncelle
+  try {
+    const syncedPages = await FacebookService.syncFollowedPagesFromFacebook(true);
+    console.log(`[TRIGGER_WORKFLOW] 🔗 Takip edilen ${syncedPages.length} Facebook sayfası otomatik çapraz paylaşım için hazır.`);
+  } catch (e: any) {
+    console.warn('[TRIGGER_WORKFLOW] Facebook followed pages sync warning:', e.message);
   }
 
   const shouldPublish = await checkActiveSlot();

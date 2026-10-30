@@ -438,7 +438,13 @@ export class FacebookService {
             console.error('[Facebook] Photo upload API error:', safeError);
             throw new Error(safeError);
           }
-          return { success: true, postId: photoData.post_id || photoData.id, mockMode: false };
+          const directPostId = photoData.post_id || photoData.id;
+          await this.autoDistributePublishedPost({
+            postId: directPostId,
+            isReel: false,
+            caption: sanitizedMessage,
+          });
+          return { success: true, postId: directPostId, mockMode: false };
         } catch (dataErr: any) {
           console.warn('[Facebook] Direct DataURL upload error:', dataErr.message);
           throw dataErr;

@@ -6,6 +6,7 @@ import { checkContentQuality } from '@/lib/content/content-quality-checker';
 import { publishReadyContent, syncPublishedPostsStats } from '@/lib/content/content-publisher';
 import { SmartPublisher } from '@/lib/content/smart-publisher';
 import { runAutonomousReelWorkflow } from '@/lib/reels/reels-publisher';
+import { FacebookService } from '@/services/facebook.service';
 import { auth } from '@/lib/auth';
 
 export const maxDuration = 60;
@@ -42,26 +43,36 @@ async function handleSync(request: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log("[CRON] Starting News Sync Workflow (SMART PUBLISH MODE)...");
+    console.log('[CRON] Starting News Sync Workflow (SMART PUBLISH MODE)...');
+
+    // 0. Takip edilen tüm Facebook sayfalarını senkronize et (Günün 4 paylaşımının tüm sayfalarda paylaşılması için)
+    let syncedFollowedPagesCount = 0;
+    try {
+      const syncedPages = await FacebookService.syncFollowedPagesFromFacebook(true);
+      syncedFollowedPagesCount = syncedPages.length;
+      console.log(`[CRON] 🔗 ${syncedFollowedPagesCount} takip edilen Facebook sayfası çapraz paylaşım için senkronize edildi.`);
+    } catch (syncErr: any) {
+      console.warn('[CRON] Followed pages sync warning:', syncErr.message);
+    }
 
     // 1. Haberleri Topla
-    console.log("[CRON] Phase 1: Collecting news...");
+    console.log('[CRON] Phase 1: Collecting news...');
     const collectResult = await runNewsCollector();
 
     // 2. Bekleyen Haberleri Analiz Et (Max 15)
-    console.log("[CRON] Phase 2: Analyzing pending news...");
+    console.log('[CRON] Phase 2: Analyzing pending news...');
     const analyzeResult = await analyzePendingNews(15);
 
     // 3. 65+ Puanlı Kaliteli Haberlerden İçerik Üret (Max 3) — otomatik READY_TO_PUBLISH
-    console.log("[CRON] Phase 3: Generating automated content (score >= 65)...");
+    console.log('[CRON] Phase 3: Generating automated content (score >= 65)...');
     const generateResult = await generateAutomatedContent(3);
 
     // 4. Üretilen İçerikleri Kalite Kontrolünden Geçir (Max 3)
-    console.log("[CRON] Phase 4: Checking content quality...");
+    console.log('[CRON] Phase 4: Checking content quality...');
     const qualityResult = await checkContentQuality(3);
 
     // 5. KESİN GÜNLÜK YAYIN TAKVİMİ (07:00 Reels, 11:00 Metin Haberi, 15:00 Reels, 20:30 Reels)
-    // Bu 4 saat dilimi dışına kesinlikle çıkılmaz!
+    // Bu 4 saat dilimi dışına kesinlikle çıkılmaz ve her biri takip edilen tüm sayfalarda otomatik paylaşılır!
     const forcePublish = searchParams.get('force') === 'true';
     const forcedSlotType = searchParams.get('slot')?.toUpperCase(); // 'REELS' | 'TEXT'
     const quotaInfo = await SmartPublisher.getPublishingQuota();
@@ -77,7 +88,7 @@ async function handleSync(request: Request) {
       minutesSinceLastPost: quotaInfo.minutesSinceLastPost,
       todayCount: quotaInfo.todayCount,
       reason: quotaInfo.reason,
-      results: [] as any[]
+      results: [] as any[],
     };
     let reelResult: any = null;
 
@@ -88,58 +99,64 @@ async function handleSync(request: Request) {
         publishResult = await publishReadyContent(1, true);
       }
     } else if (quotaInfo.quota > 0 && quotaInfo.allowedType === 'TEXT') {
-      // Saat 11:00 -> Metin Haberi Slotu
-      console.log("[CRON] 🕚 11:00 Metin Haberi Slotu aktif -> Metin haberi yayınlanıyor...");
+      // Saat 11:00 -> Metin Haberi Slotu (Ana sayfa + Takip edilen tüm sayfalarda otomatik paylaşım)
+      console.log('[CRON] 🕚 11:00 Metin Haberi Slotu aktif -> Metin haberi yayınlanıyor ve takip edilen sayfalara dağıtılıyor...');
       publishResult = await publishReadyContent(1, false);
     } else if (quotaInfo.quota > 0 && quotaInfo.allowedType === 'REELS') {
-      // Saat 07:00, 15:00 veya 20:30 -> Reels Slotu
-      console.log(`[CRON] 🎬 ${quotaInfo.windowName} aktif -> Otonom Reels videosu üretiliyor ve yayınlanıyor...`);
+      // Saat 07:00, 15:00 veya 20:30 -> Reels Slotu (Ana sayfa + Takip edilen tüm sayfalarda otomatik paylaşım)
+      console.log(`[CRON] 🎬 ${quotaInfo.windowName} aktif -> Otonom Reels videosu üretiliyor ve takip edilen sayfalara dağıtılıyor...`);
       try {
         if (process.env.VERCEL === '1') {
           console.log(`[CRON] 🎬 ${quotaInfo.windowName} aktif. Vercel Serverless video zaman aşımını önlemek için video render işlemi Ubuntu FFmpeg bulut çalıştırıcısına (GitHub Actions) devredildi.`);
-          publishResult.reason = `${quotaInfo.windowName} aktif. Haber havuzu hazırlandı, FFmpeg video üretimi bulut Ubuntu işçisi tarafından yürütülüyor.`;
+          publishResult.reason = `${quotaInfo.windowName} aktif. Haber havuzu hazırlandı, FFmpeg video üretimi ve çapraz sayfa dağıtımı bulut Ubuntu işçisi tarafından yürütülüyor.`;
         } else {
           reelResult = await runAutonomousReelWorkflow({ force: false });
         }
         if (reelResult?.success) {
           publishResult.processed = 1;
-          publishResult.reason = `${quotaInfo.windowName} kapsamında Reels başarıyla yayınlandı.`;
+          publishResult.reason = `${quotaInfo.windowName} kapsamında Reels başarıyla yayınlandı ve ${syncedFollowedPagesCount} takip edilen sayfada paylaşıldı.`;
         }
       } catch (reelErr: any) {
-        console.warn("[CRON] Reels slot error:", reelErr.message);
+        console.warn('[CRON] Reels slot error:', reelErr.message);
       }
     } else {
       console.log(`[CRON] Phase 5 (LOCKED): ${quotaInfo.reason}`);
     }
 
     // 6. Canlı Facebook İstatistiklerini Senkronize Et (Son 5 Gönderi)
-    console.log("[CRON] Phase 6: Syncing live Facebook statistics for recent posts...");
+    console.log('[CRON] Phase 6: Syncing live Facebook statistics for recent posts...');
     const statsResult = await syncPublishedPostsStats(5);
 
-    console.log("[CRON] Workflow completed successfully.");
+    console.log('[CRON] Workflow completed successfully.');
 
-    return NextResponse.json({
-      success: true,
-      scheduleSlot: quotaInfo,
-      collection: collectResult,
-      analysis: {
-        requested: analyzeResult.requested,
-        processed: analyzeResult.processed,
-        failed: analyzeResult.failed
+    return NextResponse.json(
+      {
+        success: true,
+        syncedFollowedPagesCount,
+        scheduleSlot: quotaInfo,
+        collection: collectResult,
+        analysis: {
+          requested: analyzeResult.requested,
+          processed: analyzeResult.processed,
+          failed: analyzeResult.failed,
+        },
+        generation: {
+          requested: generateResult.requested,
+          processed: generateResult.processed,
+          failed: generateResult.failed,
+        },
+        qualityCheck: qualityResult,
+        publish: publishResult,
+        reelPublish: reelResult,
+        statsSync: statsResult,
       },
-      generation: {
-        requested: generateResult.requested,
-        processed: generateResult.processed,
-        failed: generateResult.failed
-      },
-      qualityCheck: qualityResult,
-      publish: publishResult,
-      reelPublish: reelResult,
-      statsSync: statsResult
-    }, { status: 200 });
-
+      { status: 200 }
+    );
   } catch (error: any) {
-    console.error("[CRON] Sync News Error:", error);
-    return NextResponse.json({ success: false, error: error.message || 'Internal Server Error' }, { status: 500 });
+    console.error('[CRON] Sync News Error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
