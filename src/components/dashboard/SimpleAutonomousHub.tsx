@@ -72,11 +72,31 @@ export default function SimpleAutonomousHub({
   const [followedPages, setFollowedPages] = useState<{ name: string; handle: string; fbId?: string; source?: string; enabled: boolean }[]>([
     { name: "Daima TS", handle: "daimats1", fbId: "61559249002619", source: "facebook_following", enabled: true },
     { name: "Rıza Hacımurtazaoğlu", handle: "Bandelero", fbId: "557094937", source: "facebook_following", enabled: true },
-    { name: "Trabzonspor", handle: "Trabzonspor", source: "facebook_following", enabled: true },
+    { name: "Trabzonspor", handle: "Trabzonspor", fbId: "100044134341250", source: "facebook_following", enabled: true },
+    { name: "Trabzonspor Kadın Futbol Takımı", handle: "tskadinfutbol", fbId: "61552182045112", source: "facebook_following", enabled: true },
+    { name: "Trabzonspor Basketbol Takımı", handle: "TrabzonsporBasketbol", fbId: "100063493279432", source: "facebook_following", enabled: true },
+    { name: "TS Club", handle: "TSClub", fbId: "100064895706136", source: "facebook_following", enabled: true },
+    { name: "61saat.com", handle: "61saat", fbId: "100063709214554", source: "facebook_following", enabled: true },
+    { name: "Haber61.net", handle: "haber61net", fbId: "100064402495143", source: "facebook_following", enabled: true },
+    { name: "Kuzey Ekspres", handle: "kuzeyekspres", fbId: "100000446998353", source: "facebook_following", enabled: true },
+    { name: "Günebakış Gazetesi", handle: "gunebakiscomtr", fbId: "100063495656603", source: "facebook_following", enabled: true },
+    { name: "Taka Gazete", handle: "takagazetesi", fbId: "100068552786862", source: "facebook_following", enabled: true },
+    { name: "haberts.com", handle: "HaberTS", fbId: "100064352392948", source: "facebook_following", enabled: true },
+    { name: "BordoMavi.Net", handle: "BordoMaviNet", fbId: "100078869194783", source: "facebook_following", enabled: true },
+    { name: "TRABZON", handle: "TRABZONFAN61", fbId: "100064517001510", source: "facebook_following", enabled: true },
+    { name: "Bordo Mavi Tur", handle: "bordomavitur", fbId: "100040335405490", source: "facebook_following", enabled: true },
+    { name: "TrabzonCell", handle: "TrabzonCell", fbId: "100067902613688", source: "facebook_following", enabled: true },
+    { name: "Akçaabat Sebatspor", handle: "akcaabatsebatspor", fbId: "100063548679465", source: "facebook_following", enabled: true },
+    { name: "Trabzon Büyükşehir Belediyesi", handle: "TrabzonBelTr", fbId: "100064816326166", source: "facebook_following", enabled: true },
+    { name: "Ahmet Metin Genç", handle: "ahmetmgenc61", fbId: "61557532740218", source: "facebook_following", enabled: true },
+    { name: "TİSKİ Genel Müdürlüğü", handle: "tiskikurumsal", fbId: "100064347985510", source: "facebook_following", enabled: true },
+    { name: "Maçka Haber", handle: "mackahaber", fbId: "100063519041973", source: "facebook_following", enabled: true },
+    { name: "Sürmene Haber", handle: "surmenehaber", fbId: "100063848820220", source: "facebook_following", enabled: true },
   ]);
   const [newFollowedHandle, setNewFollowedHandle] = useState("");
   const [isAddingPage, setIsAddingPage] = useState(false);
   const [isSyncingFollowed, setIsSyncingFollowed] = useState(false);
+  const [isDistributingNow, setIsDistributingNow] = useState(false);
 
   useEffect(() => {
     fetch("/api/facebook/distribute?sync=true")
@@ -102,11 +122,41 @@ export default function SimpleAutonomousHub({
         setFollowedPages(data.followedPages);
         setStatusBanner({
           type: "success",
-          text: `✅ BordoMavi (@cafegaa) sayfanızda takip ettiğiniz ${data.followedPages.length} sayfa Facebook'tan otomatik çekildi ve günlük 4 paylaşıma bağlandı.`,
+          text: `✅ BordoMavi (@cafegaa) sayfanızda takip ettiğiniz toplam ${data.followedPages.length} sayfanın tamamı Facebook'tan otomatik çekildi ve günlük 4 paylaşıma bağlandı.`,
         });
       }
     } catch {}
     setIsSyncingFollowed(false);
+  };
+
+  const handleCrossShareLatestNow = async () => {
+    const latestPost = publishedReelsAndPosts.find((p) => Boolean(p.facebookPostId));
+    if (!latestPost?.facebookPostId) return;
+    setIsDistributingNow(true);
+    try {
+      const isReel =
+        latestPost.type === "REELS_SCRIPT" ||
+        latestPost.title.includes("[VİRAL REELS]") ||
+        latestPost.title.includes("[TRABZON YÖRESİ VİRAL]");
+      const res = await fetch("/api/facebook/distribute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "distribute_post",
+          facebookPostId: latestPost.facebookPostId,
+          title: latestPost.title,
+          isReel,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.result) {
+        setStatusBanner({
+          type: "success",
+          text: `✅ Son yayınlanan gönderi takip ettiğiniz ${data.result.distributedCount} sayfanın tamamında çapraz paylaşıldı ve etiketlendi!`,
+        });
+      }
+    } catch {}
+    setIsDistributingNow(false);
   };
 
   const handleAddFollowedPage = async (e: React.FormEvent) => {
@@ -347,12 +397,67 @@ export default function SimpleAutonomousHub({
         </div>
 
         {/* Otomatik Takip Edilen Sayfalarda Paylaşım & Canva Motoru Özeti */}
-        <div className="pt-2.5 border-t border-border/60 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1 text-xs font-bold text-foreground">
+        <div className="pt-2.5 border-t border-border/60 flex flex-col gap-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-foreground">
               <Share2 className="w-3.5 h-3.5 text-sky-500" />
-              Takip Edilen Sayfalarda Otomatik Paylaşım &amp; Etiketleme (Günde 4 Paylaşım):
+              Takip Edilen Sayfalarda Otomatik Çapraz Paylaşım &amp; Etiketleme ({followedPages.length} Sayfa Aktif — Günde 4 Paylaşım):
             </span>
+
+            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isSyncingFollowed}
+                onClick={handleSyncFollowedFromFacebook}
+                className="h-7 px-2.5 text-[11px] font-bold border-sky-500/30 text-sky-600 dark:text-sky-400"
+              >
+                {isSyncingFollowed ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                )}
+                Facebook&apos;tan Otomatik Çek
+              </Button>
+
+              <Button
+                type="button"
+                size="sm"
+                disabled={isDistributingNow}
+                onClick={handleCrossShareLatestNow}
+                className="h-7 px-2.5 text-[11px] font-bold bg-[#781324] hover:bg-[#5e0e1c] text-white"
+              >
+                {isDistributingNow ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <Share2 className="w-3 h-3 mr-1" />
+                )}
+                Tümünde Şimdi Çapraz Paylaş
+              </Button>
+
+              <form onSubmit={handleAddFollowedPage} className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={newFollowedHandle}
+                  onChange={(e) => setNewFollowedHandle(e.target.value)}
+                  placeholder="@SayfaAdi veya link ekle..."
+                  className="h-7 px-2.5 text-xs rounded-lg border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary w-40 sm:w-48"
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="outline"
+                  disabled={isAddingPage || !newFollowedHandle.trim()}
+                  className="h-7 px-2.5 text-[11px] font-bold"
+                >
+                  <Plus className="w-3 h-3 mr-1" /> Ekle
+                </Button>
+              </form>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
             {followedPages.map((fp) => (
               <span
                 key={fp.handle}
@@ -378,43 +483,6 @@ export default function SimpleAutonomousHub({
                 </button>
               </span>
             ))}
-          </div>
-
-          <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={isSyncingFollowed}
-              onClick={handleSyncFollowedFromFacebook}
-              className="h-7 px-2.5 text-[11px] font-bold border-sky-500/30 text-sky-600 dark:text-sky-400"
-            >
-              {isSyncingFollowed ? (
-                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-              ) : (
-                <RefreshCw className="w-3 h-3 mr-1" />
-              )}
-              Facebook&apos;tan Otomatik Çek
-            </Button>
-
-            <form onSubmit={handleAddFollowedPage} className="flex items-center gap-1.5">
-              <input
-                type="text"
-                value={newFollowedHandle}
-                onChange={(e) => setNewFollowedHandle(e.target.value)}
-                placeholder="@SayfaAdi ekle..."
-                className="h-7 px-2.5 text-xs rounded-lg border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary w-32 sm:w-36"
-              />
-              <Button
-                type="submit"
-                size="sm"
-                variant="outline"
-                disabled={isAddingPage || !newFollowedHandle.trim()}
-                className="h-7 px-2.5 text-[11px] font-bold"
-              >
-                <Plus className="w-3 h-3 mr-1" /> Ekle
-              </Button>
-            </form>
           </div>
         </div>
       </div>

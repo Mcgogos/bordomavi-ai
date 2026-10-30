@@ -22,7 +22,26 @@ export interface FollowedOrTargetPage {
 export const DEFAULT_FOLLOWED_PAGES: FollowedOrTargetPage[] = [
   { idOrHandle: 'daimats1', name: 'Daima TS', fbId: '61559249002619', source: 'facebook_following' },
   { idOrHandle: 'Bandelero', name: 'Rıza Hacımurtazaoğlu', fbId: '557094937', source: 'facebook_following' },
-  { idOrHandle: 'Trabzonspor', name: 'Trabzonspor', source: 'facebook_following' },
+  { idOrHandle: 'Trabzonspor', name: 'Trabzonspor', fbId: '100044134341250', source: 'facebook_following' },
+  { idOrHandle: 'tskadinfutbol', name: 'Trabzonspor Kadın Futbol Takımı', fbId: '61552182045112', source: 'facebook_following' },
+  { idOrHandle: 'TrabzonsporBasketbol', name: 'Trabzonspor Basketbol Takımı', fbId: '100063493279432', source: 'facebook_following' },
+  { idOrHandle: 'TSClub', name: 'TS Club', fbId: '100064895706136', source: 'facebook_following' },
+  { idOrHandle: '61saat', name: '61saat.com', fbId: '100063709214554', source: 'facebook_following' },
+  { idOrHandle: 'haber61net', name: 'Haber61.net', fbId: '100064402495143', source: 'facebook_following' },
+  { idOrHandle: 'kuzeyekspres', name: 'Kuzey Ekspres', fbId: '100000446998353', source: 'facebook_following' },
+  { idOrHandle: 'gunebakiscomtr', name: 'Günebakış Gazetesi', fbId: '100063495656603', source: 'facebook_following' },
+  { idOrHandle: 'takagazetesi', name: 'Taka Gazete', fbId: '100068552786862', source: 'facebook_following' },
+  { idOrHandle: 'HaberTS', name: 'haberts.com', fbId: '100064352392948', source: 'facebook_following' },
+  { idOrHandle: 'BordoMaviNet', name: 'BordoMavi.Net', fbId: '100078869194783', source: 'facebook_following' },
+  { idOrHandle: 'TRABZONFAN61', name: 'TRABZON', fbId: '100064517001510', source: 'facebook_following' },
+  { idOrHandle: 'bordomavitur', name: 'Bordo Mavi Tur', fbId: '100040335405490', source: 'facebook_following' },
+  { idOrHandle: 'TrabzonCell', name: 'TrabzonCell', fbId: '100067902613688', source: 'facebook_following' },
+  { idOrHandle: 'akcaabatsebatspor', name: 'Akçaabat Sebatspor', fbId: '100063548679465', source: 'facebook_following' },
+  { idOrHandle: 'TrabzonBelTr', name: 'Trabzon Büyükşehir Belediyesi', fbId: '100064816326166', source: 'facebook_following' },
+  { idOrHandle: 'ahmetmgenc61', name: 'Ahmet Metin Genç', fbId: '61557532740218', source: 'facebook_following' },
+  { idOrHandle: 'tiskikurumsal', name: 'TİSKİ Genel Müdürlüğü', fbId: '100064347985510', source: 'facebook_following' },
+  { idOrHandle: 'mackahaber', name: 'Maçka Haber', fbId: '100063519041973', source: 'facebook_following' },
+  { idOrHandle: 'surmenehaber', name: 'Sürmene Haber', fbId: '100063848820220', source: 'facebook_following' },
 ];
 
 export async function resolvePageToken(): Promise<{ token: string, pageId: string }> {
@@ -41,11 +60,16 @@ export async function resolvePageToken(): Promise<{ token: string, pageId: strin
 
 export class FacebookService {
   /**
-   * BordoMavi (@cafegaa) Facebook sayfasının "Takip Ettikleri" (/following ve /likes)
+   * BordoMavi (@cafegaa) Facebook sayfasının ve bağlı Trabzonspor ağının "Takip Ettikleri" (/following ve /likes)
    * listesini doğrudan Facebook üzerinden canlı olarak çeker ve veritabanına senkronize eder.
    */
   static async syncFollowedPagesFromFacebook(includeSecondHop = true): Promise<FollowedOrTargetPage[]> {
     const discovered = new Map<string, FollowedOrTargetPage>();
+
+    // Önce varsayılan doğrulanmış tüm sayfaları ekle
+    for (const def of DEFAULT_FOLLOWED_PAGES) {
+      discovered.set(def.idOrHandle.toLowerCase(), { ...def });
+    }
 
     const decodeUnicodeText = (raw: string): string => {
       try {
@@ -70,7 +94,7 @@ export class FacebookService {
             'Sec-Fetch-User': '?1',
             'Upgrade-Insecure-Requests': '1',
           },
-          signal: AbortSignal.timeout(12_000),
+          signal: AbortSignal.timeout(10_000),
         });
         if (!res.ok) return list;
         const html = await res.text();
@@ -106,6 +130,28 @@ export class FacebookService {
         if (meData?.username) {
           pageUsername = meData.username;
         }
+
+        // Ayrıca kullanıcı veya sayfa token'ı üzerinden Graph API likes / accounts kontrolü yap
+        const userTokenRow = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_USER_TOKEN' } });
+        const activeUserToken = userTokenRow?.value || token;
+        const likesRes = await fetch(
+          `${GRAPH_API_BASE}/me/likes?fields=id,name,username&limit=200&access_token=${activeUserToken}`,
+          { signal: AbortSignal.timeout(8_000) }
+        ).then((r) => r.json()).catch(() => null);
+
+        if (Array.isArray(likesRes?.data)) {
+          for (const lk of likesRes.data) {
+            const h = String(lk.username || lk.id || '').trim();
+            if (h && h !== pageId) {
+              discovered.set(h.toLowerCase(), {
+                idOrHandle: h,
+                name: String(lk.name || h),
+                fbId: String(lk.id || ''),
+                source: 'facebook_following',
+              });
+            }
+          }
+        }
       } catch {}
 
       const primaryItems = await scrapeFollowingUrl(`https://www.facebook.com/${pageUsername}/following`);
@@ -115,9 +161,9 @@ export class FacebookService {
         discovered.set(item.idOrHandle.toLowerCase(), item);
       }
 
-      // Takip edilen alt Trabzonspor sayfalarının (örn. daimats1) takip ettiği resmi sayfaları da çek
+      // Takip edilen alt Trabzonspor sayfalarının takip ettiği sayfaları da çek
       if (includeSecondHop && primaryItems.length > 0) {
-        for (const p of primaryItems.slice(0, 3)) {
+        for (const p of primaryItems.slice(0, 4)) {
           const hopItems = await scrapeFollowingUrl(`https://www.facebook.com/${p.idOrHandle}/following`);
           for (const h of hopItems) {
             if (!discovered.has(h.idOrHandle.toLowerCase())) {
@@ -130,7 +176,7 @@ export class FacebookService {
       console.warn('[FacebookService] Live following sync warning:', e.message);
     }
 
-    // Mevcut manuel eklenen veya token tanımlı sayfaları koruyarak birleştir
+    // Mevcut veritabanındaki tüm sayfaları koruyarak birleştir
     try {
       const existingRow = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_FOLLOWED_PAGES' } });
       if (existingRow?.value) {
@@ -145,7 +191,7 @@ export class FacebookService {
                 accessToken: ex.accessToken || live.accessToken,
                 fbId: live.fbId || ex.fbId,
               });
-            } else if (ex.source === 'manual' || ex.accessToken) {
+            } else {
               discovered.set(key, ex);
             }
           }
@@ -153,9 +199,7 @@ export class FacebookService {
       }
     } catch {}
 
-    const finalPages =
-      discovered.size > 0 ? Array.from(discovered.values()) : [...DEFAULT_FOLLOWED_PAGES];
-
+    const finalPages = Array.from(discovered.values());
     await this.saveFollowedPages(finalPages);
     return finalPages;
   }

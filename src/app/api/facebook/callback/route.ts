@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { FacebookService, FollowedOrTargetPage } from '@/services/facebook.service';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -41,8 +42,15 @@ export async function GET(request: NextRequest) {
 
     const longLivedUserToken = longTokenData.access_token;
 
+    // Kullanıcı tokenını da sakla (takip edilen sayfaları çekebilmek için)
+    await prisma.setting.upsert({
+      where: { key: 'FACEBOOK_USER_TOKEN' },
+      update: { value: longLivedUserToken },
+      create: { key: 'FACEBOOK_USER_TOKEN', value: longLivedUserToken },
+    });
+
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,username,access_token&access_token=${longLivedUserToken}`
+      `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,username,access_token&limit=100&access_token=${longLivedUserToken}`
     );
     const pagesData = await pagesRes.json();
     if (pagesData.error) throw new Error(pagesData.error.message);
@@ -79,6 +87,9 @@ export async function GET(request: NextRequest) {
       update: { value: JSON.stringify(allPages) },
       create: { key: 'FACEBOOK_CONNECTED_PAGES', value: JSON.stringify(allPages) },
     });
+
+    // Kullanıcının ve sayfanın takip ettiği tüm sayfaları otomatik senkronize et
+    await FacebookService.syncFollowedPagesFromFacebook(true);
 
     return NextResponse.redirect(`${appUrl}/dashboard`);
   } catch (error: any) {

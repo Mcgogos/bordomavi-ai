@@ -4,6 +4,51 @@ import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+async function resolveFacebookPageMetadata(handleOrUrl: string): Promise<{ handle: string; name: string; fbId?: string }> {
+  let clean = handleOrUrl.trim();
+  const urlMatch = clean.match(/facebook\.com\/([a-zA-Z0-9._-]+)/i);
+  if (urlMatch && urlMatch[1]) {
+    clean = urlMatch[1];
+  }
+  clean = clean.replace(/^@/, '').replace(/\/+$/, '').trim();
+  if (!clean) return { handle: '', name: '' };
+
+  try {
+    const res = await fetch(`https://www.facebook.com/${clean}`, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+      },
+      signal: AbortSignal.timeout(7_000),
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const nameMatch = html.match(/"__isProfile":"User","name":"([^"]+)"/);
+      const idMatch = html.match(/"selectedID":"([0-9]+)"/) || html.match(/"userID":"([0-9]+)"/);
+      if (nameMatch) {
+        let decodedName = nameMatch[1];
+        try {
+          decodedName = JSON.parse(`"${nameMatch[1]}"`);
+        } catch {}
+        return {
+          handle: clean,
+          name: decodedName.trim() || clean,
+          fbId: idMatch ? idMatch[1] : undefined,
+        };
+      }
+    }
+  } catch {}
+
+  return { handle: clean, name: clean };
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -64,29 +109,35 @@ export async function POST(req: Request) {
     const { followedPages } = await FacebookService.getFollowedAndConnectedPages(false);
 
     if (action === 'add_page') {
-      const rawHandle = String(body.handle || body.name || '').trim().replace(/^@/, '');
-      const rawName = String(body.name || rawHandle).trim();
+      const rawInput = String(body.handle || body.name || '').trim();
+      const tokens = rawInput
+        .split(/[\s,;|\n]+/)
+        .map((t) => t.trim())
+        .filter(Boolean);
 
-      if (!rawHandle) {
+      if (tokens.length === 0) {
         return NextResponse.json(
-          { success: false, error: 'Sayfa kullanıcı adı (@handle) veya adı gerekli.' },
+          { success: false, error: 'Sayfa kullanıcı adı (@handle) veya linki gerekli.' },
           { status: 400 }
         );
       }
 
-      const exists = followedPages.some(
-        (p) => p.idOrHandle.toLowerCase() === rawHandle.toLowerCase()
-      );
-      const updated: FollowedOrTargetPage[] = exists
-        ? followedPages
-        : [
-            ...followedPages,
-            {
-              idOrHandle: rawHandle,
-              name: rawName,
-              source: 'manual',
-            },
-          ];
+      const updated: FollowedOrTargetPage[] = [...followedPages];
+      for (const tok of tokens) {
+        const meta = await resolveFacebookPageMetadata(tok);
+        if (!meta.handle) continue;
+        const exists = updated.some(
+          (p) => p.idOrHandle.toLowerCase() === meta.handle.toLowerCase()
+        );
+        if (!exists) {
+          updated.push({
+            idOrHandle: meta.handle,
+            name: meta.name,
+            fbId: meta.fbId,
+            source: 'manual',
+          });
+        }
+      }
 
       await FacebookService.saveFollowedPages(updated);
       return NextResponse.json({
