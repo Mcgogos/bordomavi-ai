@@ -1,12 +1,11 @@
 export const revalidate = 15;
 import { prisma } from "@/lib/db";
 import SimpleAutonomousHub from "@/components/dashboard/SimpleAutonomousHub";
-import { getCachedDailyTrendingVideos } from "@/lib/viral/viral-video-discoverer";
 import { SmartPublisher } from "@/lib/content/smart-publisher";
 
 export default async function DashboardPage() {
   const { dateKey } = SmartPublisher.getTurkeyTime();
-  const [recentPublished, trendingCache, slotSettings] = await Promise.all([
+  const [recentPublished, trendingSetting, slotSettings] = await Promise.all([
     prisma.content.findMany({
       where: { status: "PUBLISHED" },
       orderBy: { publishedAt: "desc" },
@@ -20,7 +19,9 @@ export default async function DashboardPage() {
         aiReasoning: true,
       },
     }),
-    getCachedDailyTrendingVideos(),
+    prisma.setting.findUnique({
+      where: { key: "DAILY_TRENDING_VIDEOS" },
+    }),
     prisma.setting.findMany({
       where: {
         key: {
@@ -29,6 +30,18 @@ export default async function DashboardPage() {
       },
     }),
   ]);
+
+  let trendingItems: any[] = [];
+  let trendingUpdatedAt: string | null = null;
+  if (trendingSetting?.value) {
+    try {
+      const parsed = JSON.parse(trendingSetting.value);
+      if (Array.isArray(parsed?.items)) {
+        trendingItems = parsed.items;
+        trendingUpdatedAt = parsed.updatedAt || trendingSetting.updatedAt.toISOString();
+      }
+    } catch {}
+  }
 
   const publishedSlotsToday = slotSettings.map((s) =>
     s.key.replace(`PUBLISHED_SLOT_${dateKey}_`, "")
@@ -60,8 +73,8 @@ export default async function DashboardPage() {
       {/* Sadeleştirilmiş Tek Ekran Kontrol Merkezi */}
       <SimpleAutonomousHub
         publishedReelsAndPosts={formattedPublished}
-        initialTrendingVideos={trendingCache.items}
-        trendingUpdatedAt={trendingCache.updatedAt}
+        initialTrendingVideos={trendingItems}
+        trendingUpdatedAt={trendingUpdatedAt}
         publishedSlotsToday={publishedSlotsToday}
       />
     </div>
