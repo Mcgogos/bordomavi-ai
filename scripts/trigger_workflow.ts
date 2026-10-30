@@ -6,6 +6,7 @@ import { checkContentQuality } from '../src/lib/content/content-quality-checker'
 import { publishReadyContent } from '../src/lib/content/content-publisher';
 import { runAutonomousReelWorkflow } from '../src/lib/reels/reels-publisher';
 import { runAutonomousViralReelPublisher } from '../src/lib/viral/viral-publisher';
+import { discoverTrendingTrabzonsporVideos } from '../src/lib/viral/viral-video-discoverer';
 import { SmartPublisher, PublishingQuotaInfo } from '../src/lib/content/smart-publisher';
 
 /**
@@ -58,6 +59,13 @@ async function main() {
     throw new Error('DATABASE_URL tanımlı değil (GitHub repository secret eksik). Otomatik yayın yapılamaz.');
   }
 
+  // Günlük en trend Trabzonspor videolarını tara ve veritabanında güncel tut (Arayüzde anında görünmesi için)
+  try {
+    await discoverTrendingTrabzonsporVideos({ limit: 8 });
+  } catch (e: any) {
+    console.warn('[TRIGGER_WORKFLOW] Viral discovery cache refresh warning:', e.message);
+  }
+
   const shouldPublish = await checkActiveSlot();
   if (!shouldPublish) return;
 
@@ -91,7 +99,7 @@ async function main() {
   } else if (quota.quota > 0 && quota.allowedType === 'REELS') {
     console.log(`🎬 ${quota.windowName} (${quota.activeSlotId}) Aktif -> Otonom Reels Motoru Başlatılıyor...`);
 
-    const preferViralFirst = quota.activeSlotId === 'SLOT_15_00' || quota.activeSlotId === 'SLOT_20_30';
+    const preferViralFirst = quota.activeSlotId === 'SLOT_1500_REELS' || quota.activeSlotId === 'SLOT_2030_REELS';
 
     if (preferViralFirst) {
       console.log('🔥 1. Aşama: İnternetteki En Trend Trabzonspor Viral Videosu Taranıyor & Logomuzla İşleniyor...');
@@ -99,6 +107,9 @@ async function main() {
       console.log('Viral Reel result:', viralRes);
 
       if (viralRes.success) {
+        if (quota.activeSlotId) {
+          await SmartPublisher.markSlotPublished(quota.activeSlotId, quota.dateKey);
+        }
         console.log(`✅ Viral Reels Başarıyla Yayınlandı! FB Post ID: ${viralRes.facebookPostId}`);
       } else {
         console.warn(`⚠️ Viral video motoru tamamlanamadı (${viralRes.error}), Haber Reels motoruna (Fallback) geçiliyor...`);
@@ -117,7 +128,9 @@ async function main() {
         console.warn(`⚠️ Haber Reels tamamlanamadı (${reel.error || reel.skippedReason}), Viral Video motoruna (Fallback) geçiliyor...`);
         const viralRes = await runAutonomousViralReelPublisher();
         console.log('Fallback Viral Reel result:', viralRes);
-        if (!viralRes.success) {
+        if (viralRes.success && quota.activeSlotId) {
+          await SmartPublisher.markSlotPublished(quota.activeSlotId, quota.dateKey);
+        } else if (!viralRes.success) {
           throw new Error(`Reels slotu aktifti ancak her iki motorda da yayın yapılamadı: Haber(${reel.error || reel.skippedReason}) | Viral(${viralRes.error})`);
         }
       }
