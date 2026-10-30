@@ -3,8 +3,8 @@ import { spawn } from 'child_process';
 import { prisma } from '@/lib/db';
 import { checkAgainstPublishedHistory } from '@/lib/news/news-similarity-engine';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const ffmpegPath = require('ffmpeg-static');
+import { getFFmpegPath } from './reel-video-generator';
+const ffmpegPath = getFFmpegPath();
 
 export interface ReelQualityMetrics {
   fileSizeBytes: number;

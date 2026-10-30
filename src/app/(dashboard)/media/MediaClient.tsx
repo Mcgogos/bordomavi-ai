@@ -4,13 +4,62 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Upload, Image as ImageIcon, ExternalLink, Film, Play, Sparkles, Filter, Palette } from "lucide-react";
+import { Upload, Image as ImageIcon, ExternalLink, Film, Play, Sparkles, Filter, Palette, Flame, Loader2, CheckCircle2 } from "lucide-react";
 import { ReelStudioModal } from "@/components/media/ReelStudioModal";
 import { CanvaStudioModal } from "@/components/media/CanvaStudioModal";
 
 export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any[], generatedImages: any[] }) {
   const [activeTab, setActiveTab] = useState<"generated" | "uploaded">("generated");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("ALL");
+
+  // Viral Reels Otomasyon State
+  const [viralLoading, setViralLoading] = useState(false);
+  const [viralPublishing, setViralPublishing] = useState(false);
+  const [viralCandidates, setViralCandidates] = useState<any[]>([]);
+  const [viralMessage, setViralMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const scanViralVideos = async () => {
+    setViralLoading(true);
+    setViralMessage(null);
+    try {
+      const res = await fetch("/api/viral?limit=4");
+      const data = await res.json();
+      if (data.success) {
+        setViralCandidates(data.candidates || []);
+      } else {
+        setViralMessage({ type: "error", text: data.error || "Viral tarama başarısız oldu." });
+      }
+    } catch (e: any) {
+      setViralMessage({ type: "error", text: e.message || "Bağlantı hatası." });
+    } finally {
+      setViralLoading(false);
+    }
+  };
+
+  const publishViralReel = async (customVideoUrl?: string, customHeadline?: string) => {
+    setViralPublishing(true);
+    setViralMessage(null);
+    try {
+      const res = await fetch("/api/viral", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customVideoUrl, customHeadline }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setViralMessage({
+          type: "success",
+          text: `✅ "${data.cleanTitle}" logoları temizlenip Bordo-Mavi logomuzla Facebook Reels olarak paylaşıldı! (Post ID: ${data.facebookPostId})`,
+        });
+      } else {
+        setViralMessage({ type: "error", text: data.error || "Viral Reels yayınlanamadı." });
+      }
+    } catch (e: any) {
+      setViralMessage({ type: "error", text: e.message || "Yayın sırasında hata oluştu." });
+    } finally {
+      setViralPublishing(false);
+    }
+  };
   
   // Canva Studio Modal State
   const [canvaModalOpen, setCanvaModalOpen] = useState(false);
@@ -97,6 +146,102 @@ export default function MediaClient({ dbMedia, generatedImages }: { dbMedia: any
           </Button>
         </div>
       </div>
+
+      {/* 🔥 Otonom Viral Trabzonspor Reels Motoru Kartı */}
+      <Card className="border-[#781324]/30 bg-gradient-to-r from-[#781324]/10 via-background to-[#164E7A]/10 shadow-xs">
+        <CardContent className="p-4 sm:p-5 space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-[#781324] text-white text-[10px] font-bold px-2 py-0.5">
+                  7/24 OTONOM VİRAL MOTORU
+                </Badge>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 text-amber-500" />
+                  Trabzonspor Viral Reels Keşif & Logo Temizleme Stüdyosu
+                </h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                İnternetteki en trend Trabzonspor Reels/Shorts videolarını bulur, yabancı sayfa logolarını/yazılarını otomatik kaldırır, Bordo-Mavi logomuzu ve dinamik taraftar anketini ekleyerek paylaşır.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={viralLoading || viralPublishing}
+                onClick={scanViralVideos}
+                className="text-xs font-semibold h-9"
+              >
+                {viralLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5 text-amber-500" />}
+                Trend Videoları Tara
+              </Button>
+              <Button
+                size="sm"
+                disabled={viralPublishing}
+                onClick={() => publishViralReel()}
+                className="bg-gradient-to-r from-[#781324] to-[#164E7A] text-white font-bold text-xs h-9"
+              >
+                {viralPublishing ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Logolar Siliniyor & Yayınlanıyor...
+                  </>
+                ) : (
+                  <>
+                    <Flame className="w-3.5 h-3.5 mr-1.5" />
+                    En Trend Videoyu Otomatik Paylaş
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {viralMessage && (
+            <div
+              className={`rounded-lg px-3.5 py-2.5 text-xs font-medium flex items-center gap-2 ${
+                viralMessage.type === "success"
+                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                  : "bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30"
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{viralMessage.text}</span>
+            </div>
+          )}
+
+          {viralCandidates.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+              {viralCandidates.map((item) => (
+                <div
+                  key={item.videoId}
+                  className="rounded-xl border border-border/80 bg-card/90 p-3 flex flex-col justify-between gap-2.5"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-1 text-[10px] text-muted-foreground font-semibold">
+                      <span className="text-amber-600 dark:text-amber-400 font-bold">
+                        🔥 Skor: {item.viralScore?.toLocaleString("tr-TR")}
+                      </span>
+                      <span>👁️ {item.viewCount?.toLocaleString("tr-TR")} izlenme</span>
+                    </div>
+                    <p className="text-xs font-bold line-clamp-2 text-foreground">{item.cleanTitle}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={viralPublishing}
+                    onClick={() => publishViralReel(item.url, item.cleanTitle)}
+                    className="w-full h-8 text-[11px] font-bold"
+                  >
+                    Logomuzu Ekle & Paylaş
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {activeTab === "generated" && (
         <div className="mt-4 sm:mt-6 space-y-4">

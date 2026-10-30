@@ -302,24 +302,45 @@ export function determineContextualReelPoll(
     };
   }
 
-  // 9. OYUNCU PERFORMANSI & REKOR & BİREYSEL BAŞARI
+  // 9. OYUNCU PERFORMANSI & REKOR & GOL ŞOV
   if (
     titleLower.includes('gol krallığı') ||
     titleLower.includes('rekor') ||
     titleLower.includes('istatistik') ||
     titleLower.includes('solladı') ||
     titleLower.includes('parladı') ||
-    titleLower.includes('övgü')
+    titleLower.includes('övgü') ||
+    titleLower.includes('bitiriş') ||
+    titleLower.includes('muhteşem gol') ||
+    titleLower.includes('ateşledi') ||
+    titleLower.includes('kurtarış')
   ) {
     return {
       category: 'GENERAL',
       badgeTitle: 'YILDIZ PERFORMANSI',
-      pollQuestion: 'Yıldız oyuncumuz bu form grafiğini sürdürür mü?',
+      pollQuestion: 'Bu muhteşem performansı ve golü beğendiniz mi?',
       categoryTag: '#YıldızOyuncular'
     };
   }
 
-  // 10. SON DAKİKA / FLAŞ GELİŞME
+  // 10. TARAFTAR & TRİBÜN & BORDO-MAVİ SEVDASI
+  if (
+    titleLower.includes('sevda') ||
+    titleLower.includes('taraftar') ||
+    titleLower.includes('tribün') ||
+    titleLower.includes('horon') ||
+    titleLower.includes('kolbastı') ||
+    titleLower.includes('miraç')
+  ) {
+    return {
+      category: 'GENERAL',
+      badgeTitle: 'BORDO MAVİ SEVDA',
+      pollQuestion: 'Bordo-Mavi sevdamız her yerde! Gurur duydunuz mu?',
+      categoryTag: '#BordoMaviSevda'
+    };
+  }
+
+  // 11. SON DAKİKA / FLAŞ GELİŞME
   if (
     titleLower.includes('son dakika') ||
     titleLower.includes('flaş') ||

@@ -5,6 +5,7 @@ import { generateAutomatedContent } from '../src/lib/content/content-generator';
 import { checkContentQuality } from '../src/lib/content/content-quality-checker';
 import { publishReadyContent } from '../src/lib/content/content-publisher';
 import { runAutonomousReelWorkflow } from '../src/lib/reels/reels-publisher';
+import { runAutonomousViralReelPublisher } from '../src/lib/viral/viral-publisher';
 import { SmartPublisher, PublishingQuotaInfo } from '../src/lib/content/smart-publisher';
 
 /**
@@ -88,11 +89,38 @@ async function main() {
       throw new Error(`Metin haberi slotu aktifti ancak yayın yapılamadı: ${JSON.stringify(pub.results ?? pub)}`);
     }
   } else if (quota.quota > 0 && quota.allowedType === 'REELS') {
-    console.log(`🎬 ${quota.windowName} Aktif -> Otonom Reels Videosu Üretiliyor & Yayınlanıyor...`);
-    const reel = await runAutonomousReelWorkflow({ force: false });
-    console.log('Publish result (Reels):', reel);
-    if (!reel.success) {
-      throw new Error(`Reels slotu aktifti ancak yayın yapılamadı (adım: ${reel.step}): ${reel.error || reel.skippedReason || 'bilinmeyen neden'}`);
+    console.log(`🎬 ${quota.windowName} (${quota.activeSlotId}) Aktif -> Otonom Reels Motoru Başlatılıyor...`);
+
+    const preferViralFirst = quota.activeSlotId === 'SLOT_15_00' || quota.activeSlotId === 'SLOT_20_30';
+
+    if (preferViralFirst) {
+      console.log('🔥 1. Aşama: İnternetteki En Trend Trabzonspor Viral Videosu Taranıyor & Logomuzla İşleniyor...');
+      const viralRes = await runAutonomousViralReelPublisher();
+      console.log('Viral Reel result:', viralRes);
+
+      if (viralRes.success) {
+        console.log(`✅ Viral Reels Başarıyla Yayınlandı! FB Post ID: ${viralRes.facebookPostId}`);
+      } else {
+        console.warn(`⚠️ Viral video motoru tamamlanamadı (${viralRes.error}), Haber Reels motoruna (Fallback) geçiliyor...`);
+        const reel = await runAutonomousReelWorkflow({ force: false });
+        console.log('Fallback News Reel result:', reel);
+        if (!reel.success) {
+          throw new Error(`Reels slotu aktifti ancak her iki motorda da yayın yapılamadı: Viral(${viralRes.error}) | Haber(${reel.error || reel.skippedReason})`);
+        }
+      }
+    } else {
+      console.log('🎙️ 1. Aşama: Sabah Haber Bülteni Reels Videosu Üretiliyor...');
+      const reel = await runAutonomousReelWorkflow({ force: false });
+      console.log('News Reel result:', reel);
+
+      if (!reel.success) {
+        console.warn(`⚠️ Haber Reels tamamlanamadı (${reel.error || reel.skippedReason}), Viral Video motoruna (Fallback) geçiliyor...`);
+        const viralRes = await runAutonomousViralReelPublisher();
+        console.log('Fallback Viral Reel result:', viralRes);
+        if (!viralRes.success) {
+          throw new Error(`Reels slotu aktifti ancak her iki motorda da yayın yapılamadı: Haber(${reel.error || reel.skippedReason}) | Viral(${viralRes.error})`);
+        }
+      }
     }
   } else {
     console.log('🔒 Takvim Koruması Devrede (Slot Kilitli):', quota.reason);
