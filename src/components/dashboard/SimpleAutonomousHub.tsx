@@ -15,9 +15,11 @@ import {
   ThumbsUp,
   Loader2,
   Mountain,
+  Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { CanvaStudioModal } from "@/components/media/CanvaStudioModal";
 
 export interface PublishedPostItem {
   id: string;
@@ -64,6 +66,7 @@ export default function SimpleAutonomousHub({
   const [inlinePlayingPostId, setInlinePlayingPostId] = useState<string | null>(null);
   const [resolvedStreams, setResolvedStreams] = useState<Record<string, string>>({});
   const [statusBanner, setStatusBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [isCanvaOpen, setIsCanvaOpen] = useState(false);
 
   // Sayfa içi aktif video/görsel oynatıcı modalı
   const [activePlayer, setActivePlayer] = useState<{
@@ -212,9 +215,18 @@ export default function SimpleAutonomousHub({
               7/24 Tam Otomatik Yayın Takvimi (Günde 4 Paylaşım)
             </h2>
           </div>
-          <span className="text-xs text-muted-foreground">
-            Her gün Trabzonspor ve Trabzon yöresinin en viral videoları otomatik çekilip yayınlanır
-          </span>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-xs text-muted-foreground">
+              Her gün Trabzonspor ve Trabzon yöresinin en viral videoları otomatik çekilip yayınlanır
+            </span>
+            <Button
+              size="sm"
+              onClick={() => setIsCanvaOpen(true)}
+              className="bg-[#00C4CC] hover:bg-[#00B4BC] text-white font-bold text-xs h-8 px-3 shadow-xs"
+            >
+              <Palette className="w-3.5 h-3.5 mr-1.5" /> Canva Tasarım Stüdyosu (API Bağlı)
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
@@ -696,6 +708,7 @@ export default function SimpleAutonomousHub({
           </div>
         </div>
       )}
+      <CanvaStudioModal isOpen={isCanvaOpen} onClose={() => setIsCanvaOpen(false)} />
     </div>
   );
 }
