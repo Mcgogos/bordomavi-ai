@@ -89,7 +89,12 @@ export async function runAutonomousViralReelPublisher(options?: {
         ).toFixed(2)} MB)...`
       );
 
-      const fbResult = await FacebookService.publishReel(processed.videoBuffer, processed.caption);
+      const fbResult = await FacebookService.publishReel(
+        processed.videoBuffer,
+        processed.caption,
+        undefined,
+        processed.srtContent
+      );
 
       if (!fbResult.success) {
         return {

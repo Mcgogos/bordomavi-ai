@@ -6,6 +6,7 @@ import { generateReelScript, ReelScriptData } from './reels-script-generator';
 import { synthesizeTurkishSpeech } from './reels-audio-synthesizer';
 import { composeReelSlides, getAvailableFontPath, escapeFFmpegPath, wrapTextToLines } from './reels-visual-composer';
 import { verifyReelQuality, ReelQualityCheckResult } from './reels-quality-checker';
+import { buildSrtFromCues } from './caption-srt-generator';
 
 export function getFFmpegPath(): string {
   if (process.env.FFMPEG_PATH && fs.existsSync(process.env.FFMPEG_PATH)) {
@@ -41,6 +42,7 @@ export interface GeneratedReelResult {
   baseFramePreviewPath?: string;
   durationSeconds: number;
   scriptData: ReelScriptData;
+  srtContent: string;
   qualityResult: ReelQualityCheckResult;
 }
 
@@ -51,7 +53,8 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
   const tempDir = os.tmpdir();
   const timestamp = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const outputVideoPath = path.join(tempDir, `bm_final_reel_${timestamp}.mp4`);
-  const filesToClean: string[] = [];
+  const srtFilePath = path.join(tempDir, `bm_reel_cc_${timestamp}.srt`);
+  const filesToClean: string[] = [srtFilePath];
 
   console.log(`[ReelVideoGenerator] 🎬 Starting Viral Broadcast Reel Production for: "${params.title}"`);
 
@@ -81,11 +84,14 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
     const composedSlides = await composeReelSlides(scriptData, params.imageUrl);
     filesToClean.push(...composedSlides.tempFilesToClean);
 
-    // 4. Seslendirme ile %100 Senkronize, Her Satırı Birebir Ortalanmış Altyazılar (y: 1085 - 1340 arası)
+    // 4. Seslendirme ile %100 Senkronize, Her Satırı Birebir Ortalanmış Altyazılar (y: 1085 - 1340 arası) + .SRT Kapalı Açıklamalı Altyazı
     const font = getAvailableFontPath();
     const cues = audioResult.cues && audioResult.cues.length > 0
       ? audioResult.cues
       : [{ text: scriptData.title, startTime: 0, endTime: totalDuration }];
+
+    const srtContent = buildSrtFromCues(cues);
+    fs.writeFileSync(srtFilePath, srtContent, 'utf8');
 
     const filterParts: string[] = [];
     cues.forEach((cue, idx) => {
@@ -124,13 +130,13 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
     const hasCustomBgm = fs.existsSync(customBgm);
     const bgmInputs = hasCustomBgm
       ? ['-stream_loop', '-1', '-i', customBgm]
-      : ['-f', 'lavfi', '-i', `anoisesrc=color=pink:sample_rate=44100:amplitude=0.01:duration=${totalDuration}`];
+      : ['-f', 'lavfi', '-i', `anoisesrc=color=pink:sample_rate=48000:amplitude=0.01:duration=${totalDuration}`];
 
     // FFmpeg Filtre Grafiği:
     // - [1:v] (Hero Fotoğraf): 30fps yumuşak Ken Burns sinematik zoom hareketi (1008x567 tam 16:9 vitrin içinde)
     // - [goldBar]: 30fps saniyede 30 kare kesintisiz akan gerçek zamanlı altın ilerleme çubuğu (x = 64-952+952*(t/totalDuration))
     // - [2:v] (Broadcast HUD Overlay): Şeffaf pencereli koyu mod stüdyo arayüzü (ilerleme çubuğunu yuvarlatılmış pencere içinde maskeler)
-    // - Her satırı birebir ortalanmış senkronize altyazılar
+    // - Her satırı birebir ortalanmış senkronize altyazılar + MP4 gömülü Türkçe Kapalı Açıklamalı Altyazı (mov_text)
     const ffmpegArgs: string[] = [
       '-y',
       '-loop', '1', '-framerate', '30', '-t', String(totalDuration), '-i', composedSlides.baseFramePath,
@@ -138,33 +144,44 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       '-loop', '1', '-framerate', '30', '-t', String(totalDuration), '-i', composedSlides.overlayHudPath,
       '-i', audioResult.audioPath,
       ...bgmInputs,
+      '-i', srtFilePath,
       '-filter_complex',
       `color=c=0xFBBF24:s=952x18:r=30:d=${totalDuration}[goldBar];` +
       `[1:v]zoompan=z='min(zoom+0.00035,1.07)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${totalFrames}:s=1008x567:fps=30[heroAnim];` +
       `[0:v][heroAnim]overlay=36:220:shortest=1[withHero];` +
       `[withHero][goldBar]overlay=x='64-952+952*(t/${totalDuration})':y=1342:shortest=1[withProg];` +
       `[withProg][2:v]overlay=0:0:format=auto:shortest=1[withHud];` +
-      `[withHud]${subtitleChain}[vOut];` +
-      `[4:a]volume=0.07[ambience];` +
-      `[3:a][ambience]amix=inputs=2:duration=first:dropout_transition=2[aOut]`,
+      `[withHud]${subtitleChain},setsar=1:1,setdar=9/16[vOut];` +
+      `[4:a]aresample=48000,volume=0.07[ambience];` +
+      `[3:a]aresample=48000[voice];` +
+      `[voice][ambience]amix=inputs=2:duration=first:dropout_transition=2[aOut]`,
       '-map', '[vOut]',
       '-map', '[aOut]',
+      '-map', '5:s:0',
       '-c:v', 'libx264',
+      '-profile:v', 'high',
+      '-level:v', '4.2',
       '-preset', 'fast',
+      '-crf', '19',
       '-r', '30',
       '-pix_fmt', 'yuv420p',
-      '-b:v', '4500k',
-      '-maxrate', '5500k',
-      '-bufsize', '8500k',
+      '-b:v', '6500k',
+      '-maxrate', '8500k',
+      '-bufsize', '12000k',
       '-c:a', 'aac',
       '-b:a', '192k',
-      '-ar', '44100',
+      '-ar', '48000',
+      '-ac', '2',
+      '-c:s', 'mov_text',
+      '-metadata:s:s:0', 'language=tur',
+      '-metadata:s:s:0', 'title=Türkçe',
+      '-movflags', '+faststart',
       '-t', String(totalDuration),
       outputVideoPath
     ];
 
     const ffmpegPath = getFFmpegPath();
-    console.log(`[ReelVideoGenerator] Rendering 1080x1920 30fps Broadcast MP4 (${totalDuration}s) using FFmpeg: ${ffmpegPath}...`);
+    console.log(`[ReelVideoGenerator] Rendering 1080x1920 30fps Broadcast MP4 (${totalDuration}s) with Turkish Closed Captions using FFmpeg: ${ffmpegPath}...`);
     const startTime = Date.now();
 
     await new Promise((resolve, reject) => {
@@ -203,6 +220,7 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       videoFilePath: outputVideoPath,
       durationSeconds: totalDuration,
       scriptData,
+      srtContent,
       qualityResult
     };
 

@@ -174,6 +174,11 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
 
         let messageBody = cleanTitle + '\n\n' + cleanBody;
 
+        // Takipçi artırma çağrısı: Metin içinde takip çağrısı yoksa imza öncesine ekle
+        if (!messageBody.toLowerCase().includes('takip')) {
+          messageBody += '\n\n👉 Trabzonspor ve Bordo-Mavi gündeminin en sıcak gelişmeleri için sayfamızı TAKİP ETMEYİ unutmayın! 🔔❤️💙';
+        }
+
         // İmza Denetimi: Metin içinde Editör imzası yoksa hashtaglerden önce ekle
         if (!messageBody.includes('Editör')) {
           messageBody += '\n\n✍️ Editör';
@@ -212,11 +217,11 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
           templateCategory = 'OFFICIAL';
         }
 
-        // Canva Connect API v1 ile tasarımı senkronize et ve Canva şablon parametreleriyle görseli üret
+        // Canva Connect API v1 ile tasarımı 4:5 dikey portre (1080x1350 - Meta Feed optimum en-boy oranı) olarak senkronize et
         await CanvaService.createDesignWithConnectApi({
           title: cleanTitle,
-          width: 1200,
-          height: 630,
+          width: 1080,
+          height: 1350,
         }).catch(() => {});
 
         const spotSummary = cleanBody.split(/[.!?]\s+/)[0]?.slice(0, 120) || '';

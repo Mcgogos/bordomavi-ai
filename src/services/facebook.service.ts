@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { buildSrtFromCaptionText } from '@/lib/reels/caption-srt-generator';
 
 const GRAPH_API_VERSION = 'v21.0';
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -267,9 +268,92 @@ export class FacebookService {
   }
 
   /**
+   * Meta "İçerik Kalitesi" (Content Quality) algoritma cezasını önlemek için:
+   * - Ana gönderi/Reels açıklamasında 20+ @mention yığınını (tag stuffing) temizler,
+   * - Takipçi kazanımını artıran net "Takip Et 🔔" çağrısını (CTA) ekler,
+   * - Hashtag sayısını Meta'nın önerdiği optimum 5 adet ile sınırlar.
+   */
+  static optimizeMainPostCaption(rawText: string): string {
+    let cleaned = (rawText || '')
+      .replace(/\*\*/g, '')
+      .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
+      .replace(/\n*📌\s*Topluluk\s*&\s*Etiket:[\s\S]*$/i, '')
+      .trim();
+
+    if (!cleaned.toLowerCase().includes('takip et')) {
+      const hashtagMatch = cleaned.match(/(\n+#[a-zA-Z0-9_ğüşıöçĞÜŞİÖÇ]+(?:\s+#[a-zA-Z0-9_ğüşıöçĞÜŞİÖÇ]+)*)\s*$/);
+      const followCta =
+        '\n\n👉 Trabzonspor ve Trabzon gündemini kaçırmamak için BordoMavi sayfamızı TAKİP ETMEYİ unutmayın! 🔔❤️💙';
+      if (hashtagMatch && hashtagMatch.index !== undefined) {
+        const beforeTags = cleaned.slice(0, hashtagMatch.index).trim();
+        const tagsPart = hashtagMatch[1].trim();
+        cleaned = `${beforeTags}${followCta}\n\n${tagsPart}`;
+      } else {
+        cleaned = `${cleaned}${followCta}`;
+      }
+    }
+
+    // Son satırdaki hashtag sayısını en fazla 5 odaklanmış etiketle sınırla (Meta spam korumasını geçmek için)
+    const lines = cleaned.split('\n');
+    const lastLine = lines[lines.length - 1]?.trim() || '';
+    if (lastLine.startsWith('#')) {
+      const tags = lastLine.split(/\s+/).filter((t) => t.startsWith('#'));
+      if (tags.length > 5) {
+        lines[lines.length - 1] = tags.slice(0, 5).join(' ');
+        cleaned = lines.join('\n');
+      }
+    }
+
+    return cleaned.trim();
+  }
+
+  /**
+   * Meta "Kapalı Açıklamalı Alt Yazılar" (Closed Captions) uyarısını tamamen kaldırmak için
+   * yayınlanan Reels/Video ID'sine Türkçe (.srt, tr_TR) altyazı dosyasını doğrudan yükler.
+   */
+  static async uploadVideoClosedCaptions(
+    videoId: string,
+    srtContent?: string,
+    fallbackCaption?: string
+  ): Promise<boolean> {
+    if (!videoId || videoId.startsWith('mock-')) return false;
+    try {
+      const { token } = await resolvePageToken();
+      const effectiveSrt =
+        srtContent && srtContent.trim().length > 10
+          ? srtContent
+          : buildSrtFromCaptionText(fallbackCaption || 'Trabzonspor ve Bordo-Mavi Gündemi', 18);
+
+      const formData = new FormData();
+      const srtBlob = new Blob([Buffer.from(effectiveSrt, 'utf8')], { type: 'text/plain' });
+      formData.append('captions_file', srtBlob, 'captions.tr_TR.srt');
+      formData.append('default', 'true');
+      formData.append('locale', 'tr_TR');
+      formData.append('access_token', token);
+
+      const res = await fetch(`${GRAPH_API_BASE}/${videoId}/captions`, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(20_000),
+      });
+      const data = await res.json();
+      if (data?.success || data?.id) {
+        console.log(`[FacebookService] ✅ Closed Captions (.srt tr_TR) uploaded for video ${videoId}`);
+        return true;
+      } else if (data?.error) {
+        console.warn(`[FacebookService] Captions API note for ${videoId}:`, data.error.message);
+      }
+    } catch (e: any) {
+      console.warn(`[FacebookService] Closed captions upload warning for ${videoId}:`, e.message);
+    }
+    return false;
+  }
+
+  /**
    * Ana Facebook sayfasında yayınlanan gönderi veya Reels videosunu:
-   * 1) Bağlı diğer yönetilen Facebook sayfalarında otomatik paylaşır,
-   * 2) Takip edilen sayfaların topluluk/mention akışlarına düşmesi için çapraz bağlantı paylaşımı yapar.
+   * 1) Gönderinin ilk yorumuna (First Comment) takip edilen 22 sayfanın topluluk etiketlerini ekler (böylece ana gönderi spam cezası almaz),
+   * 2) Bağlı diğer yönetilen Facebook sayfalarında otomatik paylaşır,
+   * 3) Takip edilen sayfaların tamamında çapraz bağlantı paylaşımı yapar.
    */
   static async autoDistributePublishedPost(params: {
     postId: string;
@@ -287,6 +371,28 @@ export class FacebookService {
         : `https://www.facebook.com/${primaryPageId}/posts/${cleanId}`;
 
       const shareMessage = this.appendFollowedPageMentions(params.caption, followedPages);
+
+      // 0. Ana gönderinin/Reels'in altına İlk Yorum (First Comment) olarak topluluk etiketlerini & takip çağrısını bırak
+      // (Meta algoritması ilk yorumdaki etkileşim ve etiketleri ödüllendirir, ana açıklamayı ise temiz tutar)
+      const handlesList = followedPages
+        .map((p) => p.idOrHandle.trim().replace(/^@/, ''))
+        .filter(Boolean)
+        .map((h) => `@${h}`)
+        .join(' ');
+      if (handlesList) {
+        try {
+          const commentMessage = `🔴🔵 Trabzonspor ve Trabzon gündeminin nabzını tutmaya devam ediyoruz! Sayfamızı takip etmeyi (@cafegaa) ve yorumlarda görüşlerinizi yazmayı unutmayın! 🔔👇\n\n📌 Topluluk & Etiket: ${handlesList}`;
+          await fetch(`${GRAPH_API_BASE}/${params.postId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: commentMessage,
+              access_token: primaryToken,
+            }),
+            signal: AbortSignal.timeout(10_000),
+          });
+        } catch {}
+      }
 
       // 1. Bağlı diğer Facebook sayfalarında (varsa) otomatik paylaş
       for (const page of connectedPages) {
@@ -403,12 +509,8 @@ export class FacebookService {
 
     try {
       const { token, pageId } = await resolvePageToken();
-      const { followedPages } = await this.getFollowedAndConnectedPages(true);
-      const rawSanitized = (message || '')
-        .replace(/\*\*/g, '')
-        .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
-        .trim();
-      const sanitizedMessage = this.appendFollowedPageMentions(rawSanitized, followedPages);
+      await this.getFollowedAndConnectedPages(true);
+      const sanitizedMessage = this.optimizeMainPostCaption(message || '');
       let payload: any = { message: sanitizedMessage, access_token: token };
 
       // 1. Doğrudan Base64 Data URL paylaşımı (Canva Studio görselini kayıpsız ve doğrudan yükler)
@@ -566,7 +668,8 @@ export class FacebookService {
   static async publishReel(
     videoBuffer: Buffer,
     caption: string,
-    lockKey?: string
+    lockKey?: string,
+    srtContent?: string
   ): Promise<{ success: boolean; postId: string; mockMode?: boolean }> {
     const isMock = process.env.FACEBOOK_MOCK_MODE === 'true';
     if (isMock) {
@@ -581,12 +684,8 @@ export class FacebookService {
 
     try {
       const { token, pageId } = await resolvePageToken();
-      const { followedPages } = await this.getFollowedAndConnectedPages(true);
-      const rawSanitizedCaption = (caption || '')
-        .replace(/\*\*/g, '')
-        .replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1$2$3')
-        .trim();
-      const sanitizedCaption = this.appendFollowedPageMentions(rawSanitizedCaption, followedPages);
+      await this.getFollowedAndConnectedPages(true);
+      const sanitizedCaption = this.optimizeMainPostCaption(caption || '');
 
       console.log(`[FacebookService] Starting Reel upload to Page ${pageId} (${videoBuffer.length} bytes)...`);
 
@@ -651,6 +750,7 @@ export class FacebookService {
         if (finishData.success || finishData.id || finishData.video_id) {
           const finalId = finishData.id || finishData.video_id || videoId;
           console.log(`[FacebookService] ✅ Real Reel successfully published: ${finalId}`);
+          await this.uploadVideoClosedCaptions(finalId, srtContent, sanitizedCaption);
           await this.autoDistributePublishedPost({
             postId: finalId,
             isReel: true,
@@ -684,6 +784,7 @@ export class FacebookService {
 
       const publishedId = vidData.id || vidData.post_id;
       console.log(`[FacebookService] ✅ Video/Reel successfully published via /videos: ${publishedId}`);
+      await this.uploadVideoClosedCaptions(publishedId, srtContent, sanitizedCaption);
       await this.autoDistributePublishedPost({
         postId: publishedId,
         isReel: true,

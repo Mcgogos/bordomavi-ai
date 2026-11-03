@@ -71,8 +71,9 @@ export async function GET(request: NextRequest) {
 
     const canvaTemplate = resolveCanvaTemplate(requestedTemplate, title, summary);
     const isVertical = requestedTemplate === 'REELS' || format === 'vertical' || format === 'reels';
-    const canvasWidth = isVertical ? 1080 : 1200;
-    const canvasHeight = isVertical ? 1920 : 630;
+    const isLandscape = format === 'landscape';
+    const canvasWidth = isLandscape ? 1200 : 1080;
+    const canvasHeight = isVertical ? 1920 : isLandscape ? 630 : 1350;
 
     const logoDataUrl = BORDOMAVI_BRAND_LOGO_DATA_URI;
 
@@ -534,9 +535,9 @@ export async function GET(request: NextRequest) {
                   letterSpacing: '1px',
                 }}
               >
-                BordoMavi
+                🔔 BordoMavi • Takip Et
               </span>
-              <span style={{ fontSize: '20px', fontWeight: '800', color: '#FBBF24' }}>
+              <span style={{ fontSize: '22px', fontWeight: '800', color: '#FBBF24' }}>
                 #Trabzonspor #BordoMavi
               </span>
             </div>
@@ -547,8 +548,8 @@ export async function GET(request: NextRequest) {
             <div
               style={{
                 position: 'absolute',
-                top: '32px',
-                right: '36px',
+                top: '36px',
+                right: '40px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -562,8 +563,8 @@ export async function GET(request: NextRequest) {
             >
               <img
                 src={logoDataUrl}
-                width={152}
-                height={152}
+                width={156}
+                height={156}
                 style={{
                   display: 'block',
                   borderRadius: '9999px',
@@ -613,14 +614,14 @@ export async function GET(request: NextRequest) {
           >
             <img
               src={BORDOMAVI_BRAND_LOGO_DATA_URI}
-              width={130}
-              height={130}
+              width={140}
+              height={140}
               style={{ borderRadius: '9999px' }}
             />
           </div>
           <h1
             style={{
-              fontSize: '48px',
+              fontSize: '54px',
               fontWeight: '900',
               textAlign: 'center',
               margin: '0 0 20px 0',
@@ -628,12 +629,12 @@ export async function GET(request: NextRequest) {
           >
             BordoMavi Özel Haber
           </h1>
-          <p style={{ fontSize: '24px', fontWeight: '700', color: '#38BDF8', margin: 0 }}>
-            #Trabzonspor #BordoMavi
+          <p style={{ fontSize: '26px', fontWeight: '700', color: '#38BDF8', margin: 0 }}>
+            🔔 Takip Et • #Trabzonspor #BordoMavi
           </p>
         </div>
       ),
-      { width: 1200, height: 630 }
+      { width: 1080, height: 1350 }
     );
   }
 }

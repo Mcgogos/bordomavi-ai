@@ -319,8 +319,9 @@ export async function composeReelSlides(
       <!-- İlerleme Çubuğu Arka İzi -->
       <rect x="${progX}" y="${progY}" width="${progW}" height="${progH}" rx="7" ry="7" fill="#1E293B" stroke="#334155" stroke-width="1"/>
 
-      <!-- 5. ALT GÜVENLİ BÖLGE İMZASI (y: 1460) -->
-      <text x="540" y="1460" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" letter-spacing="3">BORDO MAVİ • TARAFTARIN SESİ • YORUMLARDA BULUŞALIM</text>
+      <!-- 5. TAKİPÇİ ARTIRMA & ETKİLEŞİM ÇAĞRISI ROZETİ (y: 1415 .. 1495) -->
+      <rect x="130" y="1415" width="820" height="68" rx="34" ry="34" fill="${canvaTpl.primaryColor}" fill-opacity="0.95" stroke="url(#goldAccent)" stroke-width="2.5" filter="url(#dropShadow)"/>
+      <text x="540" y="1458" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="900" letter-spacing="2">🔔 BORDO MAVİ • TAKİP ET &amp; YORUM YAP</text>
     </svg>
   `);
 

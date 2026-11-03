@@ -275,7 +275,8 @@ export async function runAutonomousReelWorkflow(options?: {
     const fbRes = await FacebookService.publishReel(
       reelResult.videoBuffer,
       reelResult.scriptData.facebookCaption,
-      `reel_lock_${newsId}`
+      `reel_lock_${newsId}`,
+      reelResult.srtContent
     );
 
     if (!fbRes.success || !fbRes.postId) {

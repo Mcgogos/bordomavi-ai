@@ -5,9 +5,10 @@ import { spawn, execFile } from 'child_process';
 import { promisify } from 'util';
 import sharp from 'sharp';
 import { getFFmpegPath } from '../reels/reel-video-generator';
-import { wrapTextToLines } from '../reels/reels-visual-composer';
+import { wrapTextToLines, getAvailableFontPath, escapeFFmpegPath } from '../reels/reels-visual-composer';
 import { determineContextualReelPoll } from '../reels/reels-script-generator';
 import { verifyReelQuality, ReelQualityCheckResult } from '../reels/reels-quality-checker';
+import { buildSubtitleCuesFromText, buildSrtFromCues } from '../reels/caption-srt-generator';
 import { getYtDlpPath, ViralVideoCandidate, sanitizeViralTitle, buildViralEditorialContext } from './viral-video-discoverer';
 import { CanvaService, TRABZONSPOR_CANVA_TEMPLATES } from '../canva/canva-service';
 
@@ -22,6 +23,7 @@ export interface ProcessedViralReelResult {
   editorialSummary: string;
   pollQuestion: string;
   caption: string;
+  srtContent: string;
   qualityResult: ReelQualityCheckResult;
 }
 
@@ -119,18 +121,23 @@ export function generateViralReelCaption(params: {
   pollQuestion?: string;
   category: string;
 }): string {
-  const { cleanTitle, editorialSummary, category } = params;
+  const { cleanTitle, editorialSummary, pollQuestion, category } = params;
   const hashtags =
     category === 'Trabzon Yöresi'
-      ? '#Trabzon #Karadeniz #TrabzonYöresi #Horon #Uzungöl #Trabzonspor #BordoMavi #Reels #Keşfet'
-      : '#Trabzonspor #BordoMavi #Fırtına #Trabzon #TS #BordoMaviHaber #Reels #Keşfet';
+      ? '#Trabzon #Karadeniz #Trabzonspor #BordoMavi #Reels'
+      : '#Trabzonspor #BordoMavi #Fırtına #Trabzon #Reels';
+
+  const questionLine =
+    pollQuestion || 'Siz bu görüntüler hakkında ne düşünüyorsunuz? Görüşlerinizi yorumlarda paylaşın!';
 
   return [
     `🔥 ${cleanTitle.toLocaleUpperCase('tr-TR')}`,
     '',
     editorialSummary,
     '',
-    `💬 Siz bu görüntüler hakkında ne düşünüyorsunuz? Görüşlerinizi yorumlarda paylaşın!`,
+    `💬 ${questionLine}`,
+    '',
+    `👉 Trabzonspor ve Trabzon gündemini kaçırmamak için BordoMavi sayfamızı TAKİP ETMEYİ unutmayın! 🔔❤️💙`,
     '',
     `✍️ Editör`,
     '',
@@ -140,8 +147,8 @@ export function generateViralReelCaption(params: {
 
 /**
  * İndirilen viral videodaki üçüncü parti sayfa logolarını/yazılarını temizler,
- * kendi Bordo-Mavi kurumsal logomuzu, manşetimizi ve bağlama duyarlı taraftar anketimizi ekleyerek
- * 1080x1920 (30fps) yayına hazır Reels videosu üretir.
+ * kendi Bordo-Mavi kurumsal logomuzu, manşetimizi ve senkronize kapalı açıklamalı altyazılarımızı (.srt + mov_text + ekran altyazısı)
+ * ekleyerek 1080x1920 (9:16, SAR 1:1, DAR 9:16, 30fps, High Profile) yayına hazır Reels videosu üretir.
  */
 export async function processViralVideoIntoBrandedReel(params: {
   candidate: ViralVideoCandidate;
@@ -153,9 +160,10 @@ export async function processViralVideoIntoBrandedReel(params: {
   const rawVideoPath = path.join(tempDir, `bm_viral_raw_${timestamp}.mp4`);
   const sampleFramePath = path.join(tempDir, `bm_viral_sample_${timestamp}.jpg`);
   const overlayHudPath = path.join(tempDir, `bm_viral_hud_${timestamp}.png`);
+  const srtFilePath = path.join(tempDir, `bm_viral_cc_${timestamp}.srt`);
   const previewFramePath = path.join(tempDir, `bm_viral_preview_${timestamp}.jpg`);
   const outputVideoPath = path.join(tempDir, `bm_viral_final_${timestamp}.mp4`);
-  const filesToClean: string[] = [rawVideoPath, sampleFramePath, overlayHudPath];
+  const filesToClean: string[] = [rawVideoPath, sampleFramePath, overlayHudPath, srtFilePath];
 
   const isRegion = params.candidate.category === 'Trabzon Yöresi';
   const cleanTitle = sanitizeViralTitle(
@@ -193,6 +201,16 @@ export async function processViralVideoIntoBrandedReel(params: {
       )}s -> target=${targetDuration.toFixed(1)}s, hasAudio=${probe.hasAudio}`
     );
 
+    // 2.5. Senkronize Kapalı Açıklamalı Altyazı (.srt) ve Ekran Altyazı Dilimlerini Üret
+    const subtitleCues = buildSubtitleCuesFromText(
+      cleanTitle,
+      editorialSummary,
+      targetDuration,
+      pollQuestion
+    );
+    const srtContent = buildSrtFromCues(subtitleCues);
+    fs.writeFileSync(srtFilePath, srtContent, 'utf8');
+
     // 3. Arka plan atmosferi için videonun 1.5. saniyesinden bir kare çıkar
     const ffmpeg = getFFmpegPath();
     await execFileAsync(
@@ -212,21 +230,16 @@ export async function processViralVideoIntoBrandedReel(params: {
       { timeout: 15000 }
     );
 
-    // 4. Kulüp Logosu Hazırlığı (Üst Bar için 88x88 ve Video Üzeri Filigran için 54x54)
+    // 4. Kulüp Logosu Hazırlığı (En Sağ Üst Köşe 2x Büyütülmüş Kurumsal Logo Rozeti - 148x148)
     const brandLogo = path.join(process.cwd(), 'public', 'assets', 'brand', 'bordomavi-logo.png');
     const fallbackLogo = path.join(process.cwd(), 'public', 'logo.png');
     const logoPath = fs.existsSync(brandLogo) ? brandLogo : fs.existsSync(fallbackLogo) ? fallbackLogo : null;
 
-    let headerLogoBuf: Buffer | null = null;
     let badgeLogoBuf: Buffer | null = null;
     if (logoPath) {
       try {
-        headerLogoBuf = await sharp(logoPath)
-          .resize({ width: 88, height: 88, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
-          .png()
-          .toBuffer();
         badgeLogoBuf = await sharp(logoPath)
-          .resize({ width: 112, height: 112, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+          .resize({ width: 148, height: 148, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
           .png()
           .toBuffer();
       } catch (e: any) {
@@ -234,16 +247,16 @@ export async function processViralVideoIntoBrandedReel(params: {
       }
     }
 
-    // 5. 1080x1920 Bordo-Mavi Viral Stüdyo HUD Katmanını Oluştur (Anket Kartı Kaldırıldı, Geniş Dikey Video Vitrini)
-    // Dikey Video Vitrini: x=36, y=205, w=1008, h=1185
+    // 5. 1080x1920 (Tam 9:16) Genişletilmiş Dikey Video Vitrini + Senkronize Kapalı Açıklamalı Altyazı Kartı
+    // Üst bar kaldırıldı; dikey video ekranın %72'sini (1024x1280) kaplar, sağ üstte 2x Bordo-Mavi logosu yer alır.
     const width = 1080;
     const height = 1920;
-    const viewportX = 36;
-    const viewportY = 205;
-    const viewportW = 1008;
-    const viewportH = 1185;
+    const viewportX = 28;
+    const viewportY = 64;
+    const viewportW = 1024;
+    const viewportH = 1280;
     const progX = 64;
-    const progY = 1408;
+    const progY = 1474;
     const progW = 952;
     const progH = 12;
 
@@ -280,8 +293,8 @@ export async function processViralVideoIntoBrandedReel(params: {
     const canvaAccent = category === 'Trabzon Yöresi' ? '#10B981' : canvaTemplate.accentColor;
     const canvaBadge =
       category === 'Trabzon Yöresi'
-        ? '🌲 TRABZON YÖRESİ VİRAL GÜNDEM'
-        : `${canvaTemplate.badgeText} • VİRAL GÜNDEM`;
+        ? '🌲 TRABZON YÖRESİ VİRAL'
+        : canvaTemplate.badgeText;
 
     const atmosphereOverlaySvg = Buffer.from(`
       <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -303,25 +316,25 @@ export async function processViralVideoIntoBrandedReel(params: {
       .png()
       .toBuffer();
 
-    // Manşet satırları (x: 36, y: 1435, w: 1008, h: 215)
+    // Manşet satırları (x: 28, y: 1506, w: 1024, h: 190)
     const upperTitle = cleanTitle.toLocaleUpperCase('tr-TR');
     const headlineLines = wrapTextToLines(upperTitle, 31, 3);
 
     let headlineSvgElements = '';
     if (headlineLines.length === 1) {
       headlineSvgElements = `
-        <text x="540" y="1556" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="900">${escapeXml(headlineLines[0])}</text>
+        <text x="540" y="1615" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900">${escapeXml(headlineLines[0])}</text>
       `;
     } else if (headlineLines.length === 2) {
       headlineSvgElements = `
-        <text x="540" y="1526" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="41" font-weight="900">${escapeXml(headlineLines[0])}</text>
-        <text x="540" y="1584" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="41" font-weight="900">${escapeXml(headlineLines[1])}</text>
+        <text x="540" y="1588" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="900">${escapeXml(headlineLines[0])}</text>
+        <text x="540" y="1642" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="900">${escapeXml(headlineLines[1])}</text>
       `;
     } else {
       headlineSvgElements = `
-        <text x="540" y="1504" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="900">${escapeXml(headlineLines[0])}</text>
-        <text x="540" y="1554" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="900">${escapeXml(headlineLines[1])}</text>
-        <text x="540" y="1604" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="900">${escapeXml(headlineLines[2])}</text>
+        <text x="540" y="1566" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="900">${escapeXml(headlineLines[0])}</text>
+        <text x="540" y="1614" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="900">${escapeXml(headlineLines[1])}</text>
+        <text x="540" y="1662" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="900">${escapeXml(headlineLines[2])}</text>
       `;
     }
 
@@ -343,28 +356,23 @@ export async function processViralVideoIntoBrandedReel(params: {
           </filter>
         </defs>
 
-        <!-- Canva Stüdyo Köşe Vurguları -->
-        <path d="M 24 84 L 24 36 L 72 36" fill="none" stroke="${canvaAccent}" stroke-width="6" stroke-linecap="round"/>
-        <path d="M 1056 1680 L 1056 1728 L 1008 1728" fill="none" stroke="${canvaAccent}" stroke-width="6" stroke-linecap="round"/>
+        <!-- 1. SENKRONİZE KAPALI AÇIKLAMALI ALTYAZI & İLERLEME KARTI (x: 28, y: 1358, w: 1024, h: 136) -->
+        <rect x="28" y="1358" width="1024" height="136" rx="24" ry="24" fill="#070D19" fill-opacity="0.96" stroke="#1E293B" stroke-width="2" filter="url(#dropShadow)"/>
+        <rect x="${progX}" y="${progY}" width="${progW}" height="${progH}" rx="6" ry="6" fill="#1E293B" stroke="#334155" stroke-width="1"/>
 
-        <!-- 1. ÜST KURUMSAL CANVA YAYIN BARI (y: 65 .. 185) -->
-        <rect x="36" y="65" width="1008" height="120" rx="30" ry="30" fill="#0B1324" fill-opacity="0.94" stroke="url(#goldAccent)" stroke-width="2" filter="url(#dropShadow)"/>
-        <circle cx="104" cy="125" r="46" fill="#FFFFFF"/>
-        <text x="174" y="121" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="35" font-weight="900" letter-spacing="1.5">BORDO MAVİ HABER</text>
-        <text x="174" y="156" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="bold" letter-spacing="2">${escapeXml(canvaBadge)}</text>
-
-        <!-- 2. MANŞET KARTI (x: 36, y: 1435, w: 1008, h: 215) -->
-        <rect x="36" y="1435" width="1008" height="215" rx="28" ry="28" fill="#0B1426" fill-opacity="0.95" stroke="${canvaAccent}" stroke-opacity="0.5" stroke-width="2" filter="url(#dropShadow)"/>
-        <rect x="36" y="1435" width="14" height="215" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
-        <rect x="1030" y="1435" width="14" height="215" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
+        <!-- 2. MANŞET KARTI (x: 28, y: 1506, w: 1024, h: 190) -->
+        <rect x="28" y="1506" width="1024" height="190" rx="28" ry="28" fill="#0B1426" fill-opacity="0.95" stroke="${canvaAccent}" stroke-opacity="0.5" stroke-width="2" filter="url(#dropShadow)"/>
+        <rect x="28" y="1506" width="14" height="190" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
+        <rect x="1038" y="1506" width="14" height="190" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
         ${headlineSvgElements}
 
-        <!-- 3. ALT GÜVENLİ BÖLGE İMZASI -->
-        <text x="540" y="1700" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" letter-spacing="3">BORDO MAVİ • TARAFTARIN SESİ • YORUMLARDA BULUŞALIM</text>
+        <!-- 3. TAKİPÇİ ARTIRMA & ETKİLEŞİM ÇAĞRISI (y: 1738) -->
+        <rect x="160" y="1712" width="760" height="46" rx="23" ry="23" fill="${canvaPrimary}" fill-opacity="0.92" stroke="url(#goldAccent)" stroke-width="1.5"/>
+        <text x="540" y="1742" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="900" letter-spacing="2">🔔 BORDO MAVİ • TAKİP ET &amp; YORUM YAP</text>
       </svg>
     `);
 
-    // Şeffaf video penceresi (36, 205, 1008, 945) ve ilerleme çubuğu yuvası (64, 1166, 952, 12) açma maskesi
+    // Şeffaf video penceresi (28, 64, 1024, 1280) ve ilerleme çubuğu yuvası (64, 1474, 952, 12) açma maskesi
     const holeMaskSvg = Buffer.from(`
       <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
         <rect x="${viewportX}" y="${viewportY}" width="${viewportW}" height="${viewportH}" rx="28" ry="28" fill="black"/>
@@ -372,25 +380,30 @@ export async function processViralVideoIntoBrandedReel(params: {
       </svg>
     `);
 
-    // Video penceresi açıldıktan sonra videonun sağ üst köşesine kendi Bordo-Mavi Kurumsal Logo Filigran Rozetimizi
-    // ve çerçeveyi yerleştiriyoruz (böylece videonun üzerinde kendi logomuz yer alır ve olası iç köşe izleri de kapanır)
+    // Video penceresi açıldıktan sonra en sağ üst köşeye 2x Bordo-Mavi Kurumsal Logo Rozetini (cx: 956, cy: 138, r: 82)
+    // ve sol üst köşeye kompakt Canva kategori rozetini yerleştiriyoruz
     const videoWatermarkAndBorderSvg = Buffer.from(`
       <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="goldAccent2" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stop-color="#F59E0B"/>
             <stop offset="50%" stop-color="#FDE68A"/>
-            <stop offset="100%" stop-color="#38BDF8"/>
+            <stop offset="100%" stop-color="${canvaAccent}"/>
           </linearGradient>
           <filter id="logoShadow" x="-15%" y="-15%" width="130%" height="130%">
-            <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.55"/>
+            <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.65"/>
           </filter>
         </defs>
         <!-- Video Vitrini Altın Çerçevesi -->
         <rect x="${viewportX}" y="${viewportY}" width="${viewportW}" height="${viewportH}" rx="28" ry="28" fill="none" stroke="url(#goldAccent2)" stroke-width="4"/>
 
-        <!-- Video İçi En Sağ Üst Köşe 2x Büyük Kurumsal Logo Rozeti (Yazısız, cx: 962, cy: 285, r: 60) -->
-        <circle cx="962" cy="285" r="60" fill="#FFFFFF" stroke="url(#goldAccent2)" stroke-width="3.5" filter="url(#logoShadow)"/>
+        <!-- Sol Üst Kompakt Canva Kategori Rozeti -->
+        <rect x="48" y="84" width="330" height="50" rx="25" ry="25" fill="${canvaPrimary}" fill-opacity="0.92" stroke="url(#goldAccent2)" stroke-width="2" filter="url(#logoShadow)"/>
+        <circle cx="76" cy="109" r="7" fill="#FDE68A"/>
+        <text x="96" y="117" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="900" letter-spacing="1.2">${escapeXml(canvaBadge)}</text>
+
+        <!-- En Sağ Üst Köşe 2x Büyük Kurumsal Logo Rozeti (cx: 952, cy: 142, r: 82) -->
+        <circle cx="952" cy="142" r="82" fill="#FFFFFF" stroke="url(#goldAccent2)" stroke-width="4" filter="url(#logoShadow)"/>
 
         <!-- Alt İlerleme Çubuğu Çerçevesi -->
         <rect x="${progX}" y="${progY}" width="${progW}" height="${progH}" rx="6" ry="6" fill="none" stroke="#475569" stroke-width="1.5"/>
@@ -398,10 +411,7 @@ export async function processViralVideoIntoBrandedReel(params: {
     `);
 
     const hudBase = await sharp(studioBgBuf)
-      .composite([
-        { input: hudSvg, left: 0, top: 0 },
-        ...(headerLogoBuf ? [{ input: headerLogoBuf, left: 60, top: 81 }] : []),
-      ])
+      .composite([{ input: hudSvg, left: 0, top: 0 }])
       .ensureAlpha()
       .png()
       .toBuffer();
@@ -411,20 +421,41 @@ export async function processViralVideoIntoBrandedReel(params: {
       { input: videoWatermarkAndBorderSvg, blend: 'over' },
     ];
     if (badgeLogoBuf) {
-      finalHudOverlays.push({ input: badgeLogoBuf, left: 906, top: 229, blend: 'over' });
+      finalHudOverlays.push({ input: badgeLogoBuf, left: 878, top: 68, blend: 'over' });
     }
 
     await sharp(hudBase).composite(finalHudOverlays).png().toFile(overlayHudPath);
 
-    // 6. FFmpeg ile Üçüncü Parti Logoları/Yazıları Kırp + Temizle ve Bordo-Mavi Stüdyo Çerçevesine Oturt
-    // - Kaynak dikey videoda (9:16) üçüncü parti sayfalar (61saat, TikTok, Reels vb.) logolarını
-    //   üst %16 (y: 0..307) ve alt %20 (y: 1536..1920) bantlarına koyar.
-    // - Bu iki bandı tamamen kesip (crop=iw:ih*0.64:0:ih*0.16) ortadaki tertemiz aksiyon alanını
-    //   1008x960 vitrinimize (increase + center crop) yerleştiriyoruz ve hafif renk canlılığı (contrast=1.03, saturation=1.06) ekliyoruz.
+    // 6. Senkronize Ekran Altyazısı (Closed Captions Overlay) Filtrelerini Hazırla
+    const fontPath = getAvailableFontPath();
+    const drawtextFilters: string[] = [];
+
+    subtitleCues.forEach((cue, idx) => {
+      const lines = wrapTextToLines(cue.text, 40, 2);
+      const start = cue.startTime.toFixed(2);
+      const end = cue.endTime.toFixed(2);
+
+      lines.forEach((lineText, lineIdx) => {
+        const cueFile = path.join(tempDir, `bm_vcue_${timestamp}_${idx}_${lineIdx}.txt`);
+        fs.writeFileSync(cueFile, lineText, 'utf8');
+        filesToClean.push(cueFile);
+
+        const escapedCueFile = escapeFFmpegPath(cueFile);
+        const yPos = lines.length === 1 ? 1402 : lineIdx === 0 ? 1380 : 1422;
+
+        drawtextFilters.push(
+          `drawtext=fontfile='${fontPath}':textfile='${escapedCueFile}':fontcolor=white:fontsize=31:x=(w-text_w)/2:y=${yPos}:shadowcolor=black@0.85:shadowx=0:shadowy=3:enable='between(t,${start},${end})'`
+        );
+      });
+    });
+
+    const subtitleFilterChain = drawtextFilters.length > 0 ? `,${drawtextFilters.join(',')}` : '';
+
+    // 7. FFmpeg ile Üçüncü Parti Logoları/Yazıları Kırp + Temizle ve 9:16 Tam Kadraj Stüdyo Çerçevesine Oturt
     const isVertical = probe.height >= probe.width;
     const videoCleanFilter = isVertical
-      ? `[0:v]crop=iw:ih*0.64:0:ih*0.16,scale=${viewportW}:${viewportH}:force_original_aspect_ratio=increase,crop=${viewportW}:${viewportH},eq=contrast=1.03:saturation=1.06,fps=30[cleanVid]`
-      : `[0:v]scale=${viewportW}:${viewportH}:force_original_aspect_ratio=increase,crop=${viewportW}:${viewportH},eq=contrast=1.03:saturation=1.06,fps=30[cleanVid]`;
+      ? `[0:v]crop=iw:ih*0.66:0:ih*0.15,scale=${viewportW}:${viewportH}:force_original_aspect_ratio=increase,crop=${viewportW}:${viewportH},eq=contrast=1.04:saturation=1.08,fps=30[cleanVid]`
+      : `[0:v]scale=${viewportW}:${viewportH}:force_original_aspect_ratio=increase,crop=${viewportW}:${viewportH},eq=contrast=1.04:saturation=1.08,fps=30[cleanVid]`;
 
     const customBgm = path.join(process.cwd(), 'public', 'assets', 'audio', 'sports_broadcast_bed.mp3');
     const hasCustomBgm = fs.existsSync(customBgm);
@@ -443,22 +474,24 @@ export async function processViralVideoIntoBrandedReel(params: {
       String(targetDuration),
       '-i',
       overlayHudPath,
+      '-i',
+      srtFilePath,
     ];
 
     let audioFilter = '';
     if (probe.hasAudio) {
-      audioFilter = `[0:a]aresample=44100,volume=1.0[aOut]`;
+      audioFilter = `[0:a]aresample=48000,volume=1.05[aOut]`;
     } else if (hasCustomBgm) {
       ffmpegArgs.push('-stream_loop', '-1', '-t', String(targetDuration), '-i', customBgm);
-      audioFilter = `[2:a]aresample=44100,volume=0.25[aOut]`;
+      audioFilter = `[3:a]aresample=48000,volume=0.28[aOut]`;
     } else {
       ffmpegArgs.push(
         '-f',
         'lavfi',
         '-i',
-        `anoisesrc=color=pink:sample_rate=44100:amplitude=0.01:duration=${targetDuration}`
+        `anoisesrc=color=pink:sample_rate=48000:amplitude=0.01:duration=${targetDuration}`
       );
-      audioFilter = `[2:a]volume=0.5[aOut]`;
+      audioFilter = `[3:a]volume=0.5[aOut]`;
     }
 
     const filterComplex = [
@@ -467,7 +500,7 @@ export async function processViralVideoIntoBrandedReel(params: {
       videoCleanFilter,
       `[bgCanvas][cleanVid]overlay=${viewportX}:${viewportY}:shortest=1[withVid]`,
       `[withVid][goldBar]overlay=x='${progX}-${progW}+${progW}*(t/${targetDuration})':y=${progY}:shortest=1[withProg]`,
-      `[withProg][1:v]overlay=0:0:format=auto:shortest=1[vOut]`,
+      `[withProg][1:v]overlay=0:0:format=auto:shortest=1${subtitleFilterChain},setsar=1:1,setdar=9/16[vOut]`,
       audioFilter,
     ].join(';');
 
@@ -478,26 +511,42 @@ export async function processViralVideoIntoBrandedReel(params: {
       '[vOut]',
       '-map',
       '[aOut]',
+      '-map',
+      '2:s:0',
       '-c:v',
       'libx264',
+      '-profile:v',
+      'high',
+      '-level:v',
+      '4.2',
       '-preset',
       'fast',
+      '-crf',
+      '19',
       '-r',
       '30',
       '-pix_fmt',
       'yuv420p',
       '-b:v',
-      '4500k',
+      '6500k',
       '-maxrate',
-      '5500k',
-      '-bufsize',
       '8500k',
+      '-bufsize',
+      '12000k',
       '-c:a',
       'aac',
       '-b:a',
       '192k',
       '-ar',
-      '44100',
+      '48000',
+      '-ac',
+      '2',
+      '-c:s',
+      'mov_text',
+      '-metadata:s:s:0',
+      'language=tur',
+      '-metadata:s:s:0',
+      'title=Türkçe',
       '-movflags',
       '+faststart',
       '-t',
@@ -521,7 +570,7 @@ export async function processViralVideoIntoBrandedReel(params: {
       proc.on('error', (err) => reject(err));
     });
 
-    // 7. Önizleme karesi çıkar (kalite kontrolü ve UI için)
+    // 8. Önizleme karesi çıkar (kalite kontrolü ve UI için)
     await execFileAsync(
       ffmpeg,
       [
@@ -539,7 +588,7 @@ export async function processViralVideoIntoBrandedReel(params: {
       { timeout: 15000 }
     );
 
-    // 8. Kalite kontrolü
+    // 9. Kalite kontrolü
     const qualityResult = await verifyReelQuality({
       videoFilePath: outputVideoPath,
       title: cleanTitle,
@@ -550,7 +599,11 @@ export async function processViralVideoIntoBrandedReel(params: {
     const videoBuffer = fs.readFileSync(outputVideoPath);
 
     console.log(
-      `[ViralVideoProcessor] ✅ Branded viral Reel ready: ${(videoBuffer.length / 1024 / 1024).toFixed(2)} MB, ${targetDuration.toFixed(1)}s`
+      `[ViralVideoProcessor] ✅ Branded viral Reel ready with Turkish Closed Captions (.srt + mov_text): ${(
+        videoBuffer.length /
+        1024 /
+        1024
+      ).toFixed(2)} MB, ${targetDuration.toFixed(1)}s`
     );
 
     return {
@@ -562,6 +615,7 @@ export async function processViralVideoIntoBrandedReel(params: {
       editorialSummary,
       pollQuestion,
       caption,
+      srtContent,
       qualityResult,
     };
   } finally {
