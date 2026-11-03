@@ -178,23 +178,23 @@ export async function composeReelSlides(
     height: 1920,
   }).catch(() => {});
 
-  // 3. Tam 16:9 Sinematik Haber Vitrini (1008x567 - Yatay 1280x720 fotoğraflarda SIFIR kırpma ve SIFIR üst yazı!)
-  const viewportW = 1008;
-  const viewportH = 567;
-  const viewportX = 36;
-  const viewportY = 220;
+  // 3. Tam Dikey (9:16 Uyumlu) Sinematik Haber Vitrini (1024x1140 - Meta 'En Boy Oranı' uyarısını sıfırlayan geniş dikey vitrin)
+  const viewportW = 1024;
+  const viewportH = 1140;
+  const viewportX = 28;
+  const viewportY = 64;
 
-  const heroHiResW = 1280;
-  const heroHiResH = 720;
+  const heroHiResW = 1080;
+  const heroHiResH = 1200;
 
   const heroBlurBg = await sharp(downloadedNewsImg)
     .resize(heroHiResW, heroHiResH, { fit: 'cover', position: 'center' })
-    .blur(28)
-    .modulate({ brightness: 0.5, saturation: 1.2 })
+    .blur(26)
+    .modulate({ brightness: 0.48, saturation: 1.25 })
     .toBuffer();
 
   const heroFg = await sharp(downloadedNewsImg)
-    .resize(heroHiResW, heroHiResH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .resize(heroHiResW, heroHiResH, { fit: 'cover', position: sharp.strategy.attention })
     .toBuffer();
 
   await sharp(heroBlurBg)
@@ -252,34 +252,34 @@ export async function composeReelSlides(
     .png()
     .toBuffer();
 
-  // 5. Manşet Metnini Hazırla
+  // 5. Manşet Metnini Hazırla (x: 28, y: 1222, w: 1024, h: 210)
   const headlineLines = wrapTextToLines(upperTitle, 30, 3);
 
   let headlineSvgElements = '';
   if (headlineLines.length === 1) {
     headlineSvgElements = `
-      <text x="540" y="952" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="900">${escapeXml(headlineLines[0])}</text>
+      <text x="540" y="1340" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="900">${escapeXml(headlineLines[0])}</text>
     `;
   } else if (headlineLines.length === 2) {
     headlineSvgElements = `
-      <text x="540" y="920" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="900">${escapeXml(headlineLines[0])}</text>
-      <text x="540" y="984" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="900">${escapeXml(headlineLines[1])}</text>
+      <text x="540" y="1310" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="900">${escapeXml(headlineLines[0])}</text>
+      <text x="540" y="1366" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="900">${escapeXml(headlineLines[1])}</text>
     `;
   } else {
     headlineSvgElements = `
-      <text x="540" y="896" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="39" font-weight="900">${escapeXml(headlineLines[0])}</text>
-      <text x="540" y="952" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="39" font-weight="900">${escapeXml(headlineLines[1])}</text>
-      <text x="540" y="1008" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="39" font-weight="900">${escapeXml(headlineLines[2])}</text>
+      <text x="540" y="1286" text-anchor="middle" fill="#FBBF24" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="900">${escapeXml(headlineLines[0])}</text>
+      <text x="540" y="1338" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="900">${escapeXml(headlineLines[1])}</text>
+      <text x="540" y="1390" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="900">${escapeXml(headlineLines[2])}</text>
     `;
   }
 
-  // İlerleme çubuğu koordinatları (x: 64, y: 1344, w: 952, h: 14, rx: 7)
+  // İlerleme çubuğu koordinatları (x: 64, y: 1644, w: 952, h: 14, rx: 7)
   const progX = 64;
-  const progY = 1344;
+  const progY = 1644;
   const progW = 952;
   const progH = 14;
 
-  // 6. Canva Studio Broadcast HUD SVG Katmanı (Üst yazı barı kaldırıldı, Canva rozeti + 2x sağ üst logo)
+  // 6. Canva Studio Broadcast HUD SVG Katmanı
   const hudSvg = Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -298,30 +298,25 @@ export async function composeReelSlides(
         </filter>
       </defs>
 
-      <!-- CANVA STUDIO ROZETİ (Sol Üst) -->
-      <rect x="36" y="110" width="340" height="54" rx="27" ry="27" fill="${canvaTpl.primaryColor}" stroke="url(#goldAccent)" stroke-width="2" filter="url(#dropShadow)"/>
-      <circle cx="68" cy="137" r="8" fill="#FDE68A"/>
-      <text x="90" y="145" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="900" letter-spacing="1.5">${escapeXml(canvaTpl.badgeText)}</text>
-
-      <!-- 2. 16:9 TAM KADRAJ HABER VİTRİN ÇERÇEVESİ (x: 36, y: 220, w: 1008, h: 567) -->
+      <!-- 2. DİKEY TAM KADRAJ HABER VİTRİN ÇERÇEVESİ (x: 28, y: 64, w: 1024, h: 1140) -->
       <rect x="${viewportX}" y="${viewportY}" width="${viewportW}" height="${viewportH}" rx="28" ry="28" fill="none" stroke="url(#goldAccent)" stroke-width="4" filter="url(#dropShadow)"/>
 
-      <!-- 3. MANŞET BLOĞU (x: 36, y: 815, w: 1008, h: 245) - Canva Köşe Aksanlı -->
-      <rect x="36" y="815" width="1008" height="245" rx="28" ry="28" fill="#0B1426" fill-opacity="0.94" stroke="#334155" stroke-width="2" filter="url(#dropShadow)"/>
-      <rect x="36" y="815" width="14" height="245" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
-      <rect x="1030" y="815" width="14" height="245" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
-      <path d="M 56 845 L 56 827 L 86 827" fill="none" stroke="#FDE68A" stroke-width="3.5" stroke-linecap="round"/>
-      <path d="M 1024 1030 L 1024 1048 L 994 1048" fill="none" stroke="${canvaTpl.accentColor}" stroke-width="3.5" stroke-linecap="round"/>
+      <!-- 3. MANŞET BLOĞU (x: 28, y: 1222, w: 1024, h: 210) - Canva Köşe Aksanlı -->
+      <rect x="28" y="1222" width="1024" height="210" rx="28" ry="28" fill="#0B1426" fill-opacity="0.95" stroke="#334155" stroke-width="2" filter="url(#dropShadow)"/>
+      <rect x="28" y="1222" width="14" height="210" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
+      <rect x="1038" y="1222" width="14" height="210" rx="7" ry="7" fill="url(#bordoGoldBar)"/>
+      <path d="M 48 1252 L 48 1234 L 78 1234" fill="none" stroke="#FDE68A" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M 1032 1402 L 1032 1420 L 1002 1420" fill="none" stroke="${canvaTpl.accentColor}" stroke-width="3.5" stroke-linecap="round"/>
       ${headlineSvgElements}
 
-      <!-- 4. ALTYAZI & CANLI İLERLEME KARTI (x: 36, y: 1085, w: 1008, h: 295) -->
-      <rect x="36" y="1085" width="1008" height="295" rx="28" ry="28" fill="#070D19" fill-opacity="0.95" stroke="#1E293B" stroke-width="2" filter="url(#dropShadow)"/>
+      <!-- 4. ALTYAZI & CANLI İLERLEME KARTI (x: 28, y: 1448, w: 1024, h: 230) -->
+      <rect x="28" y="1448" width="1024" height="230" rx="28" ry="28" fill="#070D19" fill-opacity="0.96" stroke="#1E293B" stroke-width="2" filter="url(#dropShadow)"/>
       <!-- İlerleme Çubuğu Arka İzi -->
       <rect x="${progX}" y="${progY}" width="${progW}" height="${progH}" rx="7" ry="7" fill="#1E293B" stroke="#334155" stroke-width="1"/>
 
-      <!-- 5. TAKİPÇİ ARTIRMA & ETKİLEŞİM ÇAĞRISI ROZETİ (y: 1415 .. 1495) -->
-      <rect x="130" y="1415" width="820" height="68" rx="34" ry="34" fill="${canvaTpl.primaryColor}" fill-opacity="0.95" stroke="url(#goldAccent)" stroke-width="2.5" filter="url(#dropShadow)"/>
-      <text x="540" y="1458" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="900" letter-spacing="2">🔔 BORDO MAVİ • TAKİP ET &amp; YORUM YAP</text>
+      <!-- 5. TAKİPÇİ ARTIRMA & ETKİLEŞİM ÇAĞRISI ROZETİ (y: 1696 .. 1760) -->
+      <rect x="130" y="1696" width="820" height="64" rx="32" ry="32" fill="${canvaTpl.primaryColor}" fill-opacity="0.95" stroke="url(#goldAccent)" stroke-width="2.5" filter="url(#dropShadow)"/>
+      <text x="540" y="1737" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="900" letter-spacing="2">🔔 BORDO MAVİ • TAKİP ET &amp; YORUM YAP</text>
     </svg>
   `);
 
@@ -339,7 +334,7 @@ export async function composeReelSlides(
     .png()
     .toBuffer();
 
-  // İlerleme çubuğu çerçevesi ve EN SAĞ ÜST KÖŞEYE SABİTLENMİŞ 2X BÜYÜTÜLMÜŞ LOGO ROZETİ (cx: 956, cy: 118, r: 84)
+  // İlerleme çubuğu çerçevesi, Sol Üst Canva rozeti ve EN SAĞ ÜST KÖŞEYE SABİTLENMİŞ 2X BÜYÜTÜLMÜŞ LOGO ROZETİ (cx: 952, cy: 142, r: 82)
   const borderRestoreSvg = Buffer.from(`
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -353,7 +348,10 @@ export async function composeReelSlides(
         </filter>
       </defs>
       <rect x="${viewportX}" y="${viewportY}" width="${viewportW}" height="${viewportH}" rx="28" ry="28" fill="none" stroke="url(#goldAccent2)" stroke-width="4"/>
-      <circle cx="956" cy="118" r="84" fill="#FFFFFF" stroke="url(#goldAccent2)" stroke-width="4.5" filter="url(#logoShadow)"/>
+      <rect x="48" y="84" width="330" height="50" rx="25" ry="25" fill="${canvaTpl.primaryColor}" fill-opacity="0.92" stroke="url(#goldAccent2)" stroke-width="2" filter="url(#logoShadow)"/>
+      <circle cx="76" cy="109" r="7" fill="#FDE68A"/>
+      <text x="96" y="117" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="900" letter-spacing="1.2">${escapeXml(canvaTpl.badgeText)}</text>
+      <circle cx="952" cy="142" r="82" fill="#FFFFFF" stroke="url(#goldAccent2)" stroke-width="4" filter="url(#logoShadow)"/>
       <rect x="${progX}" y="${progY}" width="${progW}" height="${progH}" rx="7" ry="7" fill="none" stroke="#475569" stroke-width="1.5"/>
     </svg>
   `);
@@ -363,7 +361,7 @@ export async function composeReelSlides(
     { input: borderRestoreSvg, blend: 'over' }
   ];
   if (badgeLogoBuf) {
-    hudOverlays.push({ input: badgeLogoBuf, left: 882, top: 44, blend: 'over' });
+    hudOverlays.push({ input: badgeLogoBuf, left: 878, top: 68, blend: 'over' });
   }
 
   await sharp(hudWithLayersBuf)
@@ -378,7 +376,7 @@ export async function composeReelSlides(
     { input: borderRestoreSvg, left: 0, top: 0 }
   ];
   if (badgeLogoBuf) {
-    baseLayers.push({ input: badgeLogoBuf, left: 882, top: 44 });
+    baseLayers.push({ input: badgeLogoBuf, left: 878, top: 68 });
   }
 
   await sharp(studioBgBuf)

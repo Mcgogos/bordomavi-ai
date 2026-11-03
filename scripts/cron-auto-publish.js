@@ -141,19 +141,9 @@ const GEMINI_MODELS = [
 ];
 
 const NVIDIA_MODELS = [
-  { name: '1. GPT-OSS 20B (/gpt-oss)', id: 'openai/gpt-oss-20b' },
-  { name: '2. GLM 5.3 Flash (z-ai/glm-5.3-flash)', id: 'z-ai/glm-5.3-flash' },
-  { name: '3. Nemotron-3 Super 120B', id: 'nvidia/nemotron-3-super-120b-a12b' },
-  { name: '4. MiniMax M3', id: 'minimaxai/minimax-m3' },
-  { name: '5. Kimi K2.6', id: 'moonshotai/kimi-k2.6' },
-  { name: '6. Llama 3.3 70B', id: 'meta/llama-3.3-70b-instruct' },
-  { name: '7. Nemotron 70B', id: 'nvidia/llama-3.1-nemotron-70b-instruct' },
-  { name: '8. Nemotron Ultra 253B', id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1' },
-  { name: '9. Nemotron Super 49B', id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5' },
-  { name: '10. Mistral Large 2', id: 'mistralai/mistral-large-2-instruct' },
-  { name: '11. Codestral 22B', id: 'mistralai/codestral-22b-instruct-v0.1' },
-  { name: '12. Llama 3.2 11B Vision', id: 'meta/llama-3.2-11b-vision-instruct' },
-  { name: '13. Nemotron Nano VL 12B', id: 'nv-mistralai/mistral-nemo-12b-instruct' },
+  { name: '1. Nemotron-3.5 Super 120B', id: 'nvidia/nemotron-3.5-super-vl-120b-a12b' },
+  { name: '2. Google Gemma 26B IT', id: 'google/diffusiongemma-26b-a4b-it' },
+  { name: '3. Nemotron-3 Ultra 550B', id: 'nvidia/nemotron-3-ultra-550b-a55b' },
 ];
 
 async function callNvidiaFallback(prompt) {

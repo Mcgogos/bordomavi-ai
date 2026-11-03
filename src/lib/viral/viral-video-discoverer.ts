@@ -418,7 +418,7 @@ export async function inspectViralVideoUrl(
         '--add-header',
         'Accept-Language:tr-TR,tr;q=0.9',
         '--extractor-args',
-        'youtube:lang=tr',
+        'youtube:player_client=android_vr,ios,mweb,web;lang=tr',
         url,
       ],
       { timeout: 25000, maxBuffer: 10 * 1024 * 1024 }

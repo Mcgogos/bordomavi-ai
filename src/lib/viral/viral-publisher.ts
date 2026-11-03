@@ -36,18 +36,21 @@ export async function runAutonomousViralReelPublisher(options?: {
 
   let candidate: ViralVideoCandidate | null = null;
 
+  let candidateQueue: ViralVideoCandidate[] = [];
+
   try {
     if (options?.customVideoUrl) {
-      candidate = await inspectViralVideoUrl(
+      const single = await inspectViralVideoUrl(
         options.customVideoUrl,
         options.preferCategory === 'Trabzon Yöresi' ? 'TRABZON_YORESI' : undefined
       );
-      if (!candidate) {
+      if (!single) {
         return {
           success: false,
           error: `Belirtilen video URL'si incelenemedi veya uygun sürede değil: ${options.customVideoUrl}`,
         };
       }
+      candidateQueue = [single];
     } else {
       const candidates = await discoverTrendingTrabzonsporVideos({
         limit: 8,
@@ -60,26 +63,46 @@ export async function runAutonomousViralReelPublisher(options?: {
           error: 'Şu anda paylaşılmamış yeni bir viral Trabzonspor/Trabzon videosu bulunamadı.',
         };
       }
-      candidate = candidates[0];
+      candidateQueue = candidates.slice(0, 4);
     }
 
-    console.log(
-      `[ViralPublisher] 🎯 Selected top viral candidate: "${candidate.cleanTitle}" (Views: ${candidate.viewCount}, Likes: ${candidate.likeCount}, Score: ${candidate.viralScore})`
-    );
+    let processed: Awaited<ReturnType<typeof processViralVideoIntoBrandedReel>> | null = null;
+    let lastProcessErr = '';
 
-    const processed = await processViralVideoIntoBrandedReel({
-      candidate,
-      customHeadline: options?.customHeadline,
-    });
+    for (const item of candidateQueue) {
+      try {
+        console.log(
+          `[ViralPublisher] 🎯 Trying viral candidate: "${item.cleanTitle}" (Views: ${item.viewCount}, Likes: ${item.likeCount}, Score: ${item.viralScore})`
+        );
+        const res = await processViralVideoIntoBrandedReel({
+          candidate: item,
+          customHeadline: options?.customHeadline,
+        });
+        if (res.qualityResult.passed) {
+          candidate = item;
+          processed = res;
+          break;
+        } else {
+          lastProcessErr = `Kalite kontrolü: ${res.qualityResult.errors.join(' | ')}`;
+          for (const f of [res.videoFilePath, res.previewFramePath]) {
+            try { if (f && fs.existsSync(f)) fs.unlinkSync(f); } catch {}
+          }
+        }
+      } catch (candErr: any) {
+        lastProcessErr = candErr.message || 'İndirme/işleme hatası';
+        console.warn(`[ViralPublisher] Candidate "${item.cleanTitle}" failed (${lastProcessErr}), trying next candidate...`);
+      }
+    }
+
+    if (!processed || !candidate) {
+      return {
+        success: false,
+        candidate: candidateQueue[0],
+        error: `Viral video adayları işlenemedi: ${lastProcessErr}`,
+      };
+    }
 
     try {
-      if (!processed.qualityResult.passed) {
-        return {
-          success: false,
-          candidate,
-          error: `Viral Reels kalite kontrolünden geçemedi: ${processed.qualityResult.errors.join(' | ')}`,
-        };
-      }
 
       console.log(
         `[ViralPublisher] 📤 Uploading branded viral Reel to Facebook (${(

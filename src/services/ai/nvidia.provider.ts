@@ -25,11 +25,11 @@ export interface FallbackModelDef {
   candidateIds: string[];
 }
 
-// Canlı ortamda 200 OK yanıtı ve <1sn yanıt süresi doğrulanmış aktif modeller
+// Canlı ortamda 200 OK yanıtı ve hızlı Türkçe üretimi doğrulanmış aktif modeller
 export const NVIDIA_FALLBACK_MODELS: FallbackModelDef[] = [
-  { name: '1. Nemotron-3 Ultra 550B (Ultra Hızlı ~800ms)', candidateIds: ['nvidia/nemotron-3-ultra-550b-a55b'] },
-  { name: '2. Llama 3.2 11B Vision (Doğrulanmış)', candidateIds: ['meta/llama-3.2-11b-vision-instruct'] },
-  { name: '3. Nemotron-3 Super 120B', candidateIds: ['nvidia/nemotron-3-super-120b-a12b'] },
+  { name: '1. Nemotron-3.5 Super 120B (Hızlı Türkçe)', candidateIds: ['nvidia/nemotron-3.5-super-vl-120b-a12b'] },
+  { name: '2. Google Gemma 26B IT (~850ms Ultra Hızlı)', candidateIds: ['google/diffusiongemma-26b-a4b-it'] },
+  { name: '3. Nemotron-3 Ultra 550B', candidateIds: ['nvidia/nemotron-3-ultra-550b-a55b'] },
 ];
 
 export class NvidiaProvider implements AIProvider {
@@ -83,7 +83,7 @@ export class NvidiaProvider implements AIProvider {
           try {
             const res = await fetch(this.nvidiaBaseUrl, {
               method: 'POST',
-              signal: AbortSignal.timeout(10000),
+              signal: AbortSignal.timeout(16000),
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${this.nvidiaApiKey}`,

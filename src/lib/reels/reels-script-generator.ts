@@ -513,7 +513,7 @@ export async function generateReelScript(params: {
     }
   ];
 
-  const facebookCaption = `🎬 ${cleanTitle}\n\n${aiNarration}\n\n💬 Siz bu gelişmeyi nasıl değerlendiriyorsunuz? Görüşlerinizi yorumlarda paylaşın!\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #SüperLig ${categoryTag} #Reels`;
+  const facebookCaption = `🎬 ${cleanTitle}\n\n${aiNarration}\n\n💬 Siz bu gelişmeyi nasıl değerlendiriyorsunuz? Görüşlerinizi yorumlarda paylaşın!\n\n👉 Trabzonspor ve Trabzon gündemini kaçırmamak için BordoMavi sayfamızı TAKİP ETMEYİ unutmayın! 🔔❤️💙\n\n✍️ Editör\n\n#Trabzonspor #BordoMavi #Trabzon #SüperLig ${categoryTag} #Reels`;
 
   return {
     title: cleanTitle,

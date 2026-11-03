@@ -83,29 +83,77 @@ export async function probeVideoFile(filePath: string): Promise<VideoProbeInfo> 
 }
 
 /**
- * Viral videoyu yt-dlp ile en yüksek kalitede MP4 olarak indirir.
+ * Viral videoyu yt-dlp (çoklu istemci + bulut IP koruması) ve yedek akış sunucuları ile en yüksek kalitede MP4 olarak indirir.
  */
 export async function downloadViralSourceVideo(url: string, outputFilePath: string): Promise<void> {
   const ytdlp = await getYtDlpPath();
   const ffmpegPath = getFFmpegPath();
 
-  await execFileAsync(
-    ytdlp,
-    [
-      '-f',
-      'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-      '--merge-output-format',
-      'mp4',
-      '--no-playlist',
-      '--no-warnings',
-      '--ffmpeg-location',
-      ffmpegPath,
-      '-o',
-      outputFilePath,
-      url,
-    ],
-    { timeout: 90000, maxBuffer: 15 * 1024 * 1024 }
-  );
+  const clientProfiles = [
+    'youtube:player_client=android_vr,ios,mweb,web',
+    'youtube:player_client=tv,web_embedded,android',
+  ];
+
+  for (const profile of clientProfiles) {
+    try {
+      if (fs.existsSync(outputFilePath)) {
+        try { fs.unlinkSync(outputFilePath); } catch {}
+      }
+      await execFileAsync(
+        ytdlp,
+        [
+          '--extractor-args',
+          profile,
+          '-f',
+          'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+          '--merge-output-format',
+          'mp4',
+          '--no-playlist',
+          '--no-warnings',
+          '--no-check-certificates',
+          '--ffmpeg-location',
+          ffmpegPath,
+          '-o',
+          outputFilePath,
+          url,
+        ],
+        { timeout: 75000, maxBuffer: 15 * 1024 * 1024 }
+      );
+
+      if (fs.existsSync(outputFilePath) && fs.statSync(outputFilePath).size >= 15000) {
+        return;
+      }
+    } catch (err: any) {
+      console.warn(`[ViralVideoProcessor] yt-dlp profile (${profile}) warning:`, err.message?.slice(0, 160));
+    }
+  }
+
+  // Yedek Aşama: Bulut veri merkezi IP'lerinde YouTube kısıtlamasına karşı doğrudan MP4 akış aynaları
+  const ytMatch = url.match(/(?:shorts\/|v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (ytMatch && ytMatch[1]) {
+    const vidId = ytMatch[1];
+    const mirrors = [
+      `https://inv.nadeko.net/latest_version?id=${vidId}&itag=18`,
+      `https://invidious.nerdvpn.de/latest_version?id=${vidId}&itag=18`,
+      `https://yewtu.be/latest_version?id=${vidId}&itag=18`,
+    ];
+    for (const mirrorUrl of mirrors) {
+      try {
+        const res = await fetch(mirrorUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0.0.0' },
+          redirect: 'follow',
+          signal: AbortSignal.timeout(25000),
+        });
+        if (res.ok) {
+          const buf = Buffer.from(await res.arrayBuffer());
+          if (buf.length > 25000) {
+            fs.writeFileSync(outputFilePath, buf);
+            return;
+          }
+        }
+      } catch {}
+    }
+  }
 
   if (!fs.existsSync(outputFilePath) || fs.statSync(outputFilePath).size < 10000) {
     throw new Error(`Viral video indirilemedi veya dosya bozuk: ${url}`);

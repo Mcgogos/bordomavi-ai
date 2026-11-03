@@ -105,7 +105,7 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
         filesToClean.push(lineFile);
 
         filterParts.push(
-          `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(lineFile)}':fontsize=39:fontcolor=white:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=1192:enable='between(t,${startT},${endT})'`
+          `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(lineFile)}':fontsize=39:fontcolor=white:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=1534:enable='between(t,${startT},${endT})'`
         );
       } else if (cueLines.length >= 2) {
         const line1File = path.join(tempDir, `bm_cue_${timestamp}_${idx}_0.txt`);
@@ -115,10 +115,10 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
         filesToClean.push(line1File, line2File);
 
         filterParts.push(
-          `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(line1File)}':fontsize=38:fontcolor=white:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=1160:enable='between(t,${startT},${endT})'`
+          `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(line1File)}':fontsize=38:fontcolor=white:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=1506:enable='between(t,${startT},${endT})'`
         );
         filterParts.push(
-          `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(line2File)}':fontsize=38:fontcolor=0xFDE68A:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=1222:enable='between(t,${startT},${endT})'`
+          `drawtext=fontfile='${font}':textfile='${escapeFFmpegPath(line2File)}':fontsize=38:fontcolor=0xFDE68A:borderw=2:bordercolor=black@0.6:x=(w-text_w)/2:y=1564:enable='between(t,${startT},${endT})'`
         );
       }
     });
@@ -133,7 +133,7 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       : ['-f', 'lavfi', '-i', `anoisesrc=color=pink:sample_rate=48000:amplitude=0.01:duration=${totalDuration}`];
 
     // FFmpeg Filtre Grafiği:
-    // - [1:v] (Hero Fotoğraf): 30fps yumuşak Ken Burns sinematik zoom hareketi (1008x567 tam 16:9 vitrin içinde)
+    // - [1:v] (Hero Fotoğraf): 30fps yumuşak Ken Burns sinematik zoom hareketi (1024x1140 dikey 9:16 vitrin içinde)
     // - [goldBar]: 30fps saniyede 30 kare kesintisiz akan gerçek zamanlı altın ilerleme çubuğu (x = 64-952+952*(t/totalDuration))
     // - [2:v] (Broadcast HUD Overlay): Şeffaf pencereli koyu mod stüdyo arayüzü (ilerleme çubuğunu yuvarlatılmış pencere içinde maskeler)
     // - Her satırı birebir ortalanmış senkronize altyazılar + MP4 gömülü Türkçe Kapalı Açıklamalı Altyazı (mov_text)
@@ -147,9 +147,9 @@ export async function generateCompleteReelVideo(params: GenerateReelParams): Pro
       '-i', srtFilePath,
       '-filter_complex',
       `color=c=0xFBBF24:s=952x18:r=30:d=${totalDuration}[goldBar];` +
-      `[1:v]zoompan=z='min(zoom+0.00035,1.07)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${totalFrames}:s=1008x567:fps=30[heroAnim];` +
-      `[0:v][heroAnim]overlay=36:220:shortest=1[withHero];` +
-      `[withHero][goldBar]overlay=x='64-952+952*(t/${totalDuration})':y=1342:shortest=1[withProg];` +
+      `[1:v]zoompan=z='min(zoom+0.00055,1.11)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${totalFrames}:s=1024x1140:fps=30[heroAnim];` +
+      `[0:v][heroAnim]overlay=28:64:shortest=1[withHero];` +
+      `[withHero][goldBar]overlay=x='64-952+952*(t/${totalDuration})':y=1642:shortest=1[withProg];` +
       `[withProg][2:v]overlay=0:0:format=auto:shortest=1[withHud];` +
       `[withHud]${subtitleChain},setsar=1:1,setdar=9/16[vOut];` +
       `[4:a]aresample=48000,volume=0.07[ambience];` +
