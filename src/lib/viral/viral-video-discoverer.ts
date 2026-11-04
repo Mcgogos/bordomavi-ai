@@ -534,7 +534,7 @@ export async function discoverTrendingTrabzonsporVideos(options?: {
           '--add-header',
           'Accept-Language:tr-TR,tr;q=0.9',
           '--extractor-args',
-          'youtube:lang=tr',
+          'youtube:player_client=android_vr,ios,mweb,web;lang=tr',
           sourceOrQuery,
         ],
         { timeout: 22000, maxBuffer: 8 * 1024 * 1024 }

@@ -124,7 +124,7 @@ function convertNumbersToTurkishWords(text: string): string {
   const ordMap: Record<string, string> = {
     '1': 'birinci', '2': 'ikinci', '3': 'üçüncü', '4': 'dördüncü', '5': 'beşinci',
     '6': 'altıncı', '7': 'yedinci', '8': 'sekizinci', '9': 'dokuzuncu', '10': 'onuncu',
-    '11': 'on birinci', '12': 'on ikinci', '71': 'yetmiş birinci', '82': 'seksen ikinci'
+    '11': 'on birinci', '12': 'on ikinci', '61': 'altmış birinci', '71': 'yetmiş birinci', '82': 'seksen ikinci'
   };
 
   return text
@@ -133,8 +133,15 @@ function convertNumbersToTurkishWords(text: string): string {
       const base = `${numMap[a] || a} ${numMap[b] || b}`;
       return suffix ? `${base}${suffix.toLocaleLowerCase('tr-TR')}` : base;
     })
-    // Sıra sayıları: 8. hafta / 8. haftasında / 71. dakikada -> sekizinci haftasında
-    .replace(/\b(\d{1,2})\.\s*(hafta\w*|dakika\w*|sıra\w*|maç\w*|yarı\w*|sezon\w*)/gi, (_, n, word) => `${ordMap[n] || n} ${word}`);
+    // Sıra sayıları: 8. hafta / 3. Lig / 3. Grup / 61. dakikada -> üçüncü Lig
+    .replace(/\b(\d{1,2})\.\s*(hafta\w*|dakika\w*|sıra\w*|maç\w*|yarı\w*|sezon\w*|lig\w*|grup\w*|tur\w*|kez\w*|gol\w*|periyot\w*)/gi, (_, n, word) => `${ordMap[n] || n} ${word}`);
+}
+
+function splitTurkishSentences(text: string): string[] {
+  return text
+    .split(/(?<!\b\d{1,3})(?<!\b(?:Prof|Dr|Av|Doç|Yrd|Alb|Org|St|No|vs|vb))(?<=[.?!])\s+/i)
+    .map(s => s.trim())
+    .filter(s => s.length > 0 && !/\b\d+\.$/.test(s));
 }
 
 /**
@@ -390,30 +397,27 @@ export async function generateReelScript(params: {
   const categoryTag = pollMeta.categoryTag;
 
   // Doğrudan haberin orijinal metninden ve tam makale paragraflarından %100 gerçek, eksiksiz ve akıcı Türkçe bülten oluştur
-  const cleanLeadSentences = cleanInitialLead
-    .replace(/\b(Fotomaç|Fanatik|Sabah|Hürriyet|Milliyet|61saat|Haber61|Günebakış|Taka|Kuzey Ekspres)\s*(Gazetesi('nin|'nde|)?|Haber('in|)?|Spor('un|)?)?\b/gi, 'spor basınının')
-    .split(/(?<=[.?!])\s+/)
-    .map(s => s.trim())
-    .filter(s =>
-      s.length > 25 &&
-      !s.endsWith('...') &&
-      !s.includes(',...') &&
-      !/\b(usta yazarları|köşelerinde değerlendirdi|işte detaylar|işte o yorumlar)\b/i.test(s)
-    );
+  const cleanLeadSentences = splitTurkishSentences(
+    cleanInitialLead.replace(/\b(Fotomaç|Fanatik|Sabah|Hürriyet|Milliyet|61saat|Haber61|Günebakış|Taka|Kuzey Ekspres)\s*(Gazetesi('nin|'nde|)?|Haber('in|)?|Spor('un|)?)?\b/gi, 'spor basınının')
+  ).filter(s =>
+    s.length > 25 &&
+    !s.endsWith('...') &&
+    !s.includes(',...') &&
+    !/\b(usta yazarları|köşelerinde değerlendirdi|işte detaylar|işte o yorumlar)\b/i.test(s)
+  );
 
-  const articleSentences = cleanSummary
-    .replace(/\b(Fotomaç|Fanatik|Sabah|Hürriyet|Milliyet|61saat|Haber61|Günebakış|Taka|Kuzey Ekspres)\s*(Gazetesi('nin|'nde|)?|Haber('in|)?|Spor('un|)?)?\b/gi, 'spor basınının')
-    .replace(/\b[A-ZÇĞİÖŞÜ]{3,}(?:\s+[A-ZÇĞİÖŞÜ]{2,})+\s*-\s*(?:\b[A-ZÇĞİÖŞÜ0-9]{2,}\b[.,!…\s]*)+/g, ' ')
-    .split(/(?<=[.?!])\s+/)
-    .map(s => s.trim())
-    .filter(s =>
-      s.length > 35 &&
-      s.length < 190 &&
-      !s.includes('&#') &&
-      !s.endsWith('...') &&
-      !s.includes(',...') &&
-      !/\b(enseyi karartmayın|vesselam|yol kazasıdır|yiğit düştüğü|atamayana atarlar|izlediğim en güzel|haftanın en çok beklenen|tehlikeli pozisyonlar yakalıyor|alkışlamak lazım|tebrik etmek lazım|önemli bir fırsattan yararlanamadı)\b/i.test(s)
-    );
+  const articleSentences = splitTurkishSentences(
+    cleanSummary
+      .replace(/\b(Fotomaç|Fanatik|Sabah|Hürriyet|Milliyet|61saat|Haber61|Günebakış|Taka|Kuzey Ekspres)\s*(Gazetesi('nin|'nde|)?|Haber('in|)?|Spor('un|)?)?\b/gi, 'spor basınının')
+      .replace(/\b[A-ZÇĞİÖŞÜ]{3,}(?:\s+[A-ZÇĞİÖŞÜ]{2,})+\s*-\s*(?:\b[A-ZÇĞİÖŞÜ0-9]{2,}\b[.,!…\s]*)+/g, ' ')
+  ).filter(s =>
+    s.length > 35 &&
+    s.length < 190 &&
+    !s.includes('&#') &&
+    !s.endsWith('...') &&
+    !s.includes(',...') &&
+    !/\b(enseyi karartmayın|vesselam|yol kazasıdır|yiğit düştüğü|atamayana atarlar|izlediğim en güzel|haftanın en çok beklenen|tehlikeli pozisyonlar yakalıyor|alkışlamak lazım|tebrik etmek lazım|önemli bir fırsattan yararlanamadı)\b/i.test(s)
+  );
 
   // Haberin en somut bilgi içeren (gol, oyuncu, teknik direktör, skor, karar) cümlelerini önceliklendir
   const scoredArticleSentences = articleSentences.map((s, idx) => {
@@ -452,7 +456,7 @@ export async function generateReelScript(params: {
   // Maksimum 60 kelime tavanı (Kesin 25.5 - 28.5 saniye stüdyo spiker + video süresi için)
   const words = aiNarration.split(/\s+/).filter(Boolean);
   if (words.length > 60) {
-    const allSentences = aiNarration.split(/(?<=[.?!])\s+/).filter(Boolean);
+    const allSentences = splitTurkishSentences(aiNarration);
     let bounded = '';
     for (const s of allSentences) {
       if ((bounded + ' ' + s).trim().split(/\s+/).length <= 60) {
@@ -469,7 +473,7 @@ export async function generateReelScript(params: {
   const pollOption1 = 'Evet, Beğen';
   const pollOption2 = 'Hayır, Yorum Yap';
 
-  const sentences = aiNarration.split(/(?<=[.?!])\s+/).filter(s => s.trim().length > 0);
+  const sentences = splitTurkishSentences(aiNarration);
   const finalWordCount = aiNarration.split(/\s+/).length;
   const estimatedDuration = Math.max(25, Math.min(30, Math.round(finalWordCount / 2.65)));
   const sceneDuration = +(estimatedDuration / 4).toFixed(1);

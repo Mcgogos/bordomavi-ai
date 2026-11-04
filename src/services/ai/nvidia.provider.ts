@@ -27,9 +27,8 @@ export interface FallbackModelDef {
 
 // Canlı ortamda 200 OK yanıtı ve hızlı Türkçe üretimi doğrulanmış aktif modeller
 export const NVIDIA_FALLBACK_MODELS: FallbackModelDef[] = [
-  { name: '1. Nemotron-3.5 Super 120B (Hızlı Türkçe)', candidateIds: ['nvidia/nemotron-3.5-super-vl-120b-a12b'] },
-  { name: '2. Google Gemma 26B IT (~850ms Ultra Hızlı)', candidateIds: ['google/diffusiongemma-26b-a4b-it'] },
-  { name: '3. Nemotron-3 Ultra 550B', candidateIds: ['nvidia/nemotron-3-ultra-550b-a55b'] },
+  { name: '1. Google Gemma 26B IT (~3sn Doğrudan Türkçe)', candidateIds: ['google/diffusiongemma-26b-a4b-it'] },
+  { name: '2. Nemotron-3.5 Super 120B (Hızlı Türkçe)', candidateIds: ['nvidia/nemotron-3.5-super-vl-120b-a12b'] },
 ];
 
 export class NvidiaProvider implements AIProvider {

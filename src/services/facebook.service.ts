@@ -280,7 +280,7 @@ export class FacebookService {
       .replace(/\n*📌\s*Topluluk\s*&\s*Etiket:[\s\S]*$/i, '')
       .trim();
 
-    if (!cleaned.toLowerCase().includes('takip et')) {
+    if (!cleaned.toLocaleLowerCase('tr-TR').includes('takip et') && !cleaned.toLowerCase().includes('takip')) {
       const hashtagMatch = cleaned.match(/(\n+#[a-zA-Z0-9_ğüşıöçĞÜŞİÖÇ]+(?:\s+#[a-zA-Z0-9_ğüşıöçĞÜŞİÖÇ]+)*)\s*$/);
       const followCta =
         '\n\n👉 Trabzonspor ve Trabzon gündemini kaçırmamak için BordoMavi sayfamızı TAKİP ETMEYİ unutmayın! 🔔❤️💙';
@@ -327,8 +327,7 @@ export class FacebookService {
       const formData = new FormData();
       const srtBlob = new Blob([Buffer.from(effectiveSrt, 'utf8')], { type: 'text/plain' });
       formData.append('captions_file', srtBlob, 'captions.tr_TR.srt');
-      formData.append('default', 'true');
-      formData.append('locale', 'tr_TR');
+      formData.append('default_locale', 'tr_TR');
       formData.append('access_token', token);
 
       const res = await fetch(`${GRAPH_API_BASE}/${videoId}/captions`, {
@@ -338,7 +337,19 @@ export class FacebookService {
       });
       const data = await res.json();
       if (data?.success || data?.id) {
-        console.log(`[FacebookService] ✅ Closed Captions (.srt tr_TR) uploaded for video ${videoId}`);
+        console.log(`[FacebookService] ✅ Closed Captions (.srt tr_TR, is_default=true) uploaded for video ${videoId}`);
+        return true;
+      } else if (data?.error?.code === 482) {
+        // Altyazı zaten yüklüyse varsayılan (is_default=true) olarak etkinleştir
+        const defForm = new FormData();
+        defForm.append('default_locale', 'tr_TR');
+        defForm.append('access_token', token);
+        await fetch(`${GRAPH_API_BASE}/${videoId}/captions`, {
+          method: 'POST',
+          body: defForm,
+          signal: AbortSignal.timeout(15_000),
+        });
+        console.log(`[FacebookService] ✅ Existing tr_TR captions marked as default (is_default=true) for video ${videoId}`);
         return true;
       } else if (data?.error) {
         console.warn(`[FacebookService] Captions API note for ${videoId}:`, data.error.message);

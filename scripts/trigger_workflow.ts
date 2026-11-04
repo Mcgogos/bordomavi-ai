@@ -108,43 +108,24 @@ async function main() {
   } else if (quota.quota > 0 && quota.allowedType === 'REELS') {
     console.log(`🎬 ${quota.windowName} (${quota.activeSlotId}) Aktif -> Otonom Reels Motoru Başlatılıyor...`);
 
-    const preferViralFirst = quota.activeSlotId === 'SLOT_1500_REELS' || quota.activeSlotId === 'SLOT_2030_REELS';
+    const preferCategory = quota.activeSlotId === 'SLOT_1500_REELS' ? 'Trabzon Yöresi' : 'Trabzonspor';
+    console.log(
+      `🔥 1. Aşama: İnternetteki En Trend ${preferCategory} Viral Videosu Taranıyor & Logomuzla İşleniyor...`
+    );
+    const viralRes = await runAutonomousViralReelPublisher({ preferCategory });
+    console.log('Viral Reel result:', viralRes);
 
-    if (preferViralFirst) {
-      const preferCategory = quota.activeSlotId === 'SLOT_1500_REELS' ? 'Trabzon Yöresi' : 'Trabzonspor';
-      console.log(
-        `🔥 1. Aşama: İnternetteki En Trend ${preferCategory} Viral Videosu Taranıyor & Logomuzla İşleniyor...`
-      );
-      const viralRes = await runAutonomousViralReelPublisher({ preferCategory });
-      console.log('Viral Reel result:', viralRes);
-
-      if (viralRes.success) {
-        if (quota.activeSlotId) {
-          await SmartPublisher.markSlotPublished(quota.activeSlotId, quota.dateKey);
-        }
-        console.log(`✅ Viral Reels Başarıyla Yayınlandı! FB Post ID: ${viralRes.facebookPostId}`);
-      } else {
-        console.warn(`⚠️ Viral video motoru tamamlanamadı (${viralRes.error}), Haber Reels motoruna (Fallback) geçiliyor...`);
-        const reel = await runAutonomousReelWorkflow({ force: false });
-        console.log('Fallback News Reel result:', reel);
-        if (!reel.success) {
-          throw new Error(`Reels slotu aktifti ancak her iki motorda da yayın yapılamadı: Viral(${viralRes.error}) | Haber(${reel.error || reel.skippedReason})`);
-        }
+    if (viralRes.success) {
+      if (quota.activeSlotId) {
+        await SmartPublisher.markSlotPublished(quota.activeSlotId, quota.dateKey);
       }
+      console.log(`✅ Viral Reels Başarıyla Yayınlandı! FB Post ID: ${viralRes.facebookPostId}`);
     } else {
-      console.log('🎙️ 1. Aşama: Sabah Haber Bülteni Reels Videosu Üretiliyor...');
+      console.warn(`⚠️ Viral video motoru tamamlanamadı (${viralRes.error}), Haber Reels motoruna (Fallback) geçiliyor...`);
       const reel = await runAutonomousReelWorkflow({ force: false });
-      console.log('News Reel result:', reel);
-
+      console.log('Fallback News Reel result:', reel);
       if (!reel.success) {
-        console.warn(`⚠️ Haber Reels tamamlanamadı (${reel.error || reel.skippedReason}), Viral Video motoruna (Fallback) geçiliyor...`);
-        const viralRes = await runAutonomousViralReelPublisher();
-        console.log('Fallback Viral Reel result:', viralRes);
-        if (viralRes.success && quota.activeSlotId) {
-          await SmartPublisher.markSlotPublished(quota.activeSlotId, quota.dateKey);
-        } else if (!viralRes.success) {
-          throw new Error(`Reels slotu aktifti ancak her iki motorda da yayın yapılamadı: Haber(${reel.error || reel.skippedReason}) | Viral(${viralRes.error})`);
-        }
+        throw new Error(`Reels slotu aktifti ancak her iki motorda da yayın yapılamadı: Viral(${viralRes.error}) | Haber(${reel.error || reel.skippedReason})`);
       }
     }
   } else {

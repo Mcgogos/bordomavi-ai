@@ -141,9 +141,8 @@ const GEMINI_MODELS = [
 ];
 
 const NVIDIA_MODELS = [
-  { name: '1. Nemotron-3.5 Super 120B', id: 'nvidia/nemotron-3.5-super-vl-120b-a12b' },
-  { name: '2. Google Gemma 26B IT', id: 'google/diffusiongemma-26b-a4b-it' },
-  { name: '3. Nemotron-3 Ultra 550B', id: 'nvidia/nemotron-3-ultra-550b-a55b' },
+  { name: '1. Google Gemma 26B IT', id: 'google/diffusiongemma-26b-a4b-it' },
+  { name: '2. Nemotron-3.5 Super 120B', id: 'nvidia/nemotron-3.5-super-vl-120b-a12b' },
 ];
 
 async function callNvidiaFallback(prompt) {

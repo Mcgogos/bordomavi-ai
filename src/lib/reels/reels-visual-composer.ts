@@ -189,16 +189,21 @@ export async function composeReelSlides(
 
   const heroBlurBg = await sharp(downloadedNewsImg)
     .resize(heroHiResW, heroHiResH, { fit: 'cover', position: 'center' })
-    .blur(26)
-    .modulate({ brightness: 0.48, saturation: 1.25 })
+    .blur(22)
+    .modulate({ brightness: 0.62, saturation: 1.35 })
     .toBuffer();
 
-  const heroFg = await sharp(downloadedNewsImg)
-    .resize(heroHiResW, heroHiResH, { fit: 'cover', position: sharp.strategy.attention })
+  // Orijinal haber görselindeki yüzleri ve yazıları ASLA sağdan/soldan kesmemek için tam genişlik (fit: 'inside') kullan
+  const heroFgRaw = await sharp(downloadedNewsImg)
+    .resize(heroHiResW, heroHiResH, { fit: 'inside' })
+    .png()
     .toBuffer();
+  const fgMeta = await sharp(heroFgRaw).metadata();
+  const fgH = fgMeta.height || 608;
+  const fgTop = Math.max(0, Math.round((heroHiResH - fgH) / 2));
 
   await sharp(heroBlurBg)
-    .composite([{ input: heroFg, left: 0, top: 0 }])
+    .composite([{ input: heroFgRaw, left: 0, top: fgTop }])
     .png()
     .toFile(heroPhotoPath);
 
