@@ -4,6 +4,7 @@ import { generateCompleteReelVideo, GeneratedReelResult } from './reel-video-gen
 import { checkAgainstPublishedHistory, isNewsTooOld, deduplicateNewsBatch } from '@/lib/news/news-similarity-engine';
 import { stripExternalSources } from '@/lib/content/content-generator';
 import { SmartPublisher } from '@/lib/content/smart-publisher';
+import { PerformanceLearningEngine } from '@/lib/analytics/performance-learning-engine';
 import fs from 'fs';
 
 // İşlem bazlı eşzamanlılık kilidi (Aynı anda iki Reel render edilmesini önler)
@@ -69,9 +70,8 @@ export async function runAutonomousReelWorkflow(options?: {
       };
     }
 
-    // 2. OTOMATİK HABER SEÇİMİ (Kural 2)
-    // Mevcut AI analiz motorunun önem (>=70) ve viral skorunu kullanır
-    const candidateLookback = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    // 2. OTOMATİK HABER SEÇİMİ (Doğrulanmış, Taze ve Yüksek Editoryal Puanlı Haberler)
+    const candidateLookback = new Date(Date.now() - 36 * 60 * 60 * 1000);
 
     let candidateNews: any = null;
 
@@ -80,18 +80,8 @@ export async function runAutonomousReelWorkflow(options?: {
         where: { id: options.targetNewsId },
         include: { source: true, content: true }
       });
-      if (candidateNews && (!candidateNews.imageUrl || !candidateNews.imageUrl.startsWith('http'))) {
-        const scrapedImg = await tryScrapeArticleImage(candidateNews.url);
-        if (scrapedImg) {
-          candidateNews.imageUrl = scrapedImg;
-          await prisma.news.update({
-            where: { id: candidateNews.id },
-            data: { imageUrl: scrapedImg }
-          });
-        }
-      }
     } else {
-      // Otomatik havuzdan görsel materyali tam, en kaliteli taze haberi seç (Kural 2)
+      // Otomatik havuzdan doğrulanmış (UNVERIFIED olmayan) ve en yüksek editoryal puanlı taze haberi seç
       const candidates = await prisma.news.findMany({
         where: {
           isProcessed: true,
@@ -99,26 +89,26 @@ export async function runAutonomousReelWorkflow(options?: {
             { isTrabzonsporRelated: true },
             { isTrabzonsporRelated: null }
           ],
+          NOT: { confidenceLevel: 'UNVERIFIED' },
           aiRecommendedAction: { in: ['CREATE_CONTENT', 'URGENT'] },
-          importanceScore: { gte: 70 },
+          importanceScore: { gte: 72 },
           publishedAt: { gte: candidateLookback },
-          imageUrl: { not: null }
         },
         include: { source: true, content: true },
         orderBy: [
           { importanceScore: 'desc' },
           { viralScore: 'desc' }
         ],
-        take: 20
+        take: 25
       });
 
       // Konu, varlık ve semantik benzerlik motoru ile aday havuzunu tekilleştir (Aynı konudan birden fazla haber alınmaz)
       const { uniqueNews: distinctCandidates } = deduplicateNewsBatch(candidates);
 
-      // Geçmiş yayın, mükerrerlik ve görsel geçerlilik kontrolü uygula
+      // Geçmiş yayın ve mükerrerlik kontrolü uygula (Tüm slayt görselleri %100 yapay zeka tarafından üretilir)
       for (const item of distinctCandidates) {
-        // Görsel materyali yetersiz veya sahte linkli haberleri kesinlikle alma (Kural 2)
-        if (!item.imageUrl || !item.imageUrl.startsWith('http') || item.imageUrl.length < 15) {
+        // Doğrulanmamış veya eski haberleri kesinlikle alma
+        if (item.confidenceLevel === 'UNVERIFIED' || isNewsTooOld(item.publishedAt, 36)) {
           continue;
         }
 
@@ -310,6 +300,8 @@ export async function runAutonomousReelWorkflow(options?: {
     if (quotaInfo.activeSlotId) {
       await SmartPublisher.markSlotPublished(quotaInfo.activeSlotId, quotaInfo.dateKey);
     }
+
+    await PerformanceLearningEngine.generateWeeklyPerformanceReport().catch(() => {});
 
     console.log(`[ReelsPublisher] 🎉 STEP 6: YAYINLANDI! Reel Post ID: ${fbRes.postId}`);
 

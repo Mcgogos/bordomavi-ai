@@ -77,47 +77,11 @@ export async function GET(request: NextRequest) {
 
     const logoDataUrl = BORDOMAVI_BRAND_LOGO_DATA_URI;
 
-    let safeExternalImageDataUrl: string | null = null;
-    const isSafeUrl = Boolean(
-      externalImageUrl &&
-        (externalImageUrl.startsWith('http://') || externalImageUrl.startsWith('https://')) &&
-        !externalImageUrl.includes('localhost') &&
-        !externalImageUrl.includes('127.0.0.1') &&
-        !externalImageUrl.includes('169.254.') &&
-        !externalImageUrl.includes('[::1]')
-    );
-
-    if (isSafeUrl && externalImageUrl) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-        const imgRes = await fetch(externalImageUrl, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            Accept: 'image/jpeg,image/png,image/*;q=0.8',
-          },
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        if (imgRes.ok) {
-          const contentType = (imgRes.headers.get('content-type') || '').toLowerCase();
-          if (
-            contentType.includes('jpeg') ||
-            contentType.includes('jpg') ||
-            contentType.includes('png')
-          ) {
-            const arrayBuffer = await imgRes.arrayBuffer();
-            const mime = contentType.includes('png') ? 'image/png' : 'image/jpeg';
-            safeExternalImageDataUrl = `data:${mime};base64,${Buffer.from(arrayBuffer).toString(
-              'base64'
-            )}`;
-          }
-        }
-      } catch (e) {
-        console.warn('[OG Route] Harici görsel indirilemedi, Canva kurumsal zemin kullanılıyor:', e);
-      }
-    }
+    // Tüm haber görselleri %100 yapay zeka ve Bordo-Mavi-Beyaz-Koyu Lacivert sinematik stüdyo motoru
+    // tarafından telifsiz ve özgün olarak üretilir (dış kaynaklı filigranlı/telifli fotoğraf kullanılmaz).
+    const safeExternalImageDataUrl: string | null = null;
+    const claimTypeParam = searchParams.get('claimType') || '';
+    const editorialScoreParam = searchParams.get('editorialScore') || '';
 
     const primaryColor = canvaTemplate.primaryColor || '#781324';
     const accentColor = canvaTemplate.accentColor || '#38BDF8';

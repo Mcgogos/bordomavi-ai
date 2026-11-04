@@ -1,0 +1,80 @@
+{
+  "intro_hit": {
+    "id": "cut_hit/sub",
+    "role": "intro_hit",
+    "file": "intro_hit.wav",
+    "dur_s": 0.2858,
+    "onset_s": 0.0,
+    "peak_s": 0.0205,
+    "end_s": 0.263,
+    "l50_lufs": -15.89,
+    "offset_ms": 0,
+    "bed_db": 6.5,
+    "align": "onset"
+  },
+  "whoosh_reveal": {
+    "id": "whoosh_big/thump",
+    "role": "whoosh_reveal",
+    "file": "whoosh_reveal.wav",
+    "dur_s": 0.65,
+    "onset_s": 0.0595,
+    "peak_s": 0.1795,
+    "end_s": 0.608,
+    "l50_lufs": -14.78,
+    "offset_ms": 37,
+    "bed_db": 5.5,
+    "align": "peak"
+  },
+  "scene_swish": {
+    "id": "swish/bright",
+    "role": "scene_swish",
+    "file": "scene_swish.wav",
+    "dur_s": 0.35,
+    "onset_s": 0.0142,
+    "peak_s": 0.1195,
+    "end_s": 0.304,
+    "l50_lufs": -13.45,
+    "offset_ms": 20,
+    "bed_db": 4.5,
+    "align": "peak"
+  },
+  "ui_pop": {
+    "id": "ui_pop/soft",
+    "role": "ui_pop",
+    "file": "ui_pop.wav",
+    "dur_s": 0.1826,
+    "onset_s": 0.0025,
+    "peak_s": 0.0435,
+    "end_s": 0.161,
+    "l50_lufs": -15.73,
+    "offset_ms": -20,
+    "bed_db": 4.0,
+    "align": "onset"
+  },
+  "cta_chime": {
+    "id": "notify/mid_tine",
+    "role": "cta_chime",
+    "file": "cta_chime.wav",
+    "dur_s": 0.425,
+    "onset_s": 0.0032,
+    "peak_s": 0.0355,
+    "end_s": 0.3,
+    "l50_lufs": -14.21,
+    "offset_ms": 0,
+    "bed_db": 6.0,
+    "align": "onset"
+  },
+  "outro_lock": {
+    "id": "cut_hit/punch",
+    "role": "outro_lock",
+    "file": "outro_lock.wav",
+    "dur_s": 0.2823,
+    "onset_s": 0.0,
+    "peak_s": 0.0605,
+    "end_s": 0.277,
+    "l50_lufs": -15.26,
+    "offset_ms": 0,
+    "bed_db": 5.5,
+    "align": "onset"
+  }
+}

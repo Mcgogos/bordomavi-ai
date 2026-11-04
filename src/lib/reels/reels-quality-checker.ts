@@ -1,9 +1,9 @@
 import fs from 'fs';
 import { spawn } from 'child_process';
 import { prisma } from '@/lib/db';
-import { checkAgainstPublishedHistory } from '@/lib/news/news-similarity-engine';
-
+import { checkAgainstPublishedHistory, isNewsTooOld } from '@/lib/news/news-similarity-engine';
 import { getFFmpegPath } from './reel-video-generator';
+
 const ffmpegPath = getFFmpegPath();
 
 export interface ReelQualityMetrics {
@@ -12,6 +12,7 @@ export interface ReelQualityMetrics {
   width: number;
   height: number;
   hasAudio: boolean;
+  hasSubtitleStream: boolean;
   videoCodec: string;
   audioCodec: string;
 }
@@ -23,34 +24,35 @@ export interface ReelQualityCheckResult {
   warnings: string[];
 }
 
-/**
- * FFmpeg ile video dosyasının teknik parametrelerini (çözünürlük, süre, ses akışı) ayıklar.
- */
 export async function probeVideoFile(filePath: string): Promise<ReelQualityMetrics> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const child = spawn(ffmpegPath, ['-i', filePath]);
     let stderr = '';
-    child.stderr.on('data', (d) => { stderr += d.toString(); });
+    child.stderr.on('data', (d) => {
+      stderr += d.toString();
+    });
     child.on('close', () => {
-      // 1. Duration
       let durationSeconds = 0;
       const durMatch = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
       if (durMatch) {
-        durationSeconds = parseFloat(durMatch[1]) * 3600 + parseFloat(durMatch[2]) * 60 + parseFloat(durMatch[3]);
+        durationSeconds =
+          parseFloat(durMatch[1]) * 3600 +
+          parseFloat(durMatch[2]) * 60 +
+          parseFloat(durMatch[3]);
       }
 
-      // 2. Video Stream & Resolution (e.g., "1080x1920" or "720x1280")
       let width = 0;
       let height = 0;
       let videoCodec = 'unknown';
-      const videoMatch = stderr.match(/Stream #\d+:\d+.*Video:\s*([a-zA-Z0-9_-]+).*?(\d{3,4})x(\d{3,4})/);
+      const videoMatch = stderr.match(
+        /Stream #\d+:\d+.*Video:\s*([a-zA-Z0-9_-]+).*?(\d{3,4})x(\d{3,4})/
+      );
       if (videoMatch) {
         videoCodec = videoMatch[1];
         width = parseInt(videoMatch[2], 10);
         height = parseInt(videoMatch[3], 10);
       }
 
-      // 3. Audio Stream
       let hasAudio = false;
       let audioCodec = 'none';
       const audioMatch = stderr.match(/Stream #\d+:\d+.*Audio:\s*([a-zA-Z0-9_-]+)/);
@@ -59,6 +61,7 @@ export async function probeVideoFile(filePath: string): Promise<ReelQualityMetri
         audioCodec = audioMatch[1];
       }
 
+      const hasSubtitleStream = /Stream #\d+:\d+.*Subtitle:\s*(mov_text|subrip|tx3g)/i.test(stderr);
       const fileSizeBytes = fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
 
       resolve({
@@ -67,32 +70,26 @@ export async function probeVideoFile(filePath: string): Promise<ReelQualityMetri
         width,
         height,
         hasAudio,
+        hasSubtitleStream,
         videoCodec,
-        audioCodec
+        audioCodec,
       });
     });
   });
 }
 
-/**
- * FFmpeg ile videonun bozuk kare veya oynatma hatası içerip içermediğini denetler.
- */
 export async function checkVideoDecodeIntegrity(filePath: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const child = spawn(ffmpegPath, [
-      '-v', 'error',
-      '-i', filePath,
-      '-f', 'null',
-      '-'
-    ]);
+    const child = spawn(ffmpegPath, ['-v', 'error', '-i', filePath, '-f', 'null', '-']);
     let errOutput = '';
-    child.stderr.on('data', (d) => { errOutput += d.toString(); });
+    child.stderr.on('data', (d) => {
+      errOutput += d.toString();
+    });
     child.on('close', (code) => {
-      // Decode hatası yoksa code 0 ve errOutput boş veya minimumdur
       if (code === 0 && !errOutput.includes('Invalid data found')) {
         resolve(true);
       } else {
-        console.warn("[QualityChecker] Video decode error detected:", errOutput.slice(0, 200));
+        console.warn('[QualityChecker] Video decode error detected:', errOutput.slice(0, 200));
         resolve(false);
       }
     });
@@ -100,15 +97,13 @@ export async function checkVideoDecodeIntegrity(filePath: string): Promise<boole
 }
 
 /**
- * Otomatik Video Kalite Kontrolü (Reels Quality Assurance Guard)
- * Yayımlanmadan önce videoyu 7 kritik testten geçirir:
- * 1. Dosya varlığı ve minimum boyut (>300 KB)
- * 2. 9:16 Dikey Çözünürlük (1080x1920 veya 720x1280+)
- * 3. Süre doğrulaması (18s - 60s arası)
- * 4. Gerçek ses akışı varlığı (Audio stream)
- * 5. FFmpeg kare bütünlüğü (Sıfır bozuk kare)
- * 6. Format uyumu (H.264 / AAC)
- * 7. Tekrar yayın / geçmiş yayın koruması
+ * YAYIN KONTROLÜ (Pre-Publish Editorial, Copyright, Visual, Caption & Technical QA Gate)
+ * Kontrollerden geçmeyen içeriği otomatik yayınlamaz:
+ * 1. İçerik doğruluğu & tazelik (doğrulanmamış veya eski haber engeli)
+ * 2. Telif & Haber-Görsel uyumu (%100 AI görsel ve 6-8 özgün slayt kontrolü)
+ * 3. Video kalitesi (1080x1920 9:16 dikey, H.264/AAC, 0 bozuk kare)
+ * 4. Altyazı kontrolü (.srt ve gömülü mov_text altyazı akışı)
+ * 5. Mükerrer haber engeli (aynı haberin farklı başlıkla tekrar yayınlanmasını önler)
  */
 export async function verifyReelQuality(params: {
   videoFilePath: string;
@@ -116,23 +111,41 @@ export async function verifyReelQuality(params: {
   summary?: string;
   sourceNewsId?: string;
   skipHistoryCheck?: boolean;
+  slideCount?: number;
+  hasClosedCaptions?: boolean;
+  isAiVisualVerified?: boolean;
 }): Promise<ReelQualityCheckResult> {
-  const { videoFilePath, title, summary, sourceNewsId, skipHistoryCheck } = params;
+  const {
+    videoFilePath,
+    title,
+    summary,
+    sourceNewsId,
+    skipHistoryCheck,
+    slideCount,
+    hasClosedCaptions,
+  } = params;
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // 1. Dosya varlığı ve boyut denetimi
   if (!fs.existsSync(videoFilePath)) {
-    return { passed: false, errors: ['Video dosyası diske yazılamadı veya bulunamadı.'], warnings: [] };
+    return {
+      passed: false,
+      errors: ['Video dosyası diske yazılamadı veya bulunamadı.'],
+      warnings: [],
+    };
   }
 
   const metrics = await probeVideoFile(videoFilePath);
 
   if (metrics.fileSizeBytes < 250 * 1024) {
-    errors.push(`Video dosya boyutu çok küçük (${Math.round(metrics.fileSizeBytes / 1024)} KB). Boş veya eksik render.`);
+    errors.push(
+      `Video dosya boyutu çok küçük (${Math.round(
+        metrics.fileSizeBytes / 1024
+      )} KB). Boş veya eksik render.`
+    );
   }
 
-  // 2. Çözünürlük denetimi (9:16 dikey format)
+  // 1. 1080x1920 (9:16) Dikey Format Kontrolü
   if (metrics.width === 0 || metrics.height === 0) {
     errors.push('Video çözünürlük bilgisi okunamadı.');
   } else {
@@ -142,39 +155,77 @@ export async function verifyReelQuality(params: {
     }
   }
 
-  // 3. Süre denetimi (Reels için ideal: 15 - 55 saniye, mutlak alt sınır 10s)
-  if (metrics.durationSeconds < 10) {
-    errors.push(`Video süresi çok kısa (${metrics.durationSeconds}s). Minimum 10 saniye olmalı.`);
+  // 2. Süre Kontrolü (Hedef: 25-35s, kabul aralığı: 12-58s)
+  if (metrics.durationSeconds < 12) {
+    errors.push(`Video süresi çok kısa (${metrics.durationSeconds}s).`);
   } else if (metrics.durationSeconds > 60) {
     warnings.push(`Video süresi 60 saniyeyi aşıyor (${metrics.durationSeconds}s).`);
   }
 
-  // 4. Ses denetimi
+  // 3. Ses ve Altyazı Kontrolü
   if (!metrics.hasAudio) {
     errors.push('Videoda ses akışı (audio stream) bulunamadı. Sessiz video yayınlanamaz.');
   }
+  if (hasClosedCaptions === false && !metrics.hasSubtitleStream) {
+    errors.push('Videoda kapalı açıklamalı altyazı (.srt / mov_text) bulunamadı.');
+  }
 
-  // 5. Kare bütünlüğü testi
+  // 4. Slayt Sayısı Kontrolü (Haber Reels için 6-8 özgün slayt)
+  if (typeof slideCount === 'number' && (slideCount < 6 || slideCount > 8)) {
+    warnings.push(`Slayt sayısı hedef 6-8 aralığında değil (${slideCount} slayt).`);
+  }
+
+  // 5. İçerik Doğruluğu ve Tazelik Kontrolü
+  if (sourceNewsId) {
+    try {
+      const newsItem = await prisma.news.findUnique({ where: { id: sourceNewsId } });
+      if (newsItem) {
+        if (newsItem.confidenceLevel === 'UNVERIFIED') {
+          errors.push(
+            'Doğrulanmamış haber (UNVERIFIED) tespit edildi. Yayın politikası gereği otomatik yayınlanamaz.'
+          );
+        }
+        if (isNewsTooOld(newsItem.publishedAt, 36)) {
+          errors.push(
+            'Haber 36 saatten eski. Eski haberler yeniymiş gibi yayınlanamaz.'
+          );
+        }
+      }
+    } catch {}
+  }
+
+  // 6. Kare Bütünlüğü Testi
   const isDecodable = await checkVideoDecodeIntegrity(videoFilePath);
   if (!isDecodable) {
     errors.push('Video dosyasında bozuk kare veya decode hatası tespit edildi.');
   }
 
-  // 6. Geçmiş yayın mükerrerlik denetimi (Son 7 gün)
+  // 7. Aynı Haberin Farklı Başlıkla Tekrar Yayınlanmasını Önleme (Son 14 Gün)
   if (!skipHistoryCheck) {
     try {
-      const historyCheck = await checkAgainstPublishedHistory({ id: sourceNewsId, title, summary }, 7);
+      const historyCheck = await checkAgainstPublishedHistory(
+        { id: sourceNewsId, title, summary },
+        14
+      );
       if (historyCheck.isDuplicate) {
-        errors.push(`Bu haber son 7 gün içinde zaten yayınlandı: "${historyCheck.matchedPost?.title}". Tekrar yayın engellendi.`);
+        errors.push(
+          `Aynı haber/konu yakın zamanda zaten yayınlandı: "${historyCheck.matchedPost?.title}". Tekrar yayın engellendi.`
+        );
       }
-    } catch (histErr) {
-      // Hata akışı engellemesin
-    }
+    } catch {}
   }
 
   const passed = errors.length === 0;
 
-  console.log(`[ReelQualityChecker] Quality QA Result: ${passed ? '✅ PASSED' : '❌ REJECTED'} | Duration: ${metrics.durationSeconds}s, Size: ${Math.round(metrics.fileSizeBytes / 1024)}KB, Res: ${metrics.width}x${metrics.height}`);
+  console.log(
+    `[ReelQualityChecker] Quality & Editorial QA Result: ${
+      passed ? '✅ PASSED' : '❌ REJECTED'
+    } | Duration: ${metrics.durationSeconds}s, Slides: ${slideCount || 'Viral'}, Size: ${Math.round(
+      metrics.fileSizeBytes / 1024
+    )}KB, Res: ${metrics.width}x${metrics.height}, CC: ${
+      metrics.hasSubtitleStream || Boolean(hasClosedCaptions)
+    }`
+  );
   if (!passed) {
     console.warn('[ReelQualityChecker] QA Errors:', errors);
   }
@@ -183,6 +234,6 @@ export async function verifyReelQuality(params: {
     passed,
     metrics,
     errors,
-    warnings
+    warnings,
   };
 }

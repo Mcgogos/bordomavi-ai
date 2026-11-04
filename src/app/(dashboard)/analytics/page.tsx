@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { SquadService } from "@/lib/squad/squad-service";
+import { PerformanceLearningEngine } from "@/lib/analytics/performance-learning-engine";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -17,7 +18,8 @@ export default async function AnalyticsPage() {
     publishedContent,
     contentStats,
     sources,
-    recentNews
+    recentNews,
+    weeklyReport
   ] = await Promise.all([
     prisma.news.count(),
     prisma.content.count(),
@@ -45,7 +47,8 @@ export default async function AnalyticsPage() {
       select: { title: true, importanceScore: true, viralScore: true },
       orderBy: { publishedAt: 'desc' },
       take: 100
-    })
+    }),
+    PerformanceLearningEngine.generateWeeklyPerformanceReport()
   ]);
 
   const avgScore = contentStats._avg.qualityScore 
@@ -345,6 +348,89 @@ export default async function AnalyticsPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Haftalık Performans Öğrenme Raporu & Gelecek Hafta İçerik Stratejisi */}
+      <Card className="bg-card border-border/80 shadow-xs">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="space-y-1">
+              <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                <Award className="w-4 h-4 text-primary" />
+                {weeklyReport.periodLabel}
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Görüntülenme, ortalama izlenme süresi, tamamlanma oranı, yorum, paylaşım ve yeni takipçi kazanımına göre otonom öğrenme raporu
+              </CardDescription>
+            </div>
+            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] w-fit">
+              Otonom Strateji Aktif
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* 6 Temel Telemetri Özeti */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="p-3 rounded-xl bg-muted/40 border border-border/70">
+              <div className="text-[10px] font-semibold uppercase text-muted-foreground">Toplam Görüntülenme</div>
+              <div className="text-xl font-extrabold text-foreground mt-1">{weeklyReport.summaryMetrics.totalViews.toLocaleString('tr-TR')}</div>
+            </div>
+            <div className="p-3 rounded-xl bg-muted/40 border border-border/70">
+              <div className="text-[10px] font-semibold uppercase text-muted-foreground">Ort. İzlenme Süresi</div>
+              <div className="text-xl font-extrabold text-foreground mt-1">{weeklyReport.summaryMetrics.avgWatchTimeSeconds} sn</div>
+            </div>
+            <div className="p-3 rounded-xl bg-muted/40 border border-border/70">
+              <div className="text-[10px] font-semibold uppercase text-muted-foreground">Tamamlanma Oranı</div>
+              <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">%{weeklyReport.summaryMetrics.avgCompletionRatePct}</div>
+            </div>
+            <div className="p-3 rounded-xl bg-muted/40 border border-border/70">
+              <div className="text-[10px] font-semibold uppercase text-muted-foreground">Toplam Yorum</div>
+              <div className="text-xl font-extrabold text-foreground mt-1">{weeklyReport.summaryMetrics.totalComments}</div>
+            </div>
+            <div className="p-3 rounded-xl bg-muted/40 border border-border/70">
+              <div className="text-[10px] font-semibold uppercase text-muted-foreground">Toplam Paylaşım</div>
+              <div className="text-xl font-extrabold text-foreground mt-1">{weeklyReport.summaryMetrics.totalShares}</div>
+            </div>
+            <div className="p-3 rounded-xl bg-muted/40 border border-border/70">
+              <div className="text-[10px] font-semibold uppercase text-muted-foreground">Yeni Takipçi Katkısı</div>
+              <div className="text-xl font-extrabold text-primary mt-1">+{weeklyReport.summaryMetrics.totalNewFollowers}</div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* Başarılı İçeriklerin Ortak Özellikleri */}
+            <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-2.5">
+              <div className="font-bold text-xs text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                Başarılı İçeriklerin Ortak Özellikleri
+              </div>
+              <ul className="space-y-2 text-xs text-foreground/90 list-disc pl-4">
+                {weeklyReport.winningPatterns.commonTraits.map((trait, i) => (
+                  <li key={i}>{trait}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Başarısız / Düşük Etkileşimli İçeriklerin Yeniden Değerlendirmesi */}
+            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2.5">
+              <div className="font-bold text-xs text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                Düşük Performanslı İçerik Analizi & Revizyon
+              </div>
+              <p className="text-xs text-foreground/90"><strong>Başlık:</strong> {weeklyReport.underperformingEvaluation.headlineFindings}</p>
+              <p className="text-xs text-foreground/90"><strong>Süre & Slayt:</strong> {weeklyReport.underperformingEvaluation.lengthFindings}</p>
+              <p className="text-xs text-foreground/90"><strong>Görsel & Anlatım:</strong> {weeklyReport.underperformingEvaluation.visualAndNarrativeFindings}</p>
+            </div>
+
+            {/* Gelecek Hafta İçin Güncellenen İçerik Stratejisi */}
+            <div className="p-4 rounded-xl bg-sky-500/5 border border-sky-500/20 space-y-2.5">
+              <div className="font-bold text-xs text-sky-700 dark:text-sky-400 uppercase tracking-wider">
+                Gelecek Hafta Otonom İçerik Stratejisi
+              </div>
+              <p className="text-xs text-foreground/90"><strong>Hedef Süre & Slayt:</strong> {weeklyReport.nextWeekStrategy.targetDurationSeconds} • {weeklyReport.nextWeekStrategy.targetSlidesPerReel}</p>
+              <p className="text-xs text-foreground/90"><strong>Başlık Formülü:</strong> {weeklyReport.nextWeekStrategy.headlineFormula}</p>
+              <p className="text-xs text-foreground/90"><strong>Taraftar Sorusu:</strong> {weeklyReport.nextWeekStrategy.fanQuestionStrategy}</p>
+            </div>
           </div>
         </CardContent>
       </Card>

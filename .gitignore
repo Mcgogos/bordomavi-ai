@@ -55,3 +55,11 @@ reset-*.ts
 
 # Prisma query engine (platform-specific, regenerated on deploy)
 node_modules/.prisma/client/query_engine-windows.dll.node
+
+# Earshot Python virtual environment & bytecode
+vendor/earshot/.venv/
+vendor/earshot/.cache/
+vendor/earshot/earshot.egg-info/
+vendor/earshot/**/__pycache__/
+*.pyc
+

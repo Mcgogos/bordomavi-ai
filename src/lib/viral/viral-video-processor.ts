@@ -11,6 +11,7 @@ import { verifyReelQuality, ReelQualityCheckResult } from '../reels/reels-qualit
 import { buildSubtitleCuesFromText, buildSrtFromCues } from '../reels/caption-srt-generator';
 import { getYtDlpPath, ViralVideoCandidate, sanitizeViralTitle, buildViralEditorialContext } from './viral-video-discoverer';
 import { CanvaService, TRABZONSPOR_CANVA_TEMPLATES } from '../canva/canva-service';
+import { renderEarshotSfxTrackForReel, measureReelAudioWithEarshot } from '../reels/earshot-engine';
 
 const execFileAsync = promisify(execFile);
 
@@ -508,6 +509,16 @@ export async function processViralVideoIntoBrandedReel(params: {
     const customBgm = path.join(process.cwd(), 'public', 'assets', 'audio', 'sports_broadcast_bed.mp3');
     const hasCustomBgm = fs.existsSync(customBgm);
 
+    // 7b. Earshot v0.4.0 Ses Tasarım Bankası (252 prosedürel efekt) ile senkronize SFX katmanı üret
+    const earshotSfxPath = await renderEarshotSfxTrackForReel({
+      durationSeconds: targetDuration,
+      cueTimesSeconds: subtitleCues.map((c) => c.startTime),
+      isViralReel: true,
+    });
+    if (earshotSfxPath) {
+      filesToClean.push(earshotSfxPath);
+    }
+
     const ffmpegArgs: string[] = [
       '-y',
       '-t',
@@ -528,10 +539,20 @@ export async function processViralVideoIntoBrandedReel(params: {
 
     let audioFilter = '';
     if (probe.hasAudio) {
-      audioFilter = `[0:a]aresample=48000,volume=1.05[aOut]`;
+      if (earshotSfxPath) {
+        ffmpegArgs.push('-i', earshotSfxPath);
+        audioFilter = `[0:a]aresample=48000,volume=1.05[baseA];[3:a]aresample=48000,volume=0.38[sfxA];[baseA][sfxA]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95[aOut]`;
+      } else {
+        audioFilter = `[0:a]aresample=48000,volume=1.05[aOut]`;
+      }
     } else if (hasCustomBgm) {
       ffmpegArgs.push('-stream_loop', '-1', '-t', String(targetDuration), '-i', customBgm);
-      audioFilter = `[3:a]aresample=48000,volume=0.28[aOut]`;
+      if (earshotSfxPath) {
+        ffmpegArgs.push('-i', earshotSfxPath);
+        audioFilter = `[3:a]aresample=48000,volume=0.28[baseA];[4:a]aresample=48000,volume=0.45[sfxA];[baseA][sfxA]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95[aOut]`;
+      } else {
+        audioFilter = `[3:a]aresample=48000,volume=0.28[aOut]`;
+      }
     } else {
       ffmpegArgs.push(
         '-f',
@@ -539,7 +560,12 @@ export async function processViralVideoIntoBrandedReel(params: {
         '-i',
         `anoisesrc=color=pink:sample_rate=48000:amplitude=0.01:duration=${targetDuration}`
       );
-      audioFilter = `[3:a]volume=0.5[aOut]`;
+      if (earshotSfxPath) {
+        ffmpegArgs.push('-i', earshotSfxPath);
+        audioFilter = `[3:a]volume=0.5[baseA];[4:a]aresample=48000,volume=0.45[sfxA];[baseA][sfxA]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95[aOut]`;
+      } else {
+        audioFilter = `[3:a]volume=0.5[aOut]`;
+      }
     }
 
     const filterComplex = [
@@ -636,7 +662,9 @@ export async function processViralVideoIntoBrandedReel(params: {
       { timeout: 15000 }
     );
 
-    // 9. Kalite kontrolü
+    // 9. Earshot BS.1770 Ses Kalite Ölçümü (LUFS, True Peak dBTP, Parlaklık Hz) + Reel Kalite Kontrolü
+    await measureReelAudioWithEarshot(outputVideoPath).catch(() => {});
+
     const qualityResult = await verifyReelQuality({
       videoFilePath: outputVideoPath,
       title: cleanTitle,

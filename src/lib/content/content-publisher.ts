@@ -225,13 +225,10 @@ export async function publishReadyContent(limit: number = 1, force: boolean = fa
         }).catch(() => {});
 
         const spotSummary = cleanBody.split(/[.!?]\s+/)[0]?.slice(0, 120) || '';
-        let mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&summary=${encodeURIComponent(spotSummary)}&template=${encodeURIComponent(templateCategory)}`;
-        
-        if (content.sourceNews?.imageUrl) {
-          mediaUrl += `&imageUrl=${encodeURIComponent(content.sourceNews.imageUrl)}`;
-        }
+        const editorialScore = content.qualityScore || content.newsValueScore || 85;
+        const mediaUrl = `${appUrl}/api/og?title=${encodeURIComponent(cleanTitle)}&summary=${encodeURIComponent(spotSummary)}&template=${encodeURIComponent(templateCategory)}&editorialScore=${editorialScore}`;
 
-        // 11:00 Metin Haberi Slotu -> Canva Kurumsal Görsel + Metin Gönderisi
+        // 11:00 Metin Haberi Slotu -> %100 Yapay Zeka Üretimi Bordo-Mavi Görsel + Metin Gönderisi
         const publishResponse = await FacebookService.publishPost(messageBody, mediaUrl);
 
         await prisma.content.update({

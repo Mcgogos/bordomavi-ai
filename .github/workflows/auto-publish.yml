@@ -39,12 +39,13 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install System Dependencies (FFmpeg, yt-dlp & DejaVu Fonts)
+      - name: Install System Dependencies (FFmpeg, yt-dlp, DejaVu Fonts & Earshot v0.4.0)
         run: |
           export DEBIAN_FRONTEND=noninteractive
           which ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg)
-          sudo apt-get install -y -qq --no-install-recommends fonts-dejavu-core || true
+          sudo apt-get install -y -qq --no-install-recommends fonts-dejavu-core libsndfile1 python3-venv || true
           sudo curl -sL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && sudo chmod a+rx /usr/local/bin/yt-dlp || true
+          python3 -m venv vendor/earshot/.venv && vendor/earshot/.venv/bin/pip install -q numpy scipy soundfile soxr librosa pyloudnorm scikit-learn pillow matplotlib && vendor/earshot/.venv/bin/pip install -q --no-deps -e vendor/earshot || true
           ffmpeg -version | head -n 1
           yt-dlp --version || true
 

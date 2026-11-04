@@ -1,8 +1,81 @@
 import { prisma } from '@/lib/db';
 import { AIFactory } from '@/services/ai/ai.factory';
+import { classifyNewsClaimType, ClaimClassification } from '@/services/visual/ai-visual-generator';
 
 // In-memory lock to prevent race conditions during concurrent runs
 const processingIds = new Set<string>();
+
+/**
+ * Önemli iddiaları son 36 saatteki diğer bağımsız haber kaynaklarıyla çapraz doğrular.
+ * Resmî açıklama, gazeteci iddiası, yorum ve doğrulanmış haber ayrımını yapar.
+ */
+export async function verifyCrossSourceCorroboration(newsItem: {
+  id: string;
+  title: string;
+  summary?: string | null;
+  sourceId?: string;
+  source?: { name?: string; type?: string } | null;
+}): Promise<{
+  independentSourceCount: number;
+  corroboratingSources: string[];
+  claimClassification: ClaimClassification;
+  isVerifiedForPublish: boolean;
+}> {
+  const titleWords = (newsItem.title || '')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[^a-z0-9çğıöşü\s]/gi, ' ')
+    .split(/\s+/)
+    .filter(
+      (w) =>
+        w.length >= 4 &&
+        !['trabzonspor', 'bordo', 'mavi', 'mavili', 'için', 'olan', 'göre', 'sonra', 'önce'].includes(w)
+    );
+
+  const recentOtherNews = await prisma.news.findMany({
+    where: {
+      id: { not: newsItem.id },
+      ...(newsItem.sourceId ? { sourceId: { not: newsItem.sourceId } } : {}),
+      publishedAt: { gte: new Date(Date.now() - 36 * 60 * 60 * 1000) },
+    },
+    include: { source: true },
+    take: 120,
+    orderBy: { publishedAt: 'desc' },
+  });
+
+  const matchedSourceNames = new Set<string>();
+  if (newsItem.source?.name) {
+    matchedSourceNames.add(newsItem.source.name);
+  }
+
+  for (const other of recentOtherNews) {
+    const otherText = `${other.title} ${other.summary || ''}`.toLocaleLowerCase('tr-TR');
+    const sharedHits = titleWords.filter((w) => otherText.includes(w));
+    if (sharedHits.length >= 2 || (titleWords.length === 1 && sharedHits.length === 1)) {
+      matchedSourceNames.add(other.source?.name || other.sourceId);
+    }
+  }
+
+  const independentSourceCount = Math.max(1, matchedSourceNames.size);
+  const claimClassification = classifyNewsClaimType(
+    newsItem.title || '',
+    newsItem.summary || '',
+    independentSourceCount
+  );
+
+  const isOfficialOrClub =
+    claimClassification === 'RESMİ AÇIKLAMA' || newsItem.source?.type === 'CLUB';
+  const isVerifiedForPublish =
+    isOfficialOrClub ||
+    independentSourceCount >= 2 ||
+    claimClassification === 'DOĞRULANMIŞ HABER';
+
+  return {
+    independentSourceCount,
+    corroboratingSources: Array.from(matchedSourceNames).slice(0, 5),
+    claimClassification,
+    isVerifiedForPublish,
+  };
+}
 
 export function analyzeNewsHeuristic(newsItem: any) {
   const title = (newsItem.title || '').trim();
@@ -11,11 +84,11 @@ export function analyzeNewsHeuristic(newsItem: any) {
 
   // Trabzonspor doğrudan alaka kontrolü
   const tsKeywords = [
-    'trabzonspor', 'bordo mavi', 'bordo-mavi', 'fırtına', 'papara park', 
-    'thomas reis', 'uğurcan', 'visca', 'cham', 'savic', 'mendy', 'banza', 
-    'nwakaeme', 'ertuğrul doğan', 'avcı', 'şenol güneş', 'drogheda'
+    'trabzonspor', 'bordo mavi', 'bordo-mavi', 'fırtına', 'papara park',
+    'thomas reis', 'uğurcan', 'visca', 'cham', 'savic', 'mendy', 'banza',
+    'nwakaeme', 'ertuğrul doğan', 'avcı', 'şenol güneş', 'fatih tekke', 'muçi', 'onuachu'
   ];
-  const isTs = tsKeywords.some(k => text.includes(k));
+  const isTs = tsKeywords.some((k) => text.includes(k));
 
   if (!isTs) {
     return {
@@ -32,22 +105,21 @@ export function analyzeNewsHeuristic(newsItem: any) {
       keyPoints: [title],
       riskLevel: 'LOW',
       aiConfidence: 'HIGH',
-      confidenceLevel: 'UNVERIFIED'
+      confidenceLevel: 'UNVERIFIED',
     };
   }
 
-  // 1. Dinamik Kategori & Öncelik Puanlaması (75 Puan Yığılma Problemini Önleyen Katmanlı Mimari)
-  // Taban puan haberin alaka düzeyine göre dinamik belirlenir (önceki gibi sabit 72 değil)
+  // 1. Dinamik Kategori & 100 Üzerinden Editoryal Potansiyel Puanlaması
   let baseScore = 60;
   let recommendedType = 'NEWS';
   let recommendedAction: 'IGNORE' | 'MONITOR' | 'CREATE_CONTENT' | 'URGENT' = 'MONITOR';
 
   // TIER 1: Flaş / Son Dakika / Resmi KAP / Teknik Heyet Değişikliği / Kriz (+24 ile +32 puan) -> 88-96 Puan
   const isMajorBreaking = [
-    'son dakika', 'flaş', 'resmi açıklama', 'kap bildirimi', 'yollar ayrıldı', 
+    'son dakika', 'flaş', 'resmi açıklama', 'kap bildirimi', 'yollar ayrıldı',
     'karşılıklı anlaşıldı', 'istifa', 'tarihe geçti', 'büyük kriz', 'olağanüstü',
     'şampiyonluk', 'kupa finali', 'tff kararı', 'ceza verildi'
-  ].some(k => text.includes(k));
+  ].some((k) => text.includes(k));
 
   if (isMajorBreaking) {
     baseScore += 26;
@@ -57,21 +129,21 @@ export function analyzeNewsHeuristic(newsItem: any) {
 
   // TIER 2: Derbi & Büyük Karşılaşmalar (+18 ile +24 puan) -> 80-88 Puan
   const isDerby = [
-    'derbi', 'beşiktaş', 'fenerbahçe', 'galatasaray', 'dev maç', 'ilk 11', 
+    'derbi', 'beşiktaş', 'fenerbahçe', 'galatasaray', 'dev maç', 'ilk 11',
     'kadro açıklandı', 'hakem skandalı', '3 puan', 'galibiyet', 'maç günü'
-  ].some(k => text.includes(k));
+  ].some((k) => text.includes(k));
 
   if (isDerby) {
     baseScore += 20;
     if (recommendedAction !== 'URGENT') recommendedAction = 'CREATE_CONTENT';
-    recommendedType = (text.includes('ilk 11') || text.includes('kadro')) ? 'MATCH_PREVIEW' : 'MATCH_REPORT';
+    recommendedType = text.includes('ilk 11') || text.includes('kadro') ? 'MATCH_PREVIEW' : 'MATCH_REPORT';
   }
 
   // TIER 3: Sıcak Transfer & İmza & Sözleşme (+14 ile +19 puan) -> 76-84 Puan
   const isTransfer = [
-    'transfer', 'imza attı', 'anlaşma sağlandı', 'bonservis', 'kap', 'sözleşme', 
+    'transfer', 'imza attı', 'anlaşma sağlandı', 'bonservis', 'kap', 'sözleşme',
     'kiralık', 'sağlık kontrolü', 'menajer', 'masada', 'prensipte anlaştı'
-  ].some(k => text.includes(k));
+  ].some((k) => text.includes(k));
 
   if (isTransfer) {
     baseScore += 16;
@@ -81,9 +153,9 @@ export function analyzeNewsHeuristic(newsItem: any) {
 
   // TIER 4: Yıldız Oyuncu, Kaptan & Teknik Direktör Odaklı Gelişmeler (+6 ile +10 puan)
   const hasKeyFigure = [
-    'thomas reis', 'uğurcan çakır', 'simon banza', 'stefan savic', 'edin visca', 
-    'anthony nwakaeme', 'muhammed cham', 'ertuğrul doğan', 'fatih tekke', 'batista mendy'
-  ].some(k => text.includes(k));
+    'thomas reis', 'uğurcan çakır', 'simon banza', 'stefan savic', 'edin visca',
+    'anthony nwakaeme', 'muhammed cham', 'ertuğrul doğan', 'fatih tekke', 'batista mendy', 'ernest muçi'
+  ].some((k) => text.includes(k));
 
   if (hasKeyFigure) {
     baseScore += 8;
@@ -93,7 +165,7 @@ export function analyzeNewsHeuristic(newsItem: any) {
   const isStandardMatch = [
     'süper lig', 'puan durumu', 'taktik', 'basın toplantısı', 'açıklamalarda bulundu',
     'rakip', 'deplasman', 'tribün', 'bilet satışı', 'hakem'
-  ].some(k => text.includes(k));
+  ].some((k) => text.includes(k));
 
   if (isStandardMatch && !isDerby && !isMajorBreaking) {
     baseScore += 6;
@@ -101,9 +173,9 @@ export function analyzeNewsHeuristic(newsItem: any) {
 
   // TIER 6: Rutin Antrenman & Hazırlık İndirimi (-8 ile -14 puan) -> 52-62 Puan
   const isRoutine = [
-    'idman raporu', 'antrenman devam etti', 'salonda çalıştı', 'rejenerasyon', 
+    'idman raporu', 'antrenman devam etti', 'salonda çalıştı', 'rejenerasyon',
     'hazırlıklar sürdü', 'basına kapalı', 'milli ara idmanı'
-  ].some(k => text.includes(k));
+  ].some((k) => text.includes(k));
 
   if (isRoutine && !isDerby && !isTransfer && !isMajorBreaking) {
     baseScore -= 10;
@@ -112,9 +184,9 @@ export function analyzeNewsHeuristic(newsItem: any) {
 
   // TIER 7: Sosyal, Ziyaret & Taziye İndirimi (-16 ile -22 puan) -> 40-50 Puan
   const isSocial = [
-    'doğum günü kutlandı', 'ziyaret etti', 'taziye', 'vefat etti', 'plaket verildi', 
+    'doğum günü kutlandı', 'ziyaret etti', 'taziye', 'vefat etti', 'plaket verildi',
     'öğrencilerle buluştu', 'sponsorluk lansmanı'
-  ].some(k => text.includes(k));
+  ].some((k) => text.includes(k));
 
   if (isSocial && !isMajorBreaking) {
     baseScore -= 18;
@@ -128,36 +200,57 @@ export function analyzeNewsHeuristic(newsItem: any) {
     baseScore -= 3;
   }
 
-  // Doğal Dağılım Çeşitliliği (Tüm haberlerin 75 çıkmasını engelleyen 7 kademeli non-lineer hash varyasyonu)
   const hashVal = title.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-  const hashMod = (hashVal % 9) - 4; // -4, -3, -2, -1, 0, 1, 2, 3, 4
+  const hashMod = (hashVal % 9) - 4;
   const finalImportance = Math.min(97, Math.max(35, baseScore + hashMod));
 
-  // Tartışma ve Viral Puanı (Kategoriye göre dinamik oranlanır)
   const hasDebateTrigger = [
-    'karar verildi', 'kriz', 'tepki', 'gidecek mi', 'kalacak mı', 'cevap verdi', 
+    'karar verildi', 'kriz', 'tepki', 'gidecek mi', 'kalacak mı', 'cevap verdi',
     'itiraf', 'olay', 'hakem', 'var kararı', 'isyan', 'tartışma', '?'
-  ].some(k => text.includes(k));
+  ].some((k) => text.includes(k));
 
-  const discussionScore = Math.min(96, Math.max(30, 
-    isDerby ? finalImportance + 6 : 
-    hasDebateTrigger ? finalImportance + 8 : 
-    isRoutine || isSocial ? finalImportance - 12 : finalImportance - 2
-  ));
+  const discussionScore = Math.min(
+    96,
+    Math.max(
+      30,
+      isDerby
+        ? finalImportance + 6
+        : hasDebateTrigger
+        ? finalImportance + 8
+        : isRoutine || isSocial
+        ? finalImportance - 12
+        : finalImportance - 2
+    )
+  );
 
-  const viralScore = Math.min(96, Math.max(25, 
-    isMajorBreaking || isDerby ? finalImportance + 7 : 
-    isTransfer ? finalImportance + 5 : 
-    isRoutine || isSocial ? finalImportance - 15 : finalImportance - 4
-  ));
+  const viralScore = Math.min(
+    96,
+    Math.max(
+      25,
+      isMajorBreaking || isDerby
+        ? finalImportance + 7
+        : isTransfer
+        ? finalImportance + 5
+        : isRoutine || isSocial
+        ? finalImportance - 15
+        : finalImportance - 4
+    )
+  );
 
-  const shareScore = Math.min(94, Math.max(25, 
-    isMajorBreaking ? finalImportance + 4 : 
-    isDerby ? finalImportance + 3 : 
-    isRoutine || isSocial ? finalImportance - 14 : finalImportance - 5
-  ));
+  const shareScore = Math.min(
+    94,
+    Math.max(
+      25,
+      isMajorBreaking
+        ? finalImportance + 4
+        : isDerby
+        ? finalImportance + 3
+        : isRoutine || isSocial
+        ? finalImportance - 14
+        : finalImportance - 5
+    )
+  );
 
-  // Nihai Aksiyon Belirleme
   let action = recommendedAction;
   if (finalImportance >= 86) {
     action = isMajorBreaking ? 'URGENT' : 'CREATE_CONTENT';
@@ -183,7 +276,7 @@ export function analyzeNewsHeuristic(newsItem: any) {
     keyPoints: [title],
     riskLevel: isMajorBreaking && text.includes('kriz') ? 'MEDIUM' : 'LOW',
     aiConfidence: 'HIGH',
-    confidenceLevel: 'VERIFIED'
+    confidenceLevel: 'VERIFIED',
   };
 }
 
@@ -193,117 +286,190 @@ export async function analyzePendingNews(limit: number = 10) {
     requested: limit,
     processed: 0,
     failed: 0,
-    results: [] as any[]
+    results: [] as any[],
   };
 
   try {
-    // 1. Fetch unprocessed news
-    // Prioritize: LOCAL/CLUB, High Priority, Newest
     const unprocessedNews = await prisma.news.findMany({
       where: {
         isProcessed: false,
-        analysisAttempts: { lt: 3 }
+        analysisAttempts: { lt: 3 },
       },
       include: { source: true },
-      orderBy: [
-        { source: { priority: 'desc' } },
-        { publishedAt: 'desc' }
-      ],
-      take: limit * 2 // Take more to account for already processing ones
+      orderBy: [{ source: { priority: 'desc' } }, { publishedAt: 'desc' }],
+      take: limit * 2,
     });
 
     if (unprocessedNews.length === 0) {
-      console.log("[AI Analyzer] No unprocessed news found.");
+      console.log('[AI Analyzer] No unprocessed news found.');
       return result;
     }
 
-    const aiProvider = AIFactory.getRouter("NEWS_ANALYSIS");
+    const aiProvider = AIFactory.getRouter('NEWS_ANALYSIS');
 
     for (const newsItem of unprocessedNews) {
       if (result.processed + result.failed >= limit) {
-        break; // Reached requested limit
+        break;
       }
 
-      // Check lock to prevent race conditions
       if (processingIds.has(newsItem.id)) {
         continue;
       }
 
-      // Acquire lock
       processingIds.add(newsItem.id);
 
       try {
         console.log(`[AI Analyzer] Analyzing: ${newsItem.title}`);
-        
+
+        // 1. Eski haber kontrolü (Eski haberleri yeniymiş gibi sunma kuralı)
+        const ageHours =
+          (Date.now() - new Date(newsItem.publishedAt).getTime()) / (1000 * 60 * 60);
+        const isStaleNews = ageHours > 36;
+
+        // 2. İki bağımsız kaynaktan çapraz doğrulama + Bilgi Türü Ayrımı
+        const verification = await verifyCrossSourceCorroboration(newsItem);
+
         const newsData = {
           title: newsItem.title,
           summary: newsItem.summary,
           publishedAt: newsItem.publishedAt,
           url: newsItem.url,
-          sourceName: newsItem.source?.name
+          sourceName: newsItem.source?.name,
         };
 
-        // 4. AI Analysis with Heuristic Fallback
         let aiResult: any;
         try {
           aiResult = await aiProvider.analyzeNews(newsData);
         } catch (aiErr: any) {
-          console.warn(`[AI Analyzer] AI analysis failed (${aiErr.message}), using heuristic analyzer...`);
+          console.warn(
+            `[AI Analyzer] AI analysis failed (${aiErr.message}), using heuristic analyzer...`
+          );
           aiResult = analyzeNewsHeuristic(newsItem);
         }
 
-        const isTs = aiResult.isTrabzonsporRelated ?? ((aiResult.trabzonsporRelevanceScore ?? 0) >= 50);
-
+        const isTs =
+          aiResult.isTrabzonsporRelated ?? (aiResult.trabzonsporRelevanceScore ?? 0) >= 50;
         const dynamicFallback = analyzeNewsHeuristic(newsItem);
 
-        // 5. Save to DB
+        // 3. 100 Üzerinden Editoryal Potansiyel Puanı Hesabı (2+ bağımsız kaynak +6 puan bonus alır)
+        let editorialPotentialScore =
+          aiResult.importanceScore ?? dynamicFallback.importanceScore ?? 70;
+        if (verification.independentSourceCount >= 2) {
+          editorialPotentialScore = Math.min(99, editorialPotentialScore + 6);
+        }
+        if (verification.claimClassification === 'RESMİ AÇIKLAMA') {
+          editorialPotentialScore = Math.min(99, editorialPotentialScore + 5);
+        }
+        if (isStaleNews) {
+          editorialPotentialScore = Math.min(40, editorialPotentialScore - 35);
+        }
+
+        // Doğrulanmamış tek kaynaklı spekülatif iddiaları otomatik yayına sokma
+        let finalConfidenceLevel: 'VERIFIED' | 'POSSIBLE' | 'CLAIM' | 'UNVERIFIED' =
+          verification.claimClassification === 'RESMİ AÇIKLAMA' ||
+          verification.independentSourceCount >= 2
+            ? 'VERIFIED'
+            : verification.claimClassification === 'GAZETECİ İDDİASI'
+            ? 'CLAIM'
+            : verification.isVerifiedForPublish
+            ? 'VERIFIED'
+            : 'UNVERIFIED';
+
+        let finalRecommendedAction: 'IGNORE' | 'MONITOR' | 'CREATE_CONTENT' | 'URGENT' = isStaleNews
+          ? 'IGNORE'
+          : !isTs
+          ? 'IGNORE'
+          : finalConfidenceLevel === 'UNVERIFIED'
+          ? 'MONITOR'
+          : (['IGNORE', 'MONITOR', 'CREATE_CONTENT', 'URGENT'].includes(
+              (aiResult.recommendedAction || '').toUpperCase()
+            )
+              ? aiResult.recommendedAction.toUpperCase()
+              : dynamicFallback.recommendedAction) as any;
+
+        const enrichedKeyPoints = [
+          `[${verification.claimClassification}] Editoryal Puan: ${editorialPotentialScore}/100`,
+          `Bağımsız Kaynak Doğrulaması: ${verification.independentSourceCount} kaynak (${verification.corroboratingSources.join(', ') || newsItem.source?.name || 'BordoMavi'})`,
+          ...(Array.isArray(aiResult.keyPoints) ? aiResult.keyPoints : [newsItem.title]),
+        ];
+
         await prisma.news.update({
           where: { id: newsItem.id },
           data: {
             isProcessed: true,
             isTrabzonsporRelated: isTs,
-            importanceScore: aiResult.importanceScore ?? dynamicFallback.importanceScore,
-            credibilityScore: aiResult.credibilityScore ?? dynamicFallback.credibilityScore,
-            relevanceScore: aiResult.trabzonsporRelevanceScore ?? dynamicFallback.trabzonsporRelevanceScore,
-            discussionScore: aiResult.discussionPotentialScore ?? dynamicFallback.discussionPotentialScore,
+            importanceScore: editorialPotentialScore,
+            credibilityScore:
+              verification.independentSourceCount >= 2
+                ? Math.max(92, aiResult.credibilityScore ?? dynamicFallback.credibilityScore)
+                : aiResult.credibilityScore ?? dynamicFallback.credibilityScore,
+            relevanceScore:
+              aiResult.trabzonsporRelevanceScore ?? dynamicFallback.trabzonsporRelevanceScore,
+            discussionScore:
+              aiResult.discussionPotentialScore ?? dynamicFallback.discussionPotentialScore,
             shareScore: aiResult.sharePotentialScore ?? dynamicFallback.sharePotentialScore,
             viralScore: aiResult.viralPotentialScore ?? dynamicFallback.viralPotentialScore,
-            aiRecommendedContentType: (['NEWS', 'COLUMN', 'POLL', 'NOSTALGIA', 'MATCH_PREVIEW', 'MATCH_REPORT', 'TRANSFER', 'PLAYER_ANALYSIS', 'MANAGEMENT_ANALYSIS', 'REELS_SCRIPT', 'FAN_CONTENT', 'QUESTION'].includes((aiResult.recommendedContentType || '').toUpperCase()) ? aiResult.recommendedContentType.toUpperCase() : 'NEWS') as any,
-            aiRecommendedAction: (['IGNORE', 'MONITOR', 'CREATE_CONTENT', 'URGENT'].includes((aiResult.recommendedAction || '').toUpperCase()) ? aiResult.recommendedAction.toUpperCase() : (isTs ? 'CREATE_CONTENT' : 'IGNORE')) as any,
-            aiSummary: aiResult.shortSummary || newsItem.summary || newsItem.title,
-            aiKeyPoints: aiResult.keyPoints || [newsItem.title],
-            aiRiskLevel: (['LOW', 'MEDIUM', 'HIGH'].includes((aiResult.riskLevel || '').toUpperCase()) ? aiResult.riskLevel.toUpperCase() : 'LOW') as any,
-            aiConfidence: (['LOW', 'MEDIUM', 'HIGH'].includes((aiResult.confidence || aiResult.aiConfidence || '').toUpperCase()) ? (aiResult.confidence || aiResult.aiConfidence).toUpperCase() : 'MEDIUM') as any,
-            confidenceLevel: (['VERIFIED', 'POSSIBLE', 'CLAIM', 'UNVERIFIED'].includes((aiResult.confidenceLevel || aiResult.confidence || '').toUpperCase()) ? (aiResult.confidenceLevel || aiResult.confidence).toUpperCase() : 'POSSIBLE') as any,
-            aiAnalyzedAt: new Date()
-          }
+            aiRecommendedContentType: ([
+              'NEWS',
+              'COLUMN',
+              'POLL',
+              'NOSTALGIA',
+              'MATCH_PREVIEW',
+              'MATCH_REPORT',
+              'TRANSFER',
+              'PLAYER_ANALYSIS',
+              'MANAGEMENT_ANALYSIS',
+              'REELS_SCRIPT',
+              'FAN_CONTENT',
+              'QUESTION',
+            ].includes((aiResult.recommendedContentType || '').toUpperCase())
+              ? aiResult.recommendedContentType.toUpperCase()
+              : 'NEWS') as any,
+            aiRecommendedAction: finalRecommendedAction,
+            aiSummary: `[${verification.claimClassification}] ${
+              aiResult.shortSummary || newsItem.summary || newsItem.title
+            }`,
+            aiKeyPoints: enrichedKeyPoints,
+            aiRiskLevel: (['LOW', 'MEDIUM', 'HIGH'].includes(
+              (aiResult.riskLevel || '').toUpperCase()
+            )
+              ? aiResult.riskLevel.toUpperCase()
+              : 'LOW') as any,
+            aiConfidence: (['LOW', 'MEDIUM', 'HIGH'].includes(
+              (aiResult.confidence || aiResult.aiConfidence || '').toUpperCase()
+            )
+              ? (aiResult.confidence || aiResult.aiConfidence).toUpperCase()
+              : 'HIGH') as any,
+            confidenceLevel: finalConfidenceLevel,
+            aiAnalyzedAt: new Date(),
+          },
         });
 
         result.processed++;
         result.results.push({
           title: newsItem.title,
           success: true,
-          importanceScore: aiResult.importanceScore,
-          credibilityScore: aiResult.credibilityScore,
-          recommendedAction: aiResult.recommendedAction,
-          isTrabzonsporRelated: isTs
+          editorialPotentialScore,
+          claimClassification: verification.claimClassification,
+          independentSourceCount: verification.independentSourceCount,
+          recommendedAction: finalRecommendedAction,
+          isTrabzonsporRelated: isTs,
         });
-        
       } catch (err: any) {
         console.error(`[AI Analyzer] Error analyzing ${newsItem.id}:`, err);
         result.failed++;
         result.results.push({
           title: newsItem.title,
           success: false,
-          error: err.message
+          error: err.message,
         });
-        
+
         await prisma.news.update({
           where: { id: newsItem.id },
           data: {
             analysisAttempts: { increment: 1 },
-            aiAnalysisError: err.message
-          }
+            aiAnalysisError: err.message,
+          },
         });
       } finally {
         processingIds.delete(newsItem.id);
@@ -312,7 +478,7 @@ export async function analyzePendingNews(limit: number = 10) {
 
     return result;
   } catch (error: any) {
-    console.error("[AI Analyzer] Fatal error:", error);
+    console.error('[AI Analyzer] Fatal error:', error);
     result.success = false;
     // @ts-ignore
     result.error = error.message;
